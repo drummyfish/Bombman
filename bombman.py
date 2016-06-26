@@ -47,6 +47,7 @@
 
 import sys
 import pygame
+import os
 
 MAP1 = ("env1;"
         "ff;"
@@ -75,8 +76,9 @@ COLOR_ORANGE = 7
 COLOR_BROWN = 8
 COLOR_PURPLE = 9
 
-class Player(object):
+RESOURCE_PATH = "resources"
 
+class Player(object):
   # possible player states
   STATE_IDLE_UP = 0
   STATE_IDLE_RIGHT = 1
@@ -88,17 +90,50 @@ class Player(object):
   STATE_WALKING_LEFT = 7
   STATE_DEAD = 8
 
+  INITIAL_SPEED = 3
+
   def __init__(self):
-    self.color = COLOR_WHITE
+    self.number = 0                       ##< players number and also color index
     self.team_color = COLOR_WHITE
     self.state = Player.STATE_IDLE_DOWN
-    self.position = [0.0,0.0]   ##< [X,Y] float position on the map
+    self.position = [0.0,0.0]             ##< [X,Y] float position on the map
+    self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
+
+  def set_number(self,number):
+    self.number = number
+
+  def get_number(self):
+    return self.number
+
+  def set_position(self,position):
+    self.position = position
+
+  def get_position(self):
+    return self.position
+
+  ## Sets the state and other attributes like position etc. of this player accoording to input action (constants of PlayerKeyMaps class).
+
+  def react_to_input(self,input_action,dt,game_map):
+    distance_to_travel = dt / 1000.0 * self.speed
+
+    self.position = list(self.position)    # in case position was tuple
+
+    if input_action == PlayerKeyMaps.ACTION_UP:
+      self.position[1] -= distance_to_travel
+    elif input_action == PlayerKeyMaps.ACTION_DOWN:
+      self.position[1] += distance_to_travel
+    elif input_action == PlayerKeyMaps.ACTION_RIGHT:
+      self.position[0] += distance_to_travel
+    elif input_action == PlayerKeyMaps.ACTION_LEFT:
+      self.position[0] -= distance_to_travel
 
 class Bomb(object):
   def __init__(self):
     self.time_of_existence = 0  ##< for how long (in ms) the bomb has existed
     self.player = None          ##< to which player the bomb belongs
     self.position = [0,0]       ##< [X,Y] int position on the map
+
+## Holds and manipulates the map data including the players, bombs etc.
 
 class Map(object):
   TILE_FLOOR = 0                ##< walkable map tile
@@ -110,18 +145,26 @@ class Map(object):
 
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
-  def __init__(self, map_data, map_setup):
+  def __init__(self, map_data, play_setup):
     # make the tiles array:
     self.tiles = []
+    starting_positions = [(0.0,0.0) for i in range(10)]      # starting position for each player
 
     map_data = map_data.replace(" ","").replace("\n","")     # get rid of white characters
 
     string_split = map_data.split(";")
 
+    self.environment_name = string_split[0]
+
+    line = -1
+    column = 0
+
     for i in range(len(string_split[3])):
       tile_character = string_split[3][i]
 
       if i % Map.MAP_WIDTH == 0:                             # add new row
+        line += 1
+        column = 0
         self.tiles.append([])
 
       if tile_character == "x":
@@ -132,6 +175,40 @@ class Map(object):
         tile = Map.TILE_FLOOR
 
       self.tiles[-1].append(tile)
+
+      if tile_character.isdigit():
+        starting_positions[int(tile_character)] = (float(column),float(line))
+
+      column += 1
+
+    # initialise players:
+
+    self.players = []                                        # list of players in the game
+    self.players_by_numbers = {}                             # mapping of numbers to players
+    self.players_by_numbers[-1] = None
+
+    player_slots = play_setup.get_slots()
+
+    for i in range(len(player_slots)):
+      if player_slots[i] != None:
+        new_player = Player()
+        new_player.set_number(i)
+        new_player.set_position(starting_positions[i])
+        self.players.append(new_player)
+        self.players_by_numbers[i] = new_player
+      else:
+        self.players_by_numbers[i] = None
+
+  def get_environment_name(self):
+    return self.environment_name
+
+  def get_players(self):
+    return self.players
+
+  ## Gets a dict that maps numbers to players (with Nones if player with given number doesn't exist).
+
+  def get_players_by_numbers(self):
+    return self.players_by_numbers
 
   def get_tiles(self):
     return self.tiles
@@ -166,6 +243,9 @@ class PlaySetup(object):
     self.player_slots[2] = (-1,2)
     self.player_slots[3] = (-1,3)
 
+  def get_slots(self):
+    return self.player_slots
+
 ## Handles conversion of keyboard events to actions of players, plus general
 #  actions (such as menu, ...).
 
@@ -194,7 +274,7 @@ class PlayerKeyMaps(object):
   def set_special_key_map(self, key_menu):
     self.key_maps[key_menu]      = (-1,PlayerKeyMaps.ACTION_MENU)
 
-  ## From currently pressed keys makes a list of actions being currently performed and returns it.
+  ## From currently pressed keys makes a list of actions being currently performed and returns it, format: (player_number, action).
 
   def get_current_actions(self):
     keys_pressed = pygame.key.get_pressed()
@@ -207,6 +287,58 @@ class PlayerKeyMaps(object):
 
     return result
 
+class Renderer(object):
+  MAP_TILE_WIDTH = 50              ##< tile width in pixels
+  MAP_TILE_HEIGHT = 45             ##< tile height in pixels
+  PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
+
+  def __init__(self):
+    self.screen_resolution = (800,600)
+
+    self.environment_images = {}
+
+    environment_names = ["env1"]
+
+    for environment_name in environment_names:
+      filename_floor = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_floor.png")
+      filename_block = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_block.png")
+      filename_wall = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_wall.png")
+
+      self.environment_images[environment_name] = (pygame.image.load(filename_floor),pygame.image.load(filename_block),pygame.image.load(filename_wall))
+
+    self.prerendered_map = None     # keeps a reference to a map for which some parts have been prerendered
+    self.prerendered_map_background = pygame.Surface((Map.MAP_WIDTH * Renderer.MAP_TILE_WIDTH,Map.MAP_HEIGHT * Renderer.MAP_TILE_HEIGHT))
+
+    self.player_images = {}
+    self.player_images["down"] = pygame.image.load(os.path.join(RESOURCE_PATH,"player_down.png"))
+
+  def tile_position_to_pixel_position(self,tile_position):
+    return (int(float(tile_position[0]) * Renderer.MAP_TILE_WIDTH),int(float(tile_position[1]) * Renderer.MAP_TILE_HEIGHT))
+
+  def set_resolution(self, new_resolution):
+    self.screen_resolution = new_resolution
+
+  def render_map(self, map_to_render):
+    result = pygame.Surface(self.screen_resolution)
+
+    if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
+      print("prerendering map...")
+
+      for j in range(Map.MAP_HEIGHT):
+        for i in range(Map.MAP_WIDTH):
+          self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],(i * Renderer.MAP_TILE_WIDTH,j * Renderer.MAP_TILE_HEIGHT))
+
+      self.prerendered_map = map_to_render
+
+    result.blit(self.prerendered_map_background,(0,0))
+
+    for player in map_to_render.get_players():
+      render_position = self.tile_position_to_pixel_position(player.get_position())
+      render_position = (render_position[0] - Renderer.PLAYER_SPRITE_CENTER[0],render_position[1] - Renderer.PLAYER_SPRITE_CENTER[1])
+      result.blit(self.player_images["down"],render_position)
+
+    return result
+
 class Game(object):
   def __init__(self):
     pygame.init()
@@ -215,21 +347,35 @@ class Game(object):
     self.player_key_maps.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
     self.player_key_maps.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
 
+    self.renderer = Renderer()
+
   def run(self):
     screen = pygame.display.set_mode((800,600))
+    time_before = pygame.time.get_ticks()
+
+    self.game_map = Map(MAP1,PlaySetup())
 
     while True:     # main loop
+      dt = min(pygame.time.get_ticks() - time_before,100)
+      time_before = pygame.time.get_ticks()
+
+      self.simulation_step(dt)
+
       for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
 
-      print(self.player_key_maps.get_current_actions())
-
-      screen.fill((0,0,0))
+      screen.blit(self.renderer.render_map(self.game_map),(0,0))
       pygame.display.flip()
+
+  def simulation_step(self,dt):
+    actions_being_performed = self.player_key_maps.get_current_actions()
+    players = self.game_map.get_players_by_numbers()
+
+    for action in actions_being_performed:     # let players perform actions
+      if players[action[0]] != None:
+        players[action[0]].react_to_input(action[1],dt,self.game_map)
 
 # main:
 
-m = Map(MAP1,PlaySetup())
-print(m)
-#game = Game()
-#game.run()
+game = Game()
+game.run()
