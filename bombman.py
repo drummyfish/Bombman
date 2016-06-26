@@ -48,6 +48,7 @@
 import sys
 import pygame
 import os
+import math
 
 MAP1 = ("env1;"
         "ff;"
@@ -112,15 +113,24 @@ class Player(object):
     self.state_time = 0                   ##< how much time (in ms) has been spent in current time
     self.position = [0.0,0.0]             ##< [X,Y] float position on the map
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
+    self.bombs_left = 5                   ##< how many more bombs the player can put at the time
 
   def set_number(self,number):
     self.number = number
+
+  ## Must be called when this player's bomb explodes so that their bomb limit is increased again.
+
+  def bomb_exploded(self):
+    self.bombs_left += 1
 
   def get_number(self):
     return self.number
 
   def get_state(self):
     return self.state
+
+  def get_state_time(self):
+    return self.state_time
 
   def set_position(self,position):
     self.position = position
@@ -146,24 +156,37 @@ class Player(object):
     else:
       self.state = Player.STATE_IDLE_LEFT
 
+    moved = False  # to allow movement along only one axis at a time
+
     for item in input_actions:
       if item[0] != self.number:
         continue                           # not an action for this player
       
       input_action = item[1]
 
-      if input_action == PlayerKeyMaps.ACTION_UP:
+      if not moved and input_action == PlayerKeyMaps.ACTION_UP:
         self.position[1] -= distance_to_travel
         self.state = Player.STATE_WALKING_UP
-      elif input_action == PlayerKeyMaps.ACTION_DOWN:
+        moved = True
+      elif not moved and input_action == PlayerKeyMaps.ACTION_DOWN:
         self.position[1] += distance_to_travel
         self.state = Player.STATE_WALKING_DOWN
-      elif input_action == PlayerKeyMaps.ACTION_RIGHT:
+        moved = True
+      elif not moved and input_action == PlayerKeyMaps.ACTION_RIGHT:
         self.position[0] += distance_to_travel
         self.state = Player.STATE_WALKING_RIGHT
-      elif input_action == PlayerKeyMaps.ACTION_LEFT:
+        moved = True
+      elif not moved and input_action == PlayerKeyMaps.ACTION_LEFT:
         self.position[0] -= distance_to_travel
         self.state = Player.STATE_WALKING_LEFT
+        moved = True
+        
+      if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position):
+        new_bomb = Bomb()
+        new_bomb.set_position(self.position)
+        new_bomb.player = self
+        game_map.add_bomb(new_bomb)
+        self.bombs_left -= 1
         
     if old_state == self.state:
       self.state_time += dt
@@ -174,7 +197,11 @@ class Bomb(object):
   def __init__(self):
     self.time_of_existence = 0  ##< for how long (in ms) the bomb has existed
     self.player = None          ##< to which player the bomb belongs
-    self.position = [0,0]       ##< [X,Y] int position on the map
+    self.position = [0,0]       ##< [X,Y] float position on the map
+    self.explodes_in = 3000     ##< time in ms in which the bomb exploded from the time it was created
+
+  def set_position(self,new_position):
+    self.position = (math.floor(new_position[0]) + 0.5,math.floor(new_position[1]) + 0.5)
 
 ## Holds and manipulates the map data including the players, bombs etc.
 
@@ -226,8 +253,8 @@ class Map(object):
 
     # initialise players:
 
-    self.players = []                                        # list of players in the game
-    self.players_by_numbers = {}                             # mapping of numbers to players
+    self.players = []                                        ##< list of players in the game
+    self.players_by_numbers = {}                             ##< mapping of numbers to players
     self.players_by_numbers[-1] = None
 
     player_slots = play_setup.get_slots()
@@ -236,11 +263,43 @@ class Map(object):
       if player_slots[i] != None:
         new_player = Player()
         new_player.set_number(i)
-        new_player.set_position(starting_positions[i])
+        new_player.set_position((starting_positions[i][0] + 0.5,starting_positions[i][1] + 0.5))
         self.players.append(new_player)
         self.players_by_numbers[i] = new_player
       else:
         self.players_by_numbers[i] = None
+        
+    self.bombs = []                           ##< bombs on the map
+
+  ## Checks if there is a bomb at given tile (coordinates may be float or int).
+
+  def tile_has_bomb(self,tile_coordinates):
+    for bomb in self.bombs:
+      if int(math.floor(tile_coordinates[0])) == int(math.floor(bomb.position[0])) and int(math.floor(tile_coordinates[1])) == int(math.floor(bomb.position[1])):
+        return True
+    
+    return False
+
+  ## Updates some things on the map that change with time.
+
+  def update(self,dt):
+    i = 0
+    
+    while i <= len(self.bombs) - 1:
+      bomb = self.bombs[i]
+      bomb.time_of_existence += dt
+      
+      if bomb.time_of_existence > bomb.explodes_in: # bomb explodes
+        bomb.player.bomb_exploded()
+        self.bombs.remove(bomb)
+      else:
+        i += 1
+
+  def add_bomb(self,bomb):
+    self.bombs.append(bomb)
+
+  def get_bombs(self):
+    return self.bombs
 
   def get_environment_name(self):
     return self.environment_name
@@ -333,7 +392,10 @@ class PlayerKeyMaps(object):
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
+  MAP_TILE_HALF_WIDTH = MAP_TILE_WIDTH / 2
+  MAP_TILE_HALF_HEIGHT = MAP_TILE_HEIGHT / 2
   PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
+  BOMB_SPRITE_CENTER = (22,33)
 
   def __init__(self):
     self.screen_resolution = (800,600)
@@ -352,15 +414,33 @@ class Renderer(object):
     self.prerendered_map = None     # keeps a reference to a map for which some parts have been prerendered
     self.prerendered_map_background = pygame.Surface((Map.MAP_WIDTH * Renderer.MAP_TILE_WIDTH,Map.MAP_HEIGHT * Renderer.MAP_TILE_HEIGHT))
 
-    self.player_images = []         ##< player images in format [color index]["sprite name"]
+    self.player_images = []         ##< player images in format [color index]["sprite name"] and [color index]["sprite name"][frame]
 
     for i in range(10):
       self.player_images.append({})
-      self.player_images[-1]["up"] =  self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_up.png")),COLOR_RGB_VALUES[i])
-      self.player_images[-1]["right"] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_right.png")),COLOR_RGB_VALUES[i])
-      self.player_images[-1]["left"] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_left.png")),COLOR_RGB_VALUES[i])
-      self.player_images[-1]["down"] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_down.png")),COLOR_RGB_VALUES[i])
-
+      
+      for helper_string in ["up","right","down","left"]:
+        self.player_images[-1][helper_string] =  self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + ".png")),COLOR_RGB_VALUES[i])
+        
+        string_index = "walk " + helper_string
+      
+        self.player_images[-1][string_index] = []
+        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk1.png")),COLOR_RGB_VALUES[i]))
+        
+        if helper_string == "up" or helper_string == "down":
+          self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk2.png")),COLOR_RGB_VALUES[i]))
+        else:
+          self.player_images[-1][string_index].append(self.player_images[-1][helper_string])
+        
+        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk3.png")),COLOR_RGB_VALUES[i]))
+        self.player_images[-1][string_index].append(self.player_images[-1][string_index][0])
+     
+    self.bomb_images = []
+    self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb1.png")))
+    self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb2.png")))
+    self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb3.png")))
+    self.bomb_images.append(self.bomb_images[0])
+     
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
   def color_surface(self,surface,color):
@@ -383,19 +463,12 @@ class Renderer(object):
         pixel_color.g = int(intensity * pixel_color.g + one_minus_intensity * color[1] * 255)
         pixel_color.b = int(intensity * pixel_color.b + one_minus_intensity * color[2] * 255)
         
-        
-        #pixel_color.r = int(color[0] * pixel_color.r)
-        #pixel_color.g = int(color[1] * pixel_color.g)
-        #pixel_color.b = int(color[2] * pixel_color.b)
-        
         result.set_at((i,j),pixel_color)
-    
-    
     
     return result
 
-  def tile_position_to_pixel_position(self,tile_position):
-    return (int(float(tile_position[0]) * Renderer.MAP_TILE_WIDTH),int(float(tile_position[1]) * Renderer.MAP_TILE_HEIGHT))
+  def tile_position_to_pixel_position(self,tile_position,center=(0,0)):
+    return (int(float(tile_position[0]) * Renderer.MAP_TILE_WIDTH) - center[0],int(float(tile_position[1]) * Renderer.MAP_TILE_HEIGHT) - center[1])
 
   def set_resolution(self, new_resolution):
     self.screen_resolution = new_resolution
@@ -415,17 +488,36 @@ class Renderer(object):
     result.blit(self.prerendered_map_background,(0,0))
 
     for player in map_to_render.get_players():
-      render_position = self.tile_position_to_pixel_position(player.get_position())
-      render_position = (render_position[0] - Renderer.PLAYER_SPRITE_CENTER[0],render_position[1] - Renderer.PLAYER_SPRITE_CENTER[1])
+      render_position = self.tile_position_to_pixel_position(player.get_position(),Renderer.PLAYER_SPRITE_CENTER)
 
-      if player.get_state() == Player.STATE_WALKING_UP or player.get_state() == Player.STATE_IDLE_UP:
-        result.blit(self.player_images[player.get_number()]["up"],render_position)
-      elif player.get_state() == Player.STATE_WALKING_RIGHT or player.get_state() == Player.STATE_IDLE_RIGHT:
-        result.blit(self.player_images[player.get_number()]["right"],render_position)
-      elif player.get_state() == Player.STATE_WALKING_DOWN or player.get_state() == Player.STATE_IDLE_DOWN:
-        result.blit(self.player_images[player.get_number()]["down"],render_position)
-      else:
-        result.blit(self.player_images[player.get_number()]["left"],render_position)
+      player_image = None
+      animation_frame = (player.get_state_time() / 100) % 4
+
+      if player.get_state() == Player.STATE_IDLE_UP:
+        player_image = self.player_images[player.get_number()]["up"]
+      elif player.get_state() == Player.STATE_IDLE_RIGHT:
+        player_image = self.player_images[player.get_number()]["right"]
+      elif player.get_state() == Player.STATE_IDLE_DOWN:
+        player_image = self.player_images[player.get_number()]["down"]
+      elif player.get_state() == Player.STATE_IDLE_LEFT:
+        player_image = self.player_images[player.get_number()]["left"]
+        
+      elif player.get_state() == Player.STATE_WALKING_UP:
+        player_image = self.player_images[player.get_number()]["walk up"][animation_frame]
+      elif player.get_state() == Player.STATE_WALKING_RIGHT:
+        player_image = self.player_images[player.get_number()]["walk right"][animation_frame]
+      elif player.get_state() == Player.STATE_WALKING_DOWN:
+        player_image = self.player_images[player.get_number()]["walk down"][animation_frame]
+        
+      else: # player.get_state() == Player.STATE_WALKING_LEFT
+        player_image = self.player_images[player.get_number()]["walk left"][animation_frame]
+      
+      result.blit(player_image,render_position)
+      
+    for bomb in map_to_render.get_bombs():
+      animation_frame = (bomb.time_of_existence / 100) % 4
+      render_position = self.tile_position_to_pixel_position(bomb.position,Renderer.BOMB_SPRITE_CENTER)
+      result.blit(self.bomb_images[animation_frame],render_position)
       
     return result
 
@@ -463,6 +555,8 @@ class Game(object):
 
     for player in players:
       player.react_to_inputs(actions_being_performed,dt,self.game_map)
+      
+    self.game_map.update(dt)
 
 # main:
 
