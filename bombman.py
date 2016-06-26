@@ -76,6 +76,19 @@ COLOR_ORANGE = 7
 COLOR_BROWN = 8
 COLOR_PURPLE = 9
 
+COLOR_RGB_VALUES = [
+  (0.6,0.6,0.6),                  # white
+  (0.1,0.1,0.1),                  # black
+  (0.9,0.2,0.2),                  # red
+  (0.4,0.5,1.0),                  # blue
+  (0.6,0.9,0.4),                  # green
+  (0.3,0.9,1.0),                  # cyan
+  (0.4,1.0,0.9),                  # yellow
+  (1.0,0.9,0.5),                  # orange
+  (0.7,0.7,0.6),                  # brown
+  (0.7,0.4,0.9)                   # purple
+  ]
+
 RESOURCE_PATH = "resources"
 
 class Player(object):
@@ -96,6 +109,7 @@ class Player(object):
     self.number = 0                       ##< players number and also color index
     self.team_color = COLOR_WHITE
     self.state = Player.STATE_IDLE_DOWN
+    self.state_time = 0                   ##< how much time (in ms) has been spent in current time
     self.position = [0.0,0.0]             ##< [X,Y] float position on the map
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
 
@@ -105,27 +119,56 @@ class Player(object):
   def get_number(self):
     return self.number
 
+  def get_state(self):
+    return self.state
+
   def set_position(self,position):
     self.position = position
 
   def get_position(self):
     return self.position
 
-  ## Sets the state and other attributes like position etc. of this player accoording to input action (constants of PlayerKeyMaps class).
+  ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
-  def react_to_input(self,input_action,dt,game_map):
+  def react_to_inputs(self,input_actions,dt,game_map):
     distance_to_travel = dt / 1000.0 * self.speed
 
     self.position = list(self.position)    # in case position was tuple
 
-    if input_action == PlayerKeyMaps.ACTION_UP:
-      self.position[1] -= distance_to_travel
-    elif input_action == PlayerKeyMaps.ACTION_DOWN:
-      self.position[1] += distance_to_travel
-    elif input_action == PlayerKeyMaps.ACTION_RIGHT:
-      self.position[0] += distance_to_travel
-    elif input_action == PlayerKeyMaps.ACTION_LEFT:
-      self.position[0] -= distance_to_travel
+    old_state = self.state
+ 
+    if self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_IDLE_UP:
+      self.state = Player.STATE_IDLE_UP
+    elif self.state == Player.STATE_WALKING_RIGHT or self.state == Player.STATE_IDLE_RIGHT:
+      self.state = Player.STATE_IDLE_RIGHT
+    elif self.state == Player.STATE_WALKING_DOWN or self.state == Player.STATE_IDLE_DOWN:
+      self.state = Player.STATE_IDLE_DOWN
+    else:
+      self.state = Player.STATE_IDLE_LEFT
+
+    for item in input_actions:
+      if item[0] != self.number:
+        continue                           # not an action for this player
+      
+      input_action = item[1]
+
+      if input_action == PlayerKeyMaps.ACTION_UP:
+        self.position[1] -= distance_to_travel
+        self.state = Player.STATE_WALKING_UP
+      elif input_action == PlayerKeyMaps.ACTION_DOWN:
+        self.position[1] += distance_to_travel
+        self.state = Player.STATE_WALKING_DOWN
+      elif input_action == PlayerKeyMaps.ACTION_RIGHT:
+        self.position[0] += distance_to_travel
+        self.state = Player.STATE_WALKING_RIGHT
+      elif input_action == PlayerKeyMaps.ACTION_LEFT:
+        self.position[0] -= distance_to_travel
+        self.state = Player.STATE_WALKING_LEFT
+        
+    if old_state == self.state:
+      self.state_time += dt
+    else:
+      self.state_time = 0       # reset the state time
 
 class Bomb(object):
   def __init__(self):
@@ -309,8 +352,47 @@ class Renderer(object):
     self.prerendered_map = None     # keeps a reference to a map for which some parts have been prerendered
     self.prerendered_map_background = pygame.Surface((Map.MAP_WIDTH * Renderer.MAP_TILE_WIDTH,Map.MAP_HEIGHT * Renderer.MAP_TILE_HEIGHT))
 
-    self.player_images = {}
-    self.player_images["down"] = pygame.image.load(os.path.join(RESOURCE_PATH,"player_down.png"))
+    self.player_images = []         ##< player images in format [color index]["sprite name"]
+
+    for i in range(10):
+      self.player_images.append({})
+      self.player_images[-1]["up"] =  self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_up.png")),COLOR_RGB_VALUES[i])
+      self.player_images[-1]["right"] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_right.png")),COLOR_RGB_VALUES[i])
+      self.player_images[-1]["left"] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_left.png")),COLOR_RGB_VALUES[i])
+      self.player_images[-1]["down"] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_down.png")),COLOR_RGB_VALUES[i])
+
+  ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
+
+  def color_surface(self,surface,color):
+    result = surface.copy()
+    
+    for j in range(result.get_size()[1]):
+      for i in range(result.get_size()[0]):
+        pixel_color = result.get_at((i,j))
+        
+        intensity = float(pixel_color.r + pixel_color.g + pixel_color.b) / float(3 * 255)
+        
+        if intensity > 0.5:
+          intensity = 1.0 - intensity
+          
+        intensity = 1 - intensity * 2
+        
+        one_minus_intensity = 1.0 - intensity
+        
+        pixel_color.r = int(intensity * pixel_color.r + one_minus_intensity * color[0] * 255)
+        pixel_color.g = int(intensity * pixel_color.g + one_minus_intensity * color[1] * 255)
+        pixel_color.b = int(intensity * pixel_color.b + one_minus_intensity * color[2] * 255)
+        
+        
+        #pixel_color.r = int(color[0] * pixel_color.r)
+        #pixel_color.g = int(color[1] * pixel_color.g)
+        #pixel_color.b = int(color[2] * pixel_color.b)
+        
+        result.set_at((i,j),pixel_color)
+    
+    
+    
+    return result
 
   def tile_position_to_pixel_position(self,tile_position):
     return (int(float(tile_position[0]) * Renderer.MAP_TILE_WIDTH),int(float(tile_position[1]) * Renderer.MAP_TILE_HEIGHT))
@@ -335,8 +417,16 @@ class Renderer(object):
     for player in map_to_render.get_players():
       render_position = self.tile_position_to_pixel_position(player.get_position())
       render_position = (render_position[0] - Renderer.PLAYER_SPRITE_CENTER[0],render_position[1] - Renderer.PLAYER_SPRITE_CENTER[1])
-      result.blit(self.player_images["down"],render_position)
 
+      if player.get_state() == Player.STATE_WALKING_UP or player.get_state() == Player.STATE_IDLE_UP:
+        result.blit(self.player_images[player.get_number()]["up"],render_position)
+      elif player.get_state() == Player.STATE_WALKING_RIGHT or player.get_state() == Player.STATE_IDLE_RIGHT:
+        result.blit(self.player_images[player.get_number()]["right"],render_position)
+      elif player.get_state() == Player.STATE_WALKING_DOWN or player.get_state() == Player.STATE_IDLE_DOWN:
+        result.blit(self.player_images[player.get_number()]["down"],render_position)
+      else:
+        result.blit(self.player_images[player.get_number()]["left"],render_position)
+      
     return result
 
 class Game(object):
@@ -369,11 +459,10 @@ class Game(object):
 
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
-    players = self.game_map.get_players_by_numbers()
+    players = self.game_map.get_players()
 
-    for action in actions_being_performed:     # let players perform actions
-      if players[action[0]] != None:
-        players[action[0]].react_to_input(action[1],dt,self.game_map)
+    for player in players:
+      player.react_to_inputs(actions_being_performed,dt,self.game_map)
 
 # main:
 
