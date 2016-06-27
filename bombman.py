@@ -492,43 +492,80 @@ class Renderer(object):
 
       self.prerendered_map = map_to_render
 
-   
-        
-
     result.blit(self.prerendered_map_background,(0,0))
 
-    for player in map_to_render.get_players():
-      render_position = self.tile_position_to_pixel_position(player.get_position(),Renderer.PLAYER_SPRITE_CENTER)
+    # order the players and bombs by their y position so that they are drawn correctly
 
-      player_image = None
-      animation_frame = (player.get_state_time() / 100) % 4
+    ordered_objects_to_render = []
+    ordered_objects_to_render.extend(map_to_render.get_players())
+    ordered_objects_to_render.extend(map_to_render.get_bombs())
+    ordered_objects_to_render.sort(key = lambda what: what.get_position()[1])
+    
+    # render the map by lines:
 
-      if player.get_state() == Player.STATE_IDLE_UP:
-        player_image = self.player_images[player.get_number()]["up"]
-      elif player.get_state() == Player.STATE_IDLE_RIGHT:
-        player_image = self.player_images[player.get_number()]["right"]
-      elif player.get_state() == Player.STATE_IDLE_DOWN:
-        player_image = self.player_images[player.get_number()]["down"]
-      elif player.get_state() == Player.STATE_IDLE_LEFT:
-        player_image = self.player_images[player.get_number()]["left"]
+    tiles = map_to_render.get_tiles()
+    environment_images = self.environment_images[map_to_render.get_environment_name()]
+    
+    y = Renderer.MAP_TILE_HEIGHT - environment_images[1].get_size()[1]
+    
+    line_number = 0
+    object_to_render_index = 0
+    
+    for line in tiles:
+      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH
+      
+      while True: # render players and bombs in the current line 
+        if object_to_render_index >= len(ordered_objects_to_render):
+          break
         
-      elif player.get_state() == Player.STATE_WALKING_UP:
-        player_image = self.player_images[player.get_number()]["walk up"][animation_frame]
-      elif player.get_state() == Player.STATE_WALKING_RIGHT:
-        player_image = self.player_images[player.get_number()]["walk right"][animation_frame]
-      elif player.get_state() == Player.STATE_WALKING_DOWN:
-        player_image = self.player_images[player.get_number()]["walk down"][animation_frame]
+        object_to_render = ordered_objects_to_render[object_to_render_index]
         
-      else: # player.get_state() == Player.STATE_WALKING_LEFT
-        player_image = self.player_images[player.get_number()]["walk left"][animation_frame]
+        if object_to_render.get_position()[1] > line_number + 1:
+          break
+        
+        if isinstance(object_to_render,Player):
+          sprite_center = Renderer.PLAYER_SPRITE_CENTER
+          
+          animation_frame = (object_to_render.get_state_time() / 100) % 4
+          
+          if object_to_render.get_state() == Player.STATE_IDLE_UP:
+            image_to_render = self.player_images[object_to_render.get_number()]["up"]
+          elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT:
+            image_to_render = self.player_images[object_to_render.get_number()]["right"]
+          elif object_to_render.get_state() == Player.STATE_IDLE_DOWN:
+            image_to_render = self.player_images[object_to_render.get_number()]["down"]
+          elif object_to_render.get_state() == Player.STATE_IDLE_LEFT:
+            image_to_render = self.player_images[object_to_render.get_number()]["left"]
+          elif object_to_render.get_state() == Player.STATE_WALKING_UP:
+            image_to_render = self.player_images[object_to_render.get_number()]["walk up"][animation_frame]
+          elif object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
+            image_to_render = self.player_images[object_to_render.get_number()]["walk right"][animation_frame]
+          elif object_to_render.get_state() == Player.STATE_WALKING_DOWN:
+            image_to_render = self.player_images[object_to_render.get_number()]["walk down"][animation_frame]
+          else: # Player.STATE_WALKING_LEFT
+            image_to_render = self.player_images[object_to_render.get_number()]["walk left"][animation_frame]
+        else:    # bomb
+          sprite_center = Renderer.BOMB_SPRITE_CENTER
+          animation_frame = (object_to_render.time_of_existence / 100) % 4
+          image_to_render = self.bomb_images[animation_frame]
+        
+        
+        render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
+        result.blit(image_to_render,render_position)
       
-      result.blit(player_image,render_position)
+        object_to_render_index += 1
       
-    for bomb in map_to_render.get_bombs():
-      animation_frame = (bomb.time_of_existence / 100) % 4
-      render_position = self.tile_position_to_pixel_position(bomb.position,Renderer.BOMB_SPRITE_CENTER)
-      result.blit(self.bomb_images[animation_frame],render_position)
-      
+      for tile in line:  # render tiles in the current line
+        if tile == Map.TILE_BLOCK:
+          result.blit(environment_images[1],(x,y))
+        elif tile == Map.TILE_WALL:
+          result.blit(environment_images[2],(x,y))
+
+        x -= Renderer.MAP_TILE_WIDTH
+  
+      y += Renderer.MAP_TILE_HEIGHT
+      line_number += 1
+
     return result
 
 class Game(object):
