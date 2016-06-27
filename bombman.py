@@ -92,7 +92,22 @@ COLOR_RGB_VALUES = [
 
 RESOURCE_PATH = "resources"
 
-class Player(object):
+## Something that has a float position on the map.
+
+class Positionable(object):
+  def __init__(self):
+    self.position = (0.0,0.0)
+
+  def set_position(self,position):
+    self.position = position
+
+  def get_position(self):
+    return self.position
+  
+  def move_to_tile_center(self):
+    self.position = (math.floor(self.position[0]) + 0.5,math.floor(self.position[1]) + 0.5)
+
+class Player(Positionable):
   # possible player states
   STATE_IDLE_UP = 0
   STATE_IDLE_RIGHT = 1
@@ -107,11 +122,11 @@ class Player(object):
   INITIAL_SPEED = 3
 
   def __init__(self):
+    super(Player,self).__init__()
     self.number = 0                       ##< players number and also color index
     self.team_color = COLOR_WHITE
     self.state = Player.STATE_IDLE_DOWN
     self.state_time = 0                   ##< how much time (in ms) has been spent in current time
-    self.position = [0.0,0.0]             ##< [X,Y] float position on the map
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
     self.bombs_left = 5                   ##< how many more bombs the player can put at the time
 
@@ -131,12 +146,6 @@ class Player(object):
 
   def get_state_time(self):
     return self.state_time
-
-  def set_position(self,position):
-    self.position = position
-
-  def get_position(self):
-    return self.position
 
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
@@ -185,6 +194,7 @@ class Player(object):
         new_bomb = Bomb()
         new_bomb.set_position(self.position)
         new_bomb.player = self
+        new_bomb.move_to_tile_center()
         game_map.add_bomb(new_bomb)
         self.bombs_left -= 1
         
@@ -193,15 +203,12 @@ class Player(object):
     else:
       self.state_time = 0       # reset the state time
 
-class Bomb(object):
+class Bomb(Positionable):
   def __init__(self):
+    super(Bomb,self).__init__()
     self.time_of_existence = 0  ##< for how long (in ms) the bomb has existed
     self.player = None          ##< to which player the bomb belongs
-    self.position = [0,0]       ##< [X,Y] float position on the map
     self.explodes_in = 3000     ##< time in ms in which the bomb exploded from the time it was created
-
-  def set_position(self,new_position):
-    self.position = (math.floor(new_position[0]) + 0.5,math.floor(new_position[1]) + 0.5)
 
 ## Holds and manipulates the map data including the players, bombs etc.
 
@@ -484,6 +491,9 @@ class Renderer(object):
           self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],(i * Renderer.MAP_TILE_WIDTH,j * Renderer.MAP_TILE_HEIGHT))
 
       self.prerendered_map = map_to_render
+
+   
+        
 
     result.blit(self.prerendered_map_background,(0,0))
 
