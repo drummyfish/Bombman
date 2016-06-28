@@ -77,17 +77,17 @@ COLOR_ORANGE = 7
 COLOR_BROWN = 8
 COLOR_PURPLE = 9
 
-COLOR_RGB_VALUES = [
-  (0.6,0.6,0.6),                  # white
-  (0.1,0.1,0.1),                  # black
-  (0.9,0.2,0.2),                  # red
-  (0.4,0.5,1.0),                  # blue
-  (0.6,0.9,0.4),                  # green
-  (0.3,0.9,1.0),                  # cyan
-  (0.4,1.0,0.9),                  # yellow
-  (1.0,0.9,0.5),                  # orange
-  (0.7,0.7,0.6),                  # brown
-  (0.7,0.4,0.9)                   # purple
+COLOR_GRADIENTS = [
+  ((0.0,0.0,0.0),(0.5,0.5,0.5),(1.0,1.0,1.0)),                  # white
+  ((0.0,0.0,0.0),(0.1,0.1,0.1),(0.7,0.7,0.7)),                  # black
+  ((0.0,0.0,0.0),(0.917, 0.062, 0.062),(1, 0.929, 0.866)),      # red
+  ((0.0,0.0,0.0),(0.184, 0.415, 0.729),(0.933, 0.941, 0.945)),  # blue
+  ((0.0,0.0,0.0),(0.0,0.0,0.0),(0.0,0.0,0.0)),                  # green
+  ((0.0,0.0,0.0),(0.0,0.0,0.0),(0.0,0.0,0.0)),                  # cyan
+  ((0.0,0.0,0.0),(0.0,0.0,0.0),(0.0,0.0,0.0)),                  # yellow
+  ((0.0,0.0,0.0),(0.0,0.0,0.0),(0.0,0.0,0.0)),                  # orange
+  ((0.0,0.0,0.0),(0.0,0.0,0.0),(0.0,0.0,0.0)),                  # brown
+  ((0.0,0.0,0.0),(0.0,0.0,0.0),(0.0,0.0,0.0))                   # purple
   ]
 
 RESOURCE_PATH = "resources"
@@ -210,13 +210,25 @@ class Bomb(Positionable):
     self.player = None          ##< to which player the bomb belongs
     self.explodes_in = 3000     ##< time in ms in which the bomb exploded from the time it was created
 
-## Holds and manipulates the map data including the players, bombs etc.
+## Represents a flame coming off of an exploding bomb.
 
-class Map(object):
+class Flame(object):
+  def __init_(self):
+    self.player = None          ##< reference to player to which the exploding bomb belonged
+    self.time_to_burnout = 1000 ##< time in ms till the flame disappears
+
+class MapTile(object):
   TILE_FLOOR = 0                ##< walkable map tile
   TILE_BLOCK = 1                ##< non-walkable but destroyable map tile
   TILE_WALL = 2                 ##< non-walkable and non-destroyable map tile
+  
+  def __init__(self):
+    self.kind = MapTile.TILE_FLOOR
+    self.flames = []
 
+## Holds and manipulates the map data including the players, bombs etc.
+
+class Map(object):
   MAP_WIDTH = 15
   MAP_HEIGHT = 11
 
@@ -244,12 +256,14 @@ class Map(object):
         column = 0
         self.tiles.append([])
 
+      tile = MapTile()
+
       if tile_character == "x":
-        tile = Map.TILE_BLOCK
+        tile.kind = MapTile.TILE_BLOCK
       elif tile_character == "#":
-        tile = Map.TILE_WALL
+        tile.kind = MapTile.TILE_WALL
       else:
-        tile = Map.TILE_FLOOR
+        tile.kind = MapTile.TILE_FLOOR
 
       self.tiles[-1].append(tile)
 
@@ -327,9 +341,9 @@ class Map(object):
 
     for line in self.tiles:
       for tile in line:
-        if tile == Map.TILE_FLOOR:
+        if tile.kind == MapTile.TILE_FLOOR:
           result += " "
-        elif tile == Map.TILE_BLOCK:
+        elif tile.kind == MapTile.TILE_BLOCK:
           result += "x"
         else:
           result += "#"
@@ -427,19 +441,19 @@ class Renderer(object):
       self.player_images.append({})
       
       for helper_string in ["up","right","down","left"]:
-        self.player_images[-1][helper_string] =  self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + ".png")),COLOR_RGB_VALUES[i])
+        self.player_images[-1][helper_string] =  self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + ".png")),i)
         
         string_index = "walk " + helper_string
       
         self.player_images[-1][string_index] = []
-        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk1.png")),COLOR_RGB_VALUES[i]))
+        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk1.png")),i))
         
         if helper_string == "up" or helper_string == "down":
-          self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk2.png")),COLOR_RGB_VALUES[i]))
+          self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk2.png")),i))
         else:
           self.player_images[-1][string_index].append(self.player_images[-1][helper_string])
         
-        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk3.png")),COLOR_RGB_VALUES[i]))
+        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk3.png")),i))
         self.player_images[-1][string_index].append(self.player_images[-1][string_index][0])
      
     self.bomb_images = []
@@ -450,7 +464,7 @@ class Renderer(object):
      
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
-  def color_surface(self,surface,color):
+  def color_surface(self,surface,color_number):
     result = surface.copy()
     
     for j in range(result.get_size()[1]):
@@ -458,17 +472,25 @@ class Renderer(object):
         pixel_color = result.get_at((i,j))
         
         intensity = float(pixel_color.r + pixel_color.g + pixel_color.b) / float(3 * 255)
-        
-        if intensity > 0.5:
-          intensity = 1.0 - intensity
+
+        interpolation_value = intensity
+
+        gradient_middle_point = 0.7
+
+        if interpolation_value < gradient_middle_point:
+          interpolation_value = interpolation_value / gradient_middle_point
+          color1 = COLOR_GRADIENTS[color_number][0]
+          color2 = COLOR_GRADIENTS[color_number][1]
+        else:
+          interpolation_value = (1.0 - interpolation_value) / (1.0 - gradient_middle_point)
+          color2 = COLOR_GRADIENTS[color_number][1]
+          color1 = COLOR_GRADIENTS[color_number][2]
           
-        intensity = 1 - intensity * 2
-        
-        one_minus_intensity = 1.0 - intensity
-        
-        pixel_color.r = int(intensity * pixel_color.r + one_minus_intensity * color[0] * 255)
-        pixel_color.g = int(intensity * pixel_color.g + one_minus_intensity * color[1] * 255)
-        pixel_color.b = int(intensity * pixel_color.b + one_minus_intensity * color[2] * 255)
+        interpolation_value2 = 1.0 - interpolation_value
+         
+        pixel_color.r = int(255 * (interpolation_value2 * color1[0] + interpolation_value * color2[0]))
+        pixel_color.g = int(255 * (interpolation_value2 * color1[1] + interpolation_value * color2[1]))
+        pixel_color.b = int(255 * (interpolation_value2 * color1[2] + interpolation_value * color2[2]))
         
         result.set_at((i,j),pixel_color)
     
@@ -549,22 +571,27 @@ class Renderer(object):
           animation_frame = (object_to_render.time_of_existence / 100) % 4
           image_to_render = self.bomb_images[animation_frame]
         
-        
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
         result.blit(image_to_render,render_position)
       
         object_to_render_index += 1
       
       for tile in line:  # render tiles in the current line
-        if tile == Map.TILE_BLOCK:
+        if tile.kind == MapTile.TILE_BLOCK:
           result.blit(environment_images[1],(x,y))
-        elif tile == Map.TILE_WALL:
+        elif tile.kind == MapTile.TILE_WALL:
           result.blit(environment_images[2],(x,y))
 
         x -= Renderer.MAP_TILE_WIDTH
   
       y += Renderer.MAP_TILE_HEIGHT
       line_number += 1
+      
+      
+      
+#      for i in range(10):
+#        result.blit(self.player_images[i]["down"],(i * 60,100))
+      
 
     return result
 
