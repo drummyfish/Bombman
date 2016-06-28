@@ -669,15 +669,31 @@ class Renderer(object):
         result.blit(image_to_render,render_position)
       
         object_to_render_index += 1
-      
-      flame_animation_frame = (pygame.time.get_ticks() / 100) % 2
-      
+            
       for tile in reversed(line):  # render tiles in the current line
         if tile.kind == MapTile.TILE_BLOCK:
           result.blit(environment_images[1],(x,y))
         elif tile.kind == MapTile.TILE_WALL:
           result.blit(environment_images[2],(x,y))
-          
+
+        x -= Renderer.MAP_TILE_WIDTH
+  
+      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH
+  
+      y += Renderer.MAP_TILE_HEIGHT
+      line_number += 1
+    
+    # second pass, for the flames (they need to be on top):
+    
+    y = Renderer.MAP_TILE_HEIGHT - environment_images[1].get_size()[1]
+    flame_animation_frame = (pygame.time.get_ticks() / 100) % 2
+    
+    tiles = map_to_render.get_tiles()
+    
+    for line in tiles:
+      x = 0
+      
+      for tile in line:
         if len(tile.flames) != 0: # there is at least one flame - draw it
           if (map_to_render.tile_has_flame((tile.coordinates[0],tile.coordinates[1] - 1)) and
             map_to_render.tile_has_flame((tile.coordinates[0] + 1,tile.coordinates[1])) and
@@ -689,12 +705,12 @@ class Renderer(object):
 
           result.blit(self.flame_images[flame_animation_frame][sprite_name],(x,y))
 
-        x -= Renderer.MAP_TILE_WIDTH
-  
+        x += Renderer.MAP_TILE_WIDTH
+
       y += Renderer.MAP_TILE_HEIGHT
-      line_number += 1
-      
-    return result
+
+    return result    
+
 
 class Game(object):
   def __init__(self):
