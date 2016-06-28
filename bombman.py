@@ -49,6 +49,7 @@ import sys
 import pygame
 import os
 import math
+import copy
 
 MAP1 = ("env1;"
         "ff;"
@@ -76,6 +77,19 @@ COLOR_YELLOW = 6
 COLOR_ORANGE = 7
 COLOR_BROWN = 8
 COLOR_PURPLE = 9
+
+COLOR_RGB_VALUES = [
+  (210,210,210),           # white
+  (10,10,10),              # black
+  (255,0,0),               # red
+  (0,0,255),               # blue
+  (0,255,0),               # green
+  (52,237,250),            # cyan
+  (255,255,69),            # yellow
+  (255,192,74),            # orange
+  (168,127,56),            # brown
+  (209,117,206)            # purple
+  ]
 
 COLOR_GRADIENTS = [
   ((0.0,0.0,0.0),(0.5,0.5,0.5),(1.0,1.0,1.0)),                  # white
@@ -207,15 +221,16 @@ class Bomb(Positionable):
   def __init__(self):
     super(Bomb,self).__init__()
     self.time_of_existence = 0  ##< for how long (in ms) the bomb has existed
+    self.flame_length = 3       ##< how far the flame will go
     self.player = None          ##< to which player the bomb belongs
     self.explodes_in = 3000     ##< time in ms in which the bomb exploded from the time it was created
 
 ## Represents a flame coming off of an exploding bomb.
 
 class Flame(object):
-  def __init_(self):
+  def __init__(self):
     self.player = None          ##< reference to player to which the exploding bomb belonged
-    self.time_to_burnout = 1000 ##< time in ms till the flame disappears
+    self.time_to_burnout = 3000 ##< time in ms till the flame disappears
 
 class MapTile(object):
   TILE_FLOOR = 0                ##< walkable map tile
@@ -301,6 +316,42 @@ class Map(object):
     
     return False
 
+  ## Tells the map that given bomb is exploding, the map then creates
+  #  flames from the bomb, the bomb is destroyed and players are informed.
+
+  def bomb_explodes(self,bomb):
+    bomb_position = (int(math.floor(bomb.get_position()[0])),int(math.floor(bomb.get_position()[1])))
+    
+    new_flame = Flame()
+    
+    self.tiles[bomb_position[1]][bomb_position[0]].flames.append(new_flame)
+    
+    left = bomb_position[0] - 1
+    right = bomb_position[0] + 1
+    up = bomb_position[1] - 1
+    down = bomb_position[1] + 1
+    
+    for i in range(bomb.flame_length):
+      if left >= 0:
+        self.tiles[bomb_position[1]][left].flames.append(copy.copy(new_flame))
+      
+      if right <= Map.MAP_WIDTH - 1:
+        self.tiles[bomb_position[1]][right].flames.append(copy.copy(new_flame))
+      
+      if up >= 0:
+        self.tiles[up][bomb_position[0]].flames.append(copy.copy(new_flame))
+      
+      if down <= Map.MAP_HEIGHT - 1:
+        self.tiles[down][bomb_position[0]].flames.append(copy.copy(new_flame))
+      
+      left -= 1
+      right += 1
+      up -= 1
+      down += 1
+      
+    bomb.player.bomb_exploded()
+    self.bombs.remove(bomb)
+
   ## Updates some things on the map that change with time.
 
   def update(self,dt):
@@ -311,11 +362,27 @@ class Map(object):
       bomb.time_of_existence += dt
       
       if bomb.time_of_existence > bomb.explodes_in: # bomb explodes
-        bomb.player.bomb_exploded()
-        self.bombs.remove(bomb)
+        self.bomb_explodes(bomb)
       else:
         i += 1
 
+    for line in self.tiles:
+      for tile in line:
+        i = 0
+        
+        while True:
+          if i >= len(tile.flames):
+            break
+          
+          flame = tile.flames[i]
+          
+          flame.time_to_burnout -= dt
+          
+          if flame.time_to_burnout < 0:
+            tile.flames.remove(flame)
+      
+          i += 1
+          
   def add_bomb(self,bomb):
     self.bombs.append(bomb)
 
@@ -462,37 +529,36 @@ class Renderer(object):
     self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb3.png")))
     self.bomb_images.append(self.bomb_images[0])
      
+    # load flame images:
+    self.flame_images = []
+    
+    for i in [1,2]:
+      helper_string = "flame" + str(i)
+      
+      self.flame_images.append({})
+      self.flame_images[-1]["all"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + ".png"))
+      self.flame_images[-1]["horizontal"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_horizontal.png"))
+      self.flame_images[-1]["vertical"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_vertical.png"))
+      self.flame_images[-1]["left"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_left.png"))
+      self.flame_images[-1]["right"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_right.png"))
+      self.flame_images[-1]["up"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_up.png"))
+      self.flame_images[-1]["down"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_down.png"))
+      
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
   def color_surface(self,surface,color_number):
     result = surface.copy()
     
+    # change all red pixels to specified color:
     for j in range(result.get_size()[1]):
       for i in range(result.get_size()[0]):
         pixel_color = result.get_at((i,j))
         
-        intensity = float(pixel_color.r + pixel_color.g + pixel_color.b) / float(3 * 255)
-
-        interpolation_value = intensity
-
-        gradient_middle_point = 0.7
-
-        if interpolation_value < gradient_middle_point:
-          interpolation_value = interpolation_value / gradient_middle_point
-          color1 = COLOR_GRADIENTS[color_number][0]
-          color2 = COLOR_GRADIENTS[color_number][1]
-        else:
-          interpolation_value = (1.0 - interpolation_value) / (1.0 - gradient_middle_point)
-          color2 = COLOR_GRADIENTS[color_number][1]
-          color1 = COLOR_GRADIENTS[color_number][2]
-          
-        interpolation_value2 = 1.0 - interpolation_value
-         
-        pixel_color.r = int(255 * (interpolation_value2 * color1[0] + interpolation_value * color2[0]))
-        pixel_color.g = int(255 * (interpolation_value2 * color1[1] + interpolation_value * color2[1]))
-        pixel_color.b = int(255 * (interpolation_value2 * color1[2] + interpolation_value * color2[2]))
-        
-        result.set_at((i,j),pixel_color)
+        if pixel_color.r == 255 and pixel_color.g == 0 and pixel_color.b == 0:
+          pixel_color.r = COLOR_RGB_VALUES[color_number][0]
+          pixel_color.g = COLOR_RGB_VALUES[color_number][1]
+          pixel_color.b = COLOR_RGB_VALUES[color_number][2]
+          result.set_at((i,j),pixel_color)
     
     return result
 
@@ -576,23 +642,20 @@ class Renderer(object):
       
         object_to_render_index += 1
       
-      for tile in line:  # render tiles in the current line
+      for tile in reversed(line):  # render tiles in the current line
         if tile.kind == MapTile.TILE_BLOCK:
           result.blit(environment_images[1],(x,y))
         elif tile.kind == MapTile.TILE_WALL:
           result.blit(environment_images[2],(x,y))
+          
+        if len(tile.flames) != 0: # there is at least one flame - draw it
+          result.blit(self.flame_images[0]["all"],(x,y))
 
         x -= Renderer.MAP_TILE_WIDTH
   
       y += Renderer.MAP_TILE_HEIGHT
       line_number += 1
       
-      
-      
-#      for i in range(10):
-#        result.blit(self.player_images[i]["down"],(i * 60,100))
-      
-
     return result
 
 class Game(object):
