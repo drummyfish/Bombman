@@ -77,6 +77,19 @@ COLOR_ORANGE = 7
 COLOR_BROWN = 8
 COLOR_PURPLE = 9
 
+COLOR_RGB_VALUES = [
+  (210,210,210),           # white
+  (10,10,10),              # black
+  (255,0,0),               # red
+  (0,0,255),               # blue
+  (0,255,0),               # green
+  (52,237,250),            # cyan
+  (255,255,69),            # yellow
+  (255,192,74),            # orange
+  (168,127,56),            # brown
+  (209,117,206)            # purple
+  ]
+
 COLOR_GRADIENTS = [
   ((0.0,0.0,0.0),(0.5,0.5,0.5),(1.0,1.0,1.0)),                  # white
   ((0.0,0.0,0.0),(0.1,0.1,0.1),(0.7,0.7,0.7)),                  # black
@@ -467,32 +480,16 @@ class Renderer(object):
   def color_surface(self,surface,color_number):
     result = surface.copy()
     
+    # change all red pixels to specified color:
     for j in range(result.get_size()[1]):
       for i in range(result.get_size()[0]):
         pixel_color = result.get_at((i,j))
         
-        intensity = float(pixel_color.r + pixel_color.g + pixel_color.b) / float(3 * 255)
-
-        interpolation_value = intensity
-
-        gradient_middle_point = 0.7
-
-        if interpolation_value < gradient_middle_point:
-          interpolation_value = interpolation_value / gradient_middle_point
-          color1 = COLOR_GRADIENTS[color_number][0]
-          color2 = COLOR_GRADIENTS[color_number][1]
-        else:
-          interpolation_value = (1.0 - interpolation_value) / (1.0 - gradient_middle_point)
-          color2 = COLOR_GRADIENTS[color_number][1]
-          color1 = COLOR_GRADIENTS[color_number][2]
-          
-        interpolation_value2 = 1.0 - interpolation_value
-         
-        pixel_color.r = int(255 * (interpolation_value2 * color1[0] + interpolation_value * color2[0]))
-        pixel_color.g = int(255 * (interpolation_value2 * color1[1] + interpolation_value * color2[1]))
-        pixel_color.b = int(255 * (interpolation_value2 * color1[2] + interpolation_value * color2[2]))
-        
-        result.set_at((i,j),pixel_color)
+        if pixel_color.r == 255 and pixel_color.g == 0 and pixel_color.b == 0:
+          pixel_color.r = COLOR_RGB_VALUES[color_number][0]
+          pixel_color.g = COLOR_RGB_VALUES[color_number][1]
+          pixel_color.b = COLOR_RGB_VALUES[color_number][2]
+          result.set_at((i,j),pixel_color)
     
     return result
 
@@ -587,12 +584,6 @@ class Renderer(object):
       y += Renderer.MAP_TILE_HEIGHT
       line_number += 1
       
-      
-      
-#      for i in range(10):
-#        result.blit(self.player_images[i]["down"],(i * 60,100))
-      
-
     return result
 
 class Game(object):
