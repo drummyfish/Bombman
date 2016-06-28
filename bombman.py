@@ -335,48 +335,55 @@ class Map(object):
     
     self.tiles[bomb_position[1]][bomb_position[0]].flames.append(new_flame)
     
-    left = bomb_position[0] - 1
-    right = bomb_position[0] + 1
-    up = bomb_position[1] - 1
-    down = bomb_position[1] + 1
+    # information relevant to flame spreading in each direction:
     
-    left_ends = False
-    right_ends = False
-    up_ends = False
-    down_ends = False
+                     # up                    right                down                 left
+    axis_position    = [bomb_position[1] - 1,bomb_position[0] + 1,bomb_position[1] + 1,bomb_position[0] - 1]
+    flame_ends       = [False,               False,               False,               False]  
+    flame_stop       = [False,               False,               False,               False]
+    map_limit        = [0,                   Map.MAP_WIDTH - 1,   Map.MAP_HEIGHT - 1,  0]
+    increment        = [-1,                  1,                   1,                   -1]
+    goes_horizontaly = [False,               True,                False,               True]
+    
+    # spread the flame in all 4 directions:
     
     for i in range(bomb.flame_length):
       if i >= bomb.flame_length - 1:
-        left_ends = True
-        right_ends = True
-        up_ends = True
-        down_ends = True
-      
-      if left >= 0:
-        new_flame2 = copy.copy(new_flame)
-        new_flame2.direction = "horizontal" if not left_ends else "left"
-        self.tiles[bomb_position[1]][left].flames.append(new_flame2)
-      
-      if right <= Map.MAP_WIDTH - 1:
-        new_flame2 = copy.copy(new_flame)
-        new_flame2.direction = "horizontal" if not right_ends else "right"
-        self.tiles[bomb_position[1]][right].flames.append(new_flame2)
-      
-      if up >= 0:
-        new_flame2 = copy.copy(new_flame)
-        new_flame2.direction = "vertical" if not up_ends else "up"
-        self.tiles[up][bomb_position[0]].flames.append(new_flame2)
-      
-      if down <= Map.MAP_HEIGHT - 1:
-        new_flame2 = copy.copy(new_flame)
-        new_flame2.direction = "vertical" if not down_ends else "down"
-        self.tiles[down][bomb_position[0]].flames.append(new_flame2)
-      
-      left -= 1
-      right += 1
-      up -= 1
-      down += 1
-      
+        flame_ends = [True, True, True, True]
+
+      for direction in (0,1,2,3): # for all directions
+        if (((increment[direction] == -1 and axis_position[direction] >= map_limit[direction]) or
+          (increment[direction] == 1 and axis_position[direction] <= map_limit[direction])) and
+          not flame_stop[direction]):
+          # flame is inside the map here          
+        
+          if goes_horizontaly[direction]:
+            tile_for_flame = self.tiles[bomb_position[1]][axis_position[direction]]
+          else:
+            tile_for_flame = self.tiles[axis_position[direction]][bomb_position[0]]
+        
+          if tile_for_flame.kind == MapTile.TILE_BLOCK or tile_for_flame.kind == MapTile.TILE_WALL:
+            flame_stop[direction] = True
+        
+          if tile_for_flame.kind != MapTile.TILE_WALL:
+            new_flame2 = copy.copy(new_flame)
+           
+            if not flame_ends[direction] and not flame_stop[direction]:
+              new_flame2.direction = "horizontal" if goes_horizontaly[direction] else "vertical"
+            else:
+              if direction == 0:
+                new_flame2.direction = "up"
+              elif direction == 1:
+                new_flame2.direction = "right"
+              elif direction == 2:
+                new_flame2.direction = "down"
+              elif direction == 3:
+                new_flame2.direction = "left"
+            
+            tile_for_flame.flames.append(new_flame2)
+          
+          axis_position[direction] += increment[direction]
+        
     bomb.player.bomb_exploded()
     self.bombs.remove(bomb)
 
