@@ -231,15 +231,17 @@ class Flame(object):
   def __init__(self):
     self.player = None          ##< reference to player to which the exploding bomb belonged
     self.time_to_burnout = 3000 ##< time in ms till the flame disappears
+    self.direction = "all"      ##< string representation of the flame direction
 
 class MapTile(object):
   TILE_FLOOR = 0                ##< walkable map tile
   TILE_BLOCK = 1                ##< non-walkable but destroyable map tile
   TILE_WALL = 2                 ##< non-walkable and non-destroyable map tile
   
-  def __init__(self):
+  def __init__(self, coordinates):
     self.kind = MapTile.TILE_FLOOR
     self.flames = []
+    self.coordinates = coordinates
 
 ## Holds and manipulates the map data including the players, bombs etc.
 
@@ -271,7 +273,7 @@ class Map(object):
         column = 0
         self.tiles.append([])
 
-      tile = MapTile()
+      tile = MapTile((column,line))
 
       if tile_character == "x":
         tile.kind = MapTile.TILE_BLOCK
@@ -307,6 +309,12 @@ class Map(object):
         
     self.bombs = []                           ##< bombs on the map
 
+  def tile_has_flame(self,tile_coordinates):
+    if tile_coordinates[0] < 0 or tile_coordinates[1] < 0 or tile_coordinates[0] >= Map.MAP_WIDTH or tile_coordinates[1] >= Map.MAP_HEIGHT:
+      return False     # coordinates outside the map
+    
+    return len(self.tiles[tile_coordinates[1]][tile_coordinates[0]].flames) >= 1
+
   ## Checks if there is a bomb at given tile (coordinates may be float or int).
 
   def tile_has_bomb(self,tile_coordinates):
@@ -323,6 +331,7 @@ class Map(object):
     bomb_position = (int(math.floor(bomb.get_position()[0])),int(math.floor(bomb.get_position()[1])))
     
     new_flame = Flame()
+    new_flame.direction = "all"
     
     self.tiles[bomb_position[1]][bomb_position[0]].flames.append(new_flame)
     
@@ -331,18 +340,37 @@ class Map(object):
     up = bomb_position[1] - 1
     down = bomb_position[1] + 1
     
+    left_ends = False
+    right_ends = False
+    up_ends = False
+    down_ends = False
+    
     for i in range(bomb.flame_length):
+      if i >= bomb.flame_length - 1:
+        left_ends = True
+        right_ends = True
+        up_ends = True
+        down_ends = True
+      
       if left >= 0:
-        self.tiles[bomb_position[1]][left].flames.append(copy.copy(new_flame))
+        new_flame2 = copy.copy(new_flame)
+        new_flame2.direction = "horizontal" if not left_ends else "left"
+        self.tiles[bomb_position[1]][left].flames.append(new_flame2)
       
       if right <= Map.MAP_WIDTH - 1:
-        self.tiles[bomb_position[1]][right].flames.append(copy.copy(new_flame))
+        new_flame2 = copy.copy(new_flame)
+        new_flame2.direction = "horizontal" if not right_ends else "right"
+        self.tiles[bomb_position[1]][right].flames.append(new_flame2)
       
       if up >= 0:
-        self.tiles[up][bomb_position[0]].flames.append(copy.copy(new_flame))
+        new_flame2 = copy.copy(new_flame)
+        new_flame2.direction = "vertical" if not up_ends else "up"
+        self.tiles[up][bomb_position[0]].flames.append(new_flame2)
       
       if down <= Map.MAP_HEIGHT - 1:
-        self.tiles[down][bomb_position[0]].flames.append(copy.copy(new_flame))
+        new_flame2 = copy.copy(new_flame)
+        new_flame2.direction = "vertical" if not down_ends else "down"
+        self.tiles[down][bomb_position[0]].flames.append(new_flame2)
       
       left -= 1
       right += 1
@@ -642,6 +670,8 @@ class Renderer(object):
       
         object_to_render_index += 1
       
+      flame_animation_frame = (pygame.time.get_ticks() / 100) % 2
+      
       for tile in reversed(line):  # render tiles in the current line
         if tile.kind == MapTile.TILE_BLOCK:
           result.blit(environment_images[1],(x,y))
@@ -649,7 +679,15 @@ class Renderer(object):
           result.blit(environment_images[2],(x,y))
           
         if len(tile.flames) != 0: # there is at least one flame - draw it
-          result.blit(self.flame_images[0]["all"],(x,y))
+          if (map_to_render.tile_has_flame((tile.coordinates[0],tile.coordinates[1] - 1)) and
+            map_to_render.tile_has_flame((tile.coordinates[0] + 1,tile.coordinates[1])) and
+            map_to_render.tile_has_flame((tile.coordinates[0],tile.coordinates[1] + 1)) and   
+            map_to_render.tile_has_flame((tile.coordinates[0] - 1,tile.coordinates[1]))):                    
+            sprite_name = "all"
+          else:
+            sprite_name = tile.flames[0].direction
+
+          result.blit(self.flame_images[flame_animation_frame][sprite_name],(x,y))
 
         x -= Renderer.MAP_TILE_WIDTH
   
