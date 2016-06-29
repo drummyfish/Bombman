@@ -244,6 +244,7 @@ class MapTile(object):
     self.kind = MapTile.TILE_FLOOR
     self.flames = []
     self.coordinates = coordinates
+    self.to_be_destroyed = False   ##< Flag that marks the tile to be destroyed after the flames go out.
 
 ## Holds and manipulates the map data including the players, bombs etc.
 
@@ -429,6 +430,9 @@ class Map(object):
 
     for line in self.tiles:
       for tile in line:
+        if tile.to_be_destroyed and tile.kind == MapTile.TILE_BLOCK and not self.tile_has_flame(tile.coordinates):
+          tile.kind = MapTile.TILE_FLOOR
+        
         i = 0
         
         while True:
@@ -436,7 +440,7 @@ class Map(object):
             break
           
           if tile.kind == MapTile.TILE_BLOCK:  # flame on a block tile -> destroy the block
-            tile.kind = MapTile.TILE_FLOOR
+            tile.to_be_destroyed = True
           
           bombs_inside_flame = self.bombs_on_tile(tile.coordinates)
           
@@ -712,10 +716,11 @@ class Renderer(object):
         object_to_render_index += 1
             
       for tile in reversed(line):  # render tiles in the current line
-        if tile.kind == MapTile.TILE_BLOCK:
-          result.blit(environment_images[1],(x,y))
-        elif tile.kind == MapTile.TILE_WALL:
-          result.blit(environment_images[2],(x,y))
+        if not tile.to_be_destroyed:        # don't render a tile that is being destroyed
+          if tile.kind == MapTile.TILE_BLOCK:
+            result.blit(environment_images[1],(x,y))
+          elif tile.kind == MapTile.TILE_WALL:
+            result.blit(environment_images[2],(x,y))
 
         x -= Renderer.MAP_TILE_WIDTH
   
