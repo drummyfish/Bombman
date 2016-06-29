@@ -358,51 +358,58 @@ class Map(object):
     
                      # up                    right                down                 left
     axis_position    = [bomb_position[1] - 1,bomb_position[0] + 1,bomb_position[1] + 1,bomb_position[0] - 1]
-    flame_ends       = [False,               False,               False,               False]  
     flame_stop       = [False,               False,               False,               False]
     map_limit        = [0,                   Map.MAP_WIDTH - 1,   Map.MAP_HEIGHT - 1,  0]
     increment        = [-1,                  1,                   1,                   -1]
     goes_horizontaly = [False,               True,                False,               True]
+    previous_flame   = [None,                None,                None,                None]
     
     # spread the flame in all 4 directions:
-    
-    for i in range(bomb.flame_length):
-      if i >= bomb.flame_length - 1:
-        flame_ends = [True, True, True, True]
 
-      for direction in (0,1,2,3): # for all directions
-        if (((increment[direction] == -1 and axis_position[direction] >= map_limit[direction]) or
-          (increment[direction] == 1 and axis_position[direction] <= map_limit[direction])) and
-          not flame_stop[direction]):
-          # flame is inside the map here          
-        
-          if goes_horizontaly[direction]:
-            tile_for_flame = self.tiles[bomb_position[1]][axis_position[direction]]
-          else:
-            tile_for_flame = self.tiles[axis_position[direction]][bomb_position[0]]
-        
-          if tile_for_flame.kind == MapTile.TILE_BLOCK or tile_for_flame.kind == MapTile.TILE_WALL:
-            flame_stop[direction] = True
-        
-          if tile_for_flame.kind != MapTile.TILE_WALL:
-            new_flame2 = copy.copy(new_flame)
-           
-            if not flame_ends[direction] and not flame_stop[direction]:
-              new_flame2.direction = "horizontal" if goes_horizontaly[direction] else "vertical"
-            else:
-              if direction == 0:
-                new_flame2.direction = "up"
-              elif direction == 1:
-                new_flame2.direction = "right"
-              elif direction == 2:
-                new_flame2.direction = "down"
-              elif direction == 3:
-                new_flame2.direction = "left"
-            
-            tile_for_flame.flames.append(new_flame2)
+    for i in range(bomb.flame_length + 1):
+      if i >= bomb.flame_length:
+        flame_stop = [True, True, True, True]
+
+      for direction in (0,1,2,3): # for each direction
+        if flame_stop[direction]:  
+          if previous_flame[direction] != None:   # flame stopped in previous iteration
           
-          axis_position[direction] += increment[direction]
+            if direction == 0:
+              previous_flame[direction].direction = "up"
+            elif direction == 1:
+              previous_flame[direction].direction = "right"
+            elif direction == 2:
+              previous_flame[direction].direction = "down"
+            else:
+              previous_flame[direction].direction = "left"
+          
+            previous_flame[direction] = None
+        else:
+          if ((increment[direction] == -1 and axis_position[direction] >= map_limit[direction]) or
+            (increment[direction] == 1 and axis_position[direction] <= map_limit[direction])):
+            # flame is inside the map here          
         
+            if goes_horizontaly[direction]:
+              tile_for_flame = self.tiles[bomb_position[1]][axis_position[direction]]
+            else:
+              tile_for_flame = self.tiles[axis_position[direction]][bomb_position[0]]
+        
+            if tile_for_flame.kind == MapTile.TILE_WALL:
+              flame_stop[direction] = True
+            else:
+              new_flame2 = copy.copy(new_flame)
+              new_flame2.direction = "horizontal" if goes_horizontaly[direction] else "vertical"
+              tile_for_flame.flames.append(new_flame2)
+            
+              previous_flame[direction] = new_flame2
+            
+              if tile_for_flame.kind == MapTile.TILE_BLOCK:
+                flame_stop[direction] = True
+          else:
+            flame_stop[direction] = True
+          
+        axis_position[direction] += increment[direction]
+ 
     bomb.player.bomb_exploded()
     self.bombs.remove(bomb)
 
