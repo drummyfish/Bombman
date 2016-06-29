@@ -170,6 +170,11 @@ class Player(Positionable):
 
     moved = False  # to allow movement along only one axis at a time
 
+
+
+    previous_position = copy.copy(self.position)
+
+
     for item in input_actions:
       if item[0] != self.number:
         continue                           # not an action for this player
@@ -200,7 +205,20 @@ class Player(Positionable):
         new_bomb.move_to_tile_center()
         game_map.add_bomb(new_bomb)
         self.bombs_left -= 1
-        
+    
+    previous_position_walkable = game_map.position_is_walkable(previous_position)
+    current_position_walkable = game_map.position_is_walkable(self.position)
+    previous_tile = Positionable.position_to_tile(previous_position)
+    current_tile = Positionable.position_to_tile(self.position)
+    current_tile_walkable = game_map.tile_is_walkable(current_tile)
+    transitioning_tiles = previous_tile != current_tile
+    
+    print(current_tile_walkable)
+    
+    if not current_position_walkable:
+      self.position = previous_position
+    
+    
     if old_state == self.state:
       self.state_time += dt
     else:
@@ -238,6 +256,7 @@ class MapTile(object):
 class Map(object):
   MAP_WIDTH = 15
   MAP_HEIGHT = 11
+  WALL_MARGIN = 0.4
 
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
@@ -317,6 +336,37 @@ class Map(object):
         return True
     
     return False
+
+  ## Checks if given tile coordinates are within the map boundaries.
+
+  def tile_is_withing_map(self,tile_coordinates):
+    return tile_coordinates[0] >= 0 and tile_coordinates[1] >= 0 and tile_coordinates[0] <= Map.MAP_WIDTH - 1 and tile_coordinates[1] <= Map.MAP_HEIGHT - 1
+
+  def tile_is_walkable(self,tile_coordinates):
+    return self.tile_is_withing_map(tile_coordinates) and self.tiles[tile_coordinates[1]][tile_coordinates[0]].kind == MapTile.TILE_FLOOR and not self.tile_has_bomb(tile_coordinates)
+
+  def position_is_walkable(self,float_position):
+    position_within_tile = (float_position[0] % 1,float_position[1] % 1)
+    tile_coordinates = Positionable.position_to_tile(float_position)
+    
+    if not self.tile_is_walkable(tile_coordinates):
+      return False
+    
+    if position_within_tile[1] < Map.WALL_MARGIN:
+      if not self.tile_is_walkable((tile_coordinates[0],tile_coordinates[1] - 1)):
+        return False
+    elif position_within_tile[1] > 1.0 - Map.WALL_MARGIN:
+      if not self.tile_is_walkable((tile_coordinates[0],tile_coordinates[1] + 1)):
+        return False
+      
+    if position_within_tile[0] < Map.WALL_MARGIN:
+      if not self.tile_is_walkable((tile_coordinates[0] - 1,tile_coordinates[1])):
+        return False
+    elif position_within_tile[0] > 1.0 - Map.WALL_MARGIN:
+      if not self.tile_is_walkable((tile_coordinates[0] + 1,tile_coordinates[1])):
+        return False
+    
+    return True
 
   def bombs_on_tile(self,tile_coordinates):
     result = []
