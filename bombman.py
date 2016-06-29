@@ -32,12 +32,8 @@
 #                     s - spring
 #                     d - disease
 #                     TODO
-# <map items>     - Set of items that will appear on the map (in places of destroyed blocks). The items
-#                   are specified with the same letter as in <player items>. If an item appears multiple
-#                   times, its probability of being generated will be higher (every time a block is
-#                   destroyed, an item is chosen from <map items> set randomly). There is also an
-#                   additional symbol:
-#                     ! - no item
+# <map items>     - Set of items that will be hidden in block on the map. This is a string of the
+#                   same format as in <player items>.
 # <tiles>         - left to right, top to bottom sequenced array of map tiles:
 #                     . - floor
 #                     x - block (destroyable)
@@ -120,6 +116,12 @@ class Positionable(object):
   
   def move_to_tile_center(self):
     self.position = (math.floor(self.position[0]) + 0.5,math.floor(self.position[1]) + 0.5)
+
+  ## Converts float position to integer tile position.
+
+  @staticmethod
+  def position_to_tile(position):
+    return (int(math.floor(position[0])),int(math.floor(position[1])))
 
 class Player(Positionable):
   # possible player states
@@ -318,17 +320,34 @@ class Map(object):
   ## Checks if there is a bomb at given tile (coordinates may be float or int).
 
   def tile_has_bomb(self,tile_coordinates):
+    tile_coordinates = Positionable.position_to_tile(tile_coordinates)
+    
     for bomb in self.bombs:
-      if int(math.floor(tile_coordinates[0])) == int(math.floor(bomb.position[0])) and int(math.floor(tile_coordinates[1])) == int(math.floor(bomb.position[1])):
+      bomb_tile_position = Positionable.position_to_tile(bomb.get_position())
+
+      if bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
         return True
     
     return False
+
+  def bombs_on_tile(self,tile_coordinates):
+    result = []
+    
+    tile_coordinates = Positionable.position_to_tile(tile_coordinates)
+    
+    for bomb in self.bombs:
+      bomb_tile_position = Positionable.position_to_tile(bomb.get_position())
+
+      if bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
+        result.append(bomb)
+      
+    return result
 
   ## Tells the map that given bomb is exploding, the map then creates
   #  flames from the bomb, the bomb is destroyed and players are informed.
 
   def bomb_explodes(self,bomb):
-    bomb_position = (int(math.floor(bomb.get_position()[0])),int(math.floor(bomb.get_position()[1])))
+    bomb_position = Positionable.position_to_tile(bomb.get_position())
     
     new_flame = Flame()
     new_flame.direction = "all"
@@ -408,6 +427,14 @@ class Map(object):
         while True:
           if i >= len(tile.flames):
             break
+          
+          if tile.kind == MapTile.TILE_BLOCK:  # flame on a block tile -> destroy the block
+            tile.kind = MapTile.TILE_FLOOR
+          
+          bombs_inside_flame = self.bombs_on_tile(tile.coordinates)
+          
+          for bomb in bombs_inside_flame:      # bomb inside flame -> detonate it
+            self.bomb_explodes(bomb)
           
           flame = tile.flames[i]
           
