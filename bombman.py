@@ -54,7 +54,7 @@ import random
 
 MAP1 = ("env1;"
         "ff;"
-        "ffffbbbbsdk;"
+        "ffffffffbbbbbbbbbbbsdk;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -137,7 +137,30 @@ class Player(Positionable):
     self.state_time = 0                   ##< how much time (in ms) has been spent in current time
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
     self.bombs_left = 1                   ##< how many more bombs the player can put at the time
+    self.flame_length = 2                 ##< how long the flame is in tiles
+    self.items = {}                       ##< which items and how many the player has, format: [item code]: count
 
+  ## Gives player an item with given code (see Map class constants).
+
+  def give_item(self,item):
+    if not item in self.items:
+      self.items[item] = 1
+    else:
+      self.items[item] += 1
+      
+    if item == Map.ITEM_BOMB:
+      self.bombs_left += 1
+    elif item == Map.ITEM_FLAME:
+      self.flame_length += 1
+      
+  ## Says how many of a given item the player has.
+      
+  def how_many_items(self,item):
+    if not item in self.items:
+      return 0
+    
+    return self.items[item]
+    
   def set_number(self,number):
     self.number = number
 
@@ -202,6 +225,7 @@ class Player(Positionable):
         
       if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position):
         new_bomb = Bomb()
+        new_bomb.flame_length = self.flame_length
         new_bomb.set_position(self.position)
         new_bomb.player = self
         new_bomb.move_to_tile_center()
@@ -255,9 +279,9 @@ class Bomb(Positionable):
   def __init__(self):
     super(Bomb,self).__init__()
     self.time_of_existence = 0  ##< for how long (in ms) the bomb has existed
-    self.flame_length = 3       ##< how far the flame will go
+    self.flame_length = 2       ##< how far the flame will go
     self.player = None          ##< to which player the bomb belongs
-    self.explodes_in = 500      ##< time in ms in which the bomb exploded from the time it was created
+    self.explodes_in = 3000     ##< time in ms in which the bomb exploded from the time it was created
 
 ## Represents a flame coming off of an exploding bomb.
 
@@ -422,7 +446,8 @@ class Map(object):
     return tile_coordinates[0] >= 0 and tile_coordinates[1] >= 0 and tile_coordinates[0] <= Map.MAP_WIDTH - 1 and tile_coordinates[1] <= Map.MAP_HEIGHT - 1
 
   def tile_is_walkable(self,tile_coordinates):
-    return self.tile_is_withing_map(tile_coordinates) and self.tiles[tile_coordinates[1]][tile_coordinates[0]].kind == MapTile.TILE_FLOOR and not self.tile_has_bomb(tile_coordinates)
+    tile = self.tiles[tile_coordinates[1]][tile_coordinates[0]]
+    return self.tile_is_withing_map(tile_coordinates) and (self.tiles[tile_coordinates[1]][tile_coordinates[0]].kind == MapTile.TILE_FLOOR or tile.to_be_destroyed) and not self.tile_has_bomb(tile_coordinates)
 
   ## Gets a collision type (see class constants) for give float position.
 
@@ -575,6 +600,14 @@ class Map(object):
             tile.flames.remove(flame)
       
           i += 1
+    
+    for player in self.players:
+      player_tile_position = Positionable.position_to_tile(player.get_position())
+      player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
+      
+      if player_tile.item != None:
+        player.give_item(player_tile.item)
+        player_tile.item = None
           
   def add_bomb(self,bomb):
     self.bombs.append(bomb)
@@ -878,13 +911,7 @@ class Renderer(object):
       
       for tile in line:
         if len(tile.flames) != 0: # there is at least one flame - draw it
-          if (map_to_render.tile_has_flame((tile.coordinates[0],tile.coordinates[1] - 1)) and
-            map_to_render.tile_has_flame((tile.coordinates[0] + 1,tile.coordinates[1])) and
-            map_to_render.tile_has_flame((tile.coordinates[0],tile.coordinates[1] + 1)) and   
-            map_to_render.tile_has_flame((tile.coordinates[0] - 1,tile.coordinates[1]))):                    
-            sprite_name = "all"
-          else:
-            sprite_name = tile.flames[0].direction
+          sprite_name = tile.flames[0].direction
 
           result.blit(self.flame_images[flame_animation_frame][sprite_name],(x,y))
 
