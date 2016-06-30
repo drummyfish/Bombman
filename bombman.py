@@ -47,7 +47,7 @@ import os
 import math
 import copy
 
-MAP1 = ("env3;"
+MAP1 = ("env1;"
         "ff;"
         "ffffbbbbsdk!!!!!!!!;"
         "x . x x x x x x . x x x x . x"
@@ -633,7 +633,7 @@ class Renderer(object):
 
     self.environment_images = {}
 
-    environment_names = ["env1","env2","env3"]
+    environment_names = ["env1","env2","env3","env4"]
 
     for environment_name in environment_names:
       filename_floor = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_floor.png")
