@@ -47,7 +47,7 @@ import os
 import math
 import copy
 
-MAP1 = ("env1;"
+MAP1 = ("env3;"
         "ff;"
         "ffffbbbbsdk!!!!!!!!;"
         "x . x x x x x x . x x x x . x"
@@ -240,21 +240,6 @@ class Player(Positionable):
           self.position = previous_position
         elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
           self.position[0] += distance_to_travel
-    
-    
-    """
-    previous_position_walkable = game_map.position_is_walkable(previous_position)
-    current_position_walkable = game_map.position_is_walkable(self.position)
-    previous_tile = Positionable.position_to_tile(previous_position)
-    current_tile = Positionable.position_to_tile(self.position)
-    current_tile_walkable = game_map.tile_is_walkable(current_tile)
-    transitioning_tiles = previous_tile != current_tile
-    
-    print(current_tile_walkable)
-    
-    if not current_position_walkable:
-      self.position = previous_position
-    """
     
     if old_state == self.state:
       self.state_time += dt
@@ -648,7 +633,7 @@ class Renderer(object):
 
     self.environment_images = {}
 
-    environment_names = ["env1"]
+    environment_names = ["env1","env2","env3"]
 
     for environment_name in environment_names:
       filename_floor = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_floor.png")
