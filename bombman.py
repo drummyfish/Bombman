@@ -17,7 +17,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
+#
 # Map string format (may contain spaces and newlines, which will be ignored):
 #
 # <environment>;<player items>;<map items>;<tiles>
@@ -26,14 +26,18 @@
 # <player items>  - Items that players have from the start of the game (can be an empty string),
 #                   each item is represented by one letter (the same letter can appear multiple times):
 #                     f - flame
-#                     F - max flame
+#                     F - superflame
 #                     b - bomb
 #                     k - kicking shoe
-#                     s - spring
+#                     s - speedup
+#                     p - spring
 #                     d - disease
+#                     m - multibomb
+#                     r - random
 #                     TODO
 # <map items>     - Set of items that will be hidden in block on the map. This is a string of the
-#                   same format as in <player items>.
+#                   same format as in <player items>. If there is more items specified than there is
+#                   block tiles, then some items will be left out.
 # <tiles>         - left to right, top to bottom sequenced array of map tiles:
 #                     . - floor
 #                     x - block (destroyable)
@@ -46,10 +50,11 @@ import pygame
 import os
 import math
 import copy
+import random
 
 MAP1 = ("env1;"
         "ff;"
-        "ffffbbbbsdk!!!!!!!!;"
+        "ffffbbbbsdk;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -131,7 +136,7 @@ class Player(Positionable):
     self.state = Player.STATE_IDLE_DOWN
     self.state_time = 0                   ##< how much time (in ms) has been spent in current time
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
-    self.bombs_left = 5                   ##< how many more bombs the player can put at the time
+    self.bombs_left = 1                   ##< how many more bombs the player can put at the time
 
   def set_number(self,number):
     self.number = number
@@ -252,7 +257,7 @@ class Bomb(Positionable):
     self.time_of_existence = 0  ##< for how long (in ms) the bomb has existed
     self.flame_length = 3       ##< how far the flame will go
     self.player = None          ##< to which player the bomb belongs
-    self.explodes_in = 3000     ##< time in ms in which the bomb exploded from the time it was created
+    self.explodes_in = 500      ##< time in ms in which the bomb exploded from the time it was created
 
 ## Represents a flame coming off of an exploding bomb.
 
@@ -272,6 +277,7 @@ class MapTile(object):
     self.flames = []
     self.coordinates = coordinates
     self.to_be_destroyed = False   ##< Flag that marks the tile to be destroyed after the flames go out.
+    self.item = None               ##< Item that's present on the file
 
 ## Holds and manipulates the map data including the players, bombs etc.
 
@@ -288,6 +294,16 @@ class Map(object):
   COLLISION_TOTAL = 4           ##< position is inside non-walkable tile
   COLLISION_NONE = 5            ##< no collision
 
+  ITEM_BOMB = 0
+  ITEM_FLAME = 1
+  ITEM_SUPERFLAME = 2
+  ITEM_SPEEDUP = 3
+  ITEM_DISEASE = 4
+  ITEM_RANDOM = 5
+  ITEM_SPRING = 6
+  ITEM_SHOE = 7
+  ITEM_MULTIBOMB = 8
+  
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
   def __init__(self, map_data, play_setup):
@@ -300,6 +316,8 @@ class Map(object):
     string_split = map_data.split(";")
 
     self.environment_name = string_split[0]
+
+    block_tiles = []
 
     line = -1
     column = 0
@@ -316,6 +334,7 @@ class Map(object):
 
       if tile_character == "x":
         tile.kind = MapTile.TILE_BLOCK
+        block_tiles.append(tile)
       elif tile_character == "#":
         tile.kind = MapTile.TILE_WALL
       else:
@@ -327,6 +346,13 @@ class Map(object):
         starting_positions[int(tile_character)] = (float(column),float(line))
 
       column += 1
+
+    # place items on under block tiles:
+    
+    for i in range(len(string_split[2])):
+      random_tile = random.choice(block_tiles)
+      random_tile.item = self.letter_to_item(string_split[2][i])
+      block_tiles.remove(random_tile)
 
     # initialise players:
 
@@ -347,6 +373,29 @@ class Map(object):
         self.players_by_numbers[i] = None
         
     self.bombs = []                           ##< bombs on the map
+
+  ## Converts given letter (as in map encoding string) to item code (see class constants).
+  def letter_to_item(self,letter):
+    if letter == "f":
+      return Map.ITEM_FLAME
+    elif letter == "F":
+      return Map.ITEM_SUPERFLAME
+    elif letter == "b":
+      return Map.ITEM_BOMB
+    elif letter == "k":
+      return Map.ITEM_SHOE
+    elif letter == "s":
+      return Map.ITEM_SPEEDUP
+    elif letter == "p":
+      return Map.ITEM_SPRING
+    elif letter == "d":
+      return Map.ITEM_DISEASE
+    elif letter == "m":
+      return Map.ITEM_MULTIBOMB
+    elif letter == "r":
+      return Map.ITEM_RANDOM
+    else:
+      return -1
 
   def tile_has_flame(self,tile_coordinates):
     if tile_coordinates[0] < 0 or tile_coordinates[1] < 0 or tile_coordinates[0] >= Map.MAP_WIDTH or tile_coordinates[1] >= Map.MAP_HEIGHT:
@@ -502,6 +551,7 @@ class Map(object):
       for tile in line:
         if tile.to_be_destroyed and tile.kind == MapTile.TILE_BLOCK and not self.tile_has_flame(tile.coordinates):
           tile.kind = MapTile.TILE_FLOOR
+          tile.to_be_destroyed = False
         
         i = 0
         
@@ -687,6 +737,19 @@ class Renderer(object):
       self.flame_images[-1]["up"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_up.png"))
       self.flame_images[-1]["down"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_down.png"))
       
+    # load item images:
+    self.item_images = {}
+    
+    self.item_images[Map.ITEM_BOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_bomb.png"))
+    self.item_images[Map.ITEM_FLAME] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_flame.png"))
+    self.item_images[Map.ITEM_SUPERFLAME] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_superflame.png"))
+    self.item_images[Map.ITEM_SPEEDUP] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_speedup.png"))
+    self.item_images[Map.ITEM_DISEASE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_disease.png"))
+    self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_random.png"))
+    self.item_images[Map.ITEM_SPRING] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_spring.png"))
+    self.item_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_shoe.png"))
+    self.item_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_multibomb.png"))
+      
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
   def color_surface(self,surface,color_number):
@@ -737,7 +800,9 @@ class Renderer(object):
     tiles = map_to_render.get_tiles()
     environment_images = self.environment_images[map_to_render.get_environment_name()]
     
-    y = Renderer.MAP_TILE_HEIGHT - environment_images[1].get_size()[1]
+    y = 0
+    y_offset_block = Renderer.MAP_TILE_HEIGHT - environment_images[1].get_size()[1]
+    y_offset_wall = Renderer.MAP_TILE_HEIGHT - environment_images[2].get_size()[1]
     
     line_number = 0
     object_to_render_index = 0
@@ -788,9 +853,11 @@ class Renderer(object):
       for tile in reversed(line):  # render tiles in the current line
         if not tile.to_be_destroyed:        # don't render a tile that is being destroyed
           if tile.kind == MapTile.TILE_BLOCK:
-            result.blit(environment_images[1],(x,y))
+            result.blit(environment_images[1],(x,y + y_offset_block))
           elif tile.kind == MapTile.TILE_WALL:
-            result.blit(environment_images[2],(x,y))
+            result.blit(environment_images[2],(x,y + y_offset_wall))
+          elif tile.item != None:
+            result.blit(self.item_images[tile.item],(x,y))
 
         x -= Renderer.MAP_TILE_WIDTH
   
