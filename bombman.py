@@ -170,10 +170,7 @@ class Player(Positionable):
 
     moved = False  # to allow movement along only one axis at a time
 
-
-
-    previous_position = copy.copy(self.position)
-
+    previous_position = copy.copy(self.position)  # in case of collision we save the previous position
 
     for item in input_actions:
       if item[0] != self.number:
@@ -206,6 +203,46 @@ class Player(Positionable):
         game_map.add_bomb(new_bomb)
         self.bombs_left -= 1
     
+    # resolve collisions:
+
+    check_collisions = True
+
+    current_tile = Positionable.position_to_tile(self.position)
+    
+    if game_map.tile_has_bomb(current_tile):    # first check if the player is standing on a bomb
+      previous_tile = Positionable.position_to_tile(previous_position)
+      
+      if current_tile == previous_tile:     # no transition between tiles -> let the player move
+        check_collisions = False
+
+    if check_collisions:
+      collision_type = game_map.get_position_collision_type(self.position)
+    
+      if collision_type == Map.COLLISION_TOTAL:
+        self.position = previous_position
+      elif collision_type == Map.COLLISION_BORDER_UP:
+        if self.state == Player.STATE_WALKING_UP:
+          self.position = previous_position
+        elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
+          self.position[1] += distance_to_travel
+      elif collision_type == Map.COLLISION_BORDER_RIGHT:
+        if self.state == Player.STATE_WALKING_RIGHT:
+          self.position = previous_position
+        elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
+          self.position[0] -= distance_to_travel
+      elif collision_type == Map.COLLISION_BORDER_DOWN:
+        if self.state == Player.STATE_WALKING_DOWN:
+          self.position = previous_position
+        elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
+          self.position[1] -= distance_to_travel
+      elif collision_type == Map.COLLISION_BORDER_LEFT:
+        if self.state == Player.STATE_WALKING_LEFT:
+          self.position = previous_position
+        elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
+          self.position[0] += distance_to_travel
+    
+    
+    """
     previous_position_walkable = game_map.position_is_walkable(previous_position)
     current_position_walkable = game_map.position_is_walkable(self.position)
     previous_tile = Positionable.position_to_tile(previous_position)
@@ -217,7 +254,7 @@ class Player(Positionable):
     
     if not current_position_walkable:
       self.position = previous_position
-    
+    """
     
     if old_state == self.state:
       self.state_time += dt
@@ -256,7 +293,15 @@ class MapTile(object):
 class Map(object):
   MAP_WIDTH = 15
   MAP_HEIGHT = 11
-  WALL_MARGIN = 0.4
+  WALL_MARGIN_HORIZONTAL = 0.2
+  WALL_MARGIN_VERTICAL = 0.4
+  
+  COLLISION_BORDER_UP = 0       ##< position is inside upper border with non-walkable tile
+  COLLISION_BORDER_RIGHT = 1    ##< position is inside right border with non-walkable tile
+  COLLISION_BORDER_DOWN = 2     ##< position is inside bottom border with non-walkable tile
+  COLLISION_BORDER_LEFT = 3     ##< position is inside left border with non-walkable tile
+  COLLISION_TOTAL = 4           ##< position is inside non-walkable tile
+  COLLISION_NONE = 5            ##< no collision
 
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
@@ -345,28 +390,31 @@ class Map(object):
   def tile_is_walkable(self,tile_coordinates):
     return self.tile_is_withing_map(tile_coordinates) and self.tiles[tile_coordinates[1]][tile_coordinates[0]].kind == MapTile.TILE_FLOOR and not self.tile_has_bomb(tile_coordinates)
 
-  def position_is_walkable(self,float_position):
-    position_within_tile = (float_position[0] % 1,float_position[1] % 1)
-    tile_coordinates = Positionable.position_to_tile(float_position)
+  ## Gets a collision type (see class constants) for give float position.
+
+  def get_position_collision_type(self, position):
+    tile_coordinates = Positionable.position_to_tile(position)
     
     if not self.tile_is_walkable(tile_coordinates):
-      return False
+      return Map.COLLISION_TOTAL
     
-    if position_within_tile[1] < Map.WALL_MARGIN:
+    position_within_tile = (position[0] % 1,position[1] % 1)
+    
+    if position_within_tile[1] < Map.WALL_MARGIN_HORIZONTAL:
       if not self.tile_is_walkable((tile_coordinates[0],tile_coordinates[1] - 1)):
-        return False
-    elif position_within_tile[1] > 1.0 - Map.WALL_MARGIN:
+        return Map.COLLISION_BORDER_UP
+    elif position_within_tile[1] > 1.0 - Map.WALL_MARGIN_HORIZONTAL:
       if not self.tile_is_walkable((tile_coordinates[0],tile_coordinates[1] + 1)):
-        return False
+        return Map.COLLISION_BORDER_DOWN
       
-    if position_within_tile[0] < Map.WALL_MARGIN:
+    if position_within_tile[0] < Map.WALL_MARGIN_VERTICAL:
       if not self.tile_is_walkable((tile_coordinates[0] - 1,tile_coordinates[1])):
-        return False
-    elif position_within_tile[0] > 1.0 - Map.WALL_MARGIN:
+        return Map.COLLISION_BORDER_LEFT
+    elif position_within_tile[0] > 1.0 - Map.WALL_MARGIN_VERTICAL:
       if not self.tile_is_walkable((tile_coordinates[0] + 1,tile_coordinates[1])):
-        return False
+        return Map.COLLISION_BORDER_RIGHT
     
-    return True
+    return Map.COLLISION_NONE
 
   def bombs_on_tile(self,tile_coordinates):
     result = []
