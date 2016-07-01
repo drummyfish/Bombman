@@ -53,8 +53,8 @@ import copy
 import random
 
 MAP1 = ("env1;"
-        "ff;"
-        "ffffffffbbbbbbbbbbbsdk;"
+        "ffsss;"
+        "pppffffffffbbbbbbbbbbbsdk;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -128,6 +128,8 @@ class Player(Positionable):
   STATE_DEAD = 8
 
   INITIAL_SPEED = 3
+  MAX_SPEED = 10
+  SPEEDUP_VALUE = 1
 
   def __init__(self):
     super(Player,self).__init__()
@@ -139,6 +141,7 @@ class Player(Positionable):
     self.bombs_left = 1                   ##< how many more bombs the player can put at the time
     self.flame_length = 2                 ##< how long the flame is in tiles
     self.items = {}                       ##< which items and how many the player has, format: [item code]: count
+    self.has_spring = False               ##< whether player's bombs have springs
 
   ## Gives player an item with given code (see Map class constants).
 
@@ -152,6 +155,15 @@ class Player(Positionable):
       self.bombs_left += 1
     elif item == Map.ITEM_FLAME:
       self.flame_length += 1
+    elif item == Map.ITEM_SUPERFLAME:
+      self.flame_length = 15
+    elif item == Map.ITEM_SPRING:
+      self.has_spring = True
+    elif item == Map.ITEM_SPEEDUP:
+      self.speed = min(self.speed + Player.SPEEDUP_VALUE,Player.MAX_SPEED)
+      
+  def bombs_have_spring(self):
+    return self.has_spring
       
   ## Says how many of a given item the player has.
       
@@ -283,7 +295,7 @@ class Bomb(Positionable):
     self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created
     self.set_position(player.get_position())
     self.move_to_tile_center()
-    self.has_spring = True
+    self.has_spring = player.bombs_have_spring()
 
 ## Represents a flame coming off of an exploding bomb.
 
