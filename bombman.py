@@ -53,7 +53,7 @@ import copy
 import random
 
 MAP1 = ("env1;"
-        "ffsss;"
+        "ffsssssssssssssss;"
         "pppffffffffbbbbbbbbbbbsdk;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
@@ -466,6 +466,9 @@ class Map(object):
     return tile_coordinates[0] >= 0 and tile_coordinates[1] >= 0 and tile_coordinates[0] <= Map.MAP_WIDTH - 1 and tile_coordinates[1] <= Map.MAP_HEIGHT - 1
 
   def tile_is_walkable(self,tile_coordinates):
+    if not self.tile_is_withing_map(tile_coordinates):
+      return False
+    
     tile = self.tiles[tile_coordinates[1]][tile_coordinates[0]]
     return self.tile_is_withing_map(tile_coordinates) and (self.tiles[tile_coordinates[1]][tile_coordinates[0]].kind == MapTile.TILE_FLOOR or tile.to_be_destroyed) and not self.tile_has_bomb(tile_coordinates)
 
@@ -730,6 +733,7 @@ class Renderer(object):
   MAP_TILE_HALF_HEIGHT = MAP_TILE_HEIGHT / 2
   PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
   BOMB_SPRITE_CENTER = (22,33)
+  MAP_BORDER_WIDTH = 10
 
   def __init__(self):
     self.screen_resolution = (800,600)
@@ -746,7 +750,7 @@ class Renderer(object):
       self.environment_images[environment_name] = (pygame.image.load(filename_floor),pygame.image.load(filename_block),pygame.image.load(filename_wall))
 
     self.prerendered_map = None     # keeps a reference to a map for which some parts have been prerendered
-    self.prerendered_map_background = pygame.Surface((Map.MAP_WIDTH * Renderer.MAP_TILE_WIDTH,Map.MAP_HEIGHT * Renderer.MAP_TILE_HEIGHT))
+    self.prerendered_map_background = pygame.Surface((Map.MAP_WIDTH * Renderer.MAP_TILE_WIDTH + 2 * Renderer.MAP_BORDER_WIDTH,Map.MAP_HEIGHT * Renderer.MAP_TILE_HEIGHT + 2 * Renderer.MAP_BORDER_WIDTH))
 
     self.player_images = []         ##< player images in format [color index]["sprite name"] and [color index]["sprite name"][frame]
 
@@ -839,9 +843,11 @@ class Renderer(object):
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
       print("prerendering map...")
 
+      self.prerendered_map_background.fill((255,255,255))
+
       for j in range(Map.MAP_HEIGHT):
         for i in range(Map.MAP_WIDTH):
-          self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],(i * Renderer.MAP_TILE_WIDTH,j * Renderer.MAP_TILE_HEIGHT))
+          self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],(i * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH,j * Renderer.MAP_TILE_HEIGHT + + Renderer.MAP_BORDER_WIDTH))
 
       self.prerendered_map = map_to_render
 
@@ -859,7 +865,7 @@ class Renderer(object):
     tiles = map_to_render.get_tiles()
     environment_images = self.environment_images[map_to_render.get_environment_name()]
     
-    y = 0
+    y = Renderer.MAP_BORDER_WIDTH
     y_offset_block = Renderer.MAP_TILE_HEIGHT - environment_images[1].get_size()[1]
     y_offset_wall = Renderer.MAP_TILE_HEIGHT - environment_images[2].get_size()[1]
     
@@ -869,7 +875,7 @@ class Renderer(object):
     flame_animation_frame = (pygame.time.get_ticks() / 100) % 2
     
     for line in tiles:
-      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH
+      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH
       
       while True: # render players and bombs in the current line 
         if object_to_render_index >= len(ordered_objects_to_render):
@@ -912,6 +918,7 @@ class Renderer(object):
             overlay_images.append(self.other_images["spring"])
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
+        render_position = (render_position[0] + Renderer.MAP_BORDER_WIDTH,render_position[1] + Renderer.MAP_BORDER_WIDTH)
         result.blit(image_to_render,render_position)
         
         for additional_image in overlay_images:
@@ -935,7 +942,7 @@ class Renderer(object):
 
         x -= Renderer.MAP_TILE_WIDTH
   
-      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH
+      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH
   
       y += Renderer.MAP_TILE_HEIGHT
       line_number += 1
