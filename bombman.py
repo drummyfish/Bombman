@@ -617,6 +617,8 @@ class Map(object):
           
           if tile.kind == MapTile.TILE_BLOCK:  # flame on a block tile -> destroy the block
             tile.to_be_destroyed = True
+          elif tile.kind == MapTile.TILE_FLOOR and tile.item != None:
+            tile.item = None                   # flame destroys the item
           
           bombs_inside_flame = self.bombs_on_tile(tile.coordinates)
           
