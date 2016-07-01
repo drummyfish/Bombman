@@ -178,6 +178,9 @@ class Player(Positionable):
   def get_state_time(self):
     return self.state_time
 
+  def get_flame_length(self):
+    return self.flame_length
+
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
   def react_to_inputs(self,input_actions,dt,game_map):
@@ -224,11 +227,7 @@ class Player(Positionable):
         moved = True
         
       if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position):
-        new_bomb = Bomb()
-        new_bomb.flame_length = self.flame_length
-        new_bomb.set_position(self.position)
-        new_bomb.player = self
-        new_bomb.move_to_tile_center()
+        new_bomb = Bomb(self)
         game_map.add_bomb(new_bomb)
         self.bombs_left -= 1
     
@@ -276,12 +275,15 @@ class Player(Positionable):
       self.state_time = 0       # reset the state time
 
 class Bomb(Positionable):
-  def __init__(self):
+  def __init__(self, player):
     super(Bomb,self).__init__()
-    self.time_of_existence = 0  ##< for how long (in ms) the bomb has existed
-    self.flame_length = 2       ##< how far the flame will go
-    self.player = None          ##< to which player the bomb belongs
-    self.explodes_in = 3000     ##< time in ms in which the bomb exploded from the time it was created
+    self.time_of_existence = 0                       ##< for how long (in ms) the bomb has existed
+    self.flame_length = player.get_flame_length()    ##< how far the flame will go
+    self.player = player                             ##< to which player the bomb belongs
+    self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created
+    self.set_position(player.get_position())
+    self.move_to_tile_center()
+    self.has_spring = True
 
 ## Represents a flame coming off of an exploding bomb.
 
@@ -395,6 +397,12 @@ class Map(object):
         self.players_by_numbers[i] = new_player
       else:
         self.players_by_numbers[i] = None
+        
+    # give players starting items:
+    
+    for i in range(len(string_split[1])):
+      for player in self.players:
+        player.give_item(self.letter_to_item(string_split[1][i]))
         
     self.bombs = []                           ##< bombs on the map
 
@@ -783,6 +791,12 @@ class Renderer(object):
     self.item_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_shoe.png"))
     self.item_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_multibomb.png"))
       
+    # load other images:
+    
+    self.other_images = {}
+    
+    self.other_images["spring"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_spring.png"))
+      
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
   def color_surface(self,surface,color_number):
@@ -852,6 +866,8 @@ class Renderer(object):
         if object_to_render.get_position()[1] > line_number + 1:
           break
         
+        overlay_images = []     # images that should additionaly be rendered over image_to_render
+        
         if isinstance(object_to_render,Player):
           sprite_center = Renderer.PLAYER_SPRITE_CENTER
           
@@ -877,9 +893,15 @@ class Renderer(object):
           sprite_center = Renderer.BOMB_SPRITE_CENTER
           animation_frame = (object_to_render.time_of_existence / 100) % 4
           image_to_render = self.bomb_images[animation_frame]
+          
+          if object_to_render.has_spring:
+            overlay_images.append(self.other_images["spring"])
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
         result.blit(image_to_render,render_position)
+        
+        for additional_image in overlay_images:
+          result.blit(additional_image,render_position)
       
         object_to_render_index += 1
             
