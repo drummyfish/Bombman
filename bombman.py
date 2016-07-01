@@ -51,9 +51,10 @@ import os
 import math
 import copy
 import random
+import time
 
 MAP1 = ("env1;"
-        "ffsssssssssssssss;"
+        "ffs;"
         "pppffffffffbbbbbbbbbbbsdk;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
@@ -215,6 +216,8 @@ class Player(Positionable):
 
     previous_position = copy.copy(self.position)  # in case of collision we save the previous position
 
+    putting_bomb = False
+
     for item in input_actions:
       if item[0] != self.number:
         continue                           # not an action for this player
@@ -237,11 +240,9 @@ class Player(Positionable):
         self.position[0] -= distance_to_travel
         self.state = Player.STATE_WALKING_LEFT
         moved = True
-        
+    
       if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position):
-        new_bomb = Bomb(self)
-        game_map.add_bomb(new_bomb)
-        self.bombs_left -= 1
+        putting_bomb = True
     
     # resolve collisions:
 
@@ -249,10 +250,12 @@ class Player(Positionable):
 
     current_tile = Positionable.position_to_tile(self.position)
     
+    previous_tile = None
+    
     if game_map.tile_has_bomb(current_tile):    # first check if the player is standing on a bomb
       previous_tile = Positionable.position_to_tile(previous_position)
       
-      if current_tile == previous_tile:     # no transition between tiles -> let the player move
+      if current_tile == previous_tile:         # no transition between tiles -> let the player move
         check_collisions = False
 
     if check_collisions:
@@ -280,6 +283,11 @@ class Player(Positionable):
           self.position = previous_position
         elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
           self.position[0] += distance_to_travel
+    
+    if putting_bomb:
+      new_bomb = Bomb(self)
+      game_map.add_bomb(new_bomb)
+      self.bombs_left -= 1
     
     if old_state == self.state:
       self.state_time += dt
