@@ -54,7 +54,7 @@ import random
 import time
 
 MAP1 = ("env1;"
-        "ffs;"
+        "ffsb;"
         "pppffffffffbbbbbbbbbbbsdk;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
@@ -284,7 +284,7 @@ class Player(Positionable):
         elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
           self.position[0] += distance_to_travel
     
-    if putting_bomb:
+    if putting_bomb and not game_map.tile_has_bomb(Positionable.position_to_tile(self.position)):
       new_bomb = Bomb(self)
       game_map.add_bomb(new_bomb)
       self.bombs_left -= 1
