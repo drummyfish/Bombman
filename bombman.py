@@ -296,6 +296,7 @@ class Player(Positionable):
     if putting_bomb and not game_map.tile_has_bomb(Positionable.position_to_tile(self.position)):
       new_bomb = Bomb(self)
       game_map.add_bomb(new_bomb)
+      game_map.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
       self.bombs_left -= 1
     
     if old_state == self.state:
@@ -435,6 +436,16 @@ class Map(object):
         
     self.bombs = []                           ##< bombs on the map
 
+    self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
+
+  def add_sound_event(self,sound_event):
+    self.sound_events.append(sound_event)
+    
+  def get_and_clear_sound_events(self):
+    result = self.sound_events[:]      # copy of the list
+    self.sound_events = []
+    return result
+
   ## Converts given letter (as in map encoding string) to item code (see class constants).
   def letter_to_item(self,letter):
     if letter == "f":
@@ -532,6 +543,8 @@ class Map(object):
   #  flames from the bomb, the bomb is destroyed and players are informed.
 
   def bomb_explodes(self,bomb):
+    self.add_sound_event(SoundPlayer.SOUND_EVENT_EXPLOSION)
+    
     bomb_position = Positionable.position_to_tile(bomb.get_position())
     
     new_flame = Flame()
@@ -745,6 +758,32 @@ class PlayerKeyMaps(object):
 
     return result
 
+class SoundPlayer(object):
+  # sound events used by other classes to tell soundplayer what to play:
+  
+  SOUND_EVENT_EXPLOSION = 0
+  SOUND_EVENT_BOMB_PUT = 1
+  SOUND_EVENT_WALK = 2
+  SOUND_EVENT_KICK = 3
+  SOUND_EVENT_DIARRHEA = 4
+  
+  def __init__(self):
+    pygame.mixer.init()
+    
+    self.sound = {}
+    self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"explosion.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"bomb.wav"))
+    
+  ## Processes a list of sound events (see class constants) by playing
+  #  appropriate sounds.
+    
+  def process_events(self,sound_event_list):
+    for sound_event in sound_event_list:
+      if sound_event == SoundPlayer.SOUND_EVENT_EXPLOSION:
+        self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION].play()
+      if sound_event == SoundPlayer.SOUND_EVENT_BOMB_PUT:
+        self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT].play()
+    
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
@@ -978,6 +1017,7 @@ class Renderer(object):
 
 class Game(object):
   def __init__(self):
+    pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
     self.player_key_maps = PlayerKeyMaps()
 
@@ -985,6 +1025,7 @@ class Game(object):
     self.player_key_maps.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
 
     self.renderer = Renderer()
+    self.sound_player = SoundPlayer()
 
   def run(self):
     screen = pygame.display.set_mode((800,600))
@@ -1003,6 +1044,8 @@ class Game(object):
 
       screen.blit(self.renderer.render_map(self.game_map),(0,0))
       pygame.display.flip()
+      
+      self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
 
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
