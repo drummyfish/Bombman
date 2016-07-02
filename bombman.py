@@ -42,6 +42,9 @@
 #                     . - floor
 #                     x - block (destroyable)
 #                     # - wall (undestroyable)
+#                     A - teleport A
+#                     B - teleport B
+#                     T - trampoline
 #                     <0-9> - starting position of the player specified by the number
 #                     TODO
 
@@ -143,6 +146,7 @@ class Player(Positionable):
     self.flame_length = 2                 ##< how long the flame is in tiles
     self.items = {}                       ##< which items and how many the player has, format: [item code]: count
     self.has_spring = False               ##< whether player's bombs have springs
+    self.has_shoe = False                 ##< whether player has a kicking shoe
 
   ## Gives player an item with given code (see Map class constants).
 
@@ -162,6 +166,11 @@ class Player(Positionable):
       self.has_spring = True
     elif item == Map.ITEM_SPEEDUP:
       self.speed = min(self.speed + Player.SPEEDUP_VALUE,Player.MAX_SPEED)
+    elif item == Map.ITEM_SHOE:
+      self.has_shoe = True
+      
+  def has_kicking_shoe(self):
+    return self.has_shoe
       
   def bombs_have_spring(self):
     return self.has_spring
@@ -741,8 +750,11 @@ class Renderer(object):
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
   MAP_TILE_HALF_WIDTH = MAP_TILE_WIDTH / 2
   MAP_TILE_HALF_HEIGHT = MAP_TILE_HEIGHT / 2
+
   PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
   BOMB_SPRITE_CENTER = (22,33)
+  SHADOW_CENTER = (25,22)
+
   MAP_BORDER_WIDTH = 10
 
   def __init__(self):
@@ -821,6 +833,7 @@ class Renderer(object):
     
     self.other_images = {}
     
+    self.other_images["shadow"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_shadow.png"))
     self.other_images["spring"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_spring.png"))
       
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
@@ -926,6 +939,10 @@ class Renderer(object):
           
           if object_to_render.has_spring:
             overlay_images.append(self.other_images["spring"])
+        
+        render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_CENTER)
+        render_position = (render_position[0] + Renderer.MAP_BORDER_WIDTH,render_position[1] + Renderer.MAP_BORDER_WIDTH)
+        result.blit(self.other_images["shadow"],render_position)
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
         render_position = (render_position[0] + Renderer.MAP_BORDER_WIDTH,render_position[1] + Renderer.MAP_BORDER_WIDTH)
