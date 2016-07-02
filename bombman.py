@@ -260,6 +260,7 @@ class Player(Positionable):
     # resolve collisions:
 
     check_collisions = True
+    collision_happened = False
 
     current_tile = Positionable.position_to_tile(self.position)
     
@@ -276,24 +277,29 @@ class Player(Positionable):
     
       if collision_type == Map.COLLISION_TOTAL:
         self.position = previous_position
+        collision_happened = True
       elif collision_type == Map.COLLISION_BORDER_UP:
         if self.state == Player.STATE_WALKING_UP:
           self.position = previous_position
+          collision_happened = True
         elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
           self.position[1] += distance_to_travel
       elif collision_type == Map.COLLISION_BORDER_RIGHT:
         if self.state == Player.STATE_WALKING_RIGHT:
           self.position = previous_position
+          collision_happened = True
         elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
           self.position[0] -= distance_to_travel
       elif collision_type == Map.COLLISION_BORDER_DOWN:
         if self.state == Player.STATE_WALKING_DOWN:
           self.position = previous_position
+          collision_happened = True
         elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
           self.position[1] -= distance_to_travel
       elif collision_type == Map.COLLISION_BORDER_LEFT:
         if self.state == Player.STATE_WALKING_LEFT:
           self.position = previous_position
+          collision_happened = True
         elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
           self.position[0] += distance_to_travel
     
@@ -303,12 +309,58 @@ class Player(Positionable):
       game_map.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
       self.bombs_left -= 1
     
+    # check if bomb kick happens
+    
+    if collision_happened: 
+      current_tile = Positionable.position_to_tile(self.position)
+
+      forward_tile = None     # tile in front of the player
+      bomb_movement = Bomb.BOMB_NO_MOVEMENT
+    
+      if self.state == Player.STATE_WALKING_UP:
+        forward_tile = (current_tile[0],current_tile[1] - 1)
+        bomb_movement = Bomb.BOMB_ROLLING_UP
+      elif self.state == Player.STATE_WALKING_RIGHT:
+        forward_tile = (current_tile[0] + 1,current_tile[1])
+        bomb_movement = Bomb.BOMB_ROLLING_RIGHT
+      elif self.state == Player.STATE_WALKING_DOWN:
+        forward_tile = (current_tile[0],current_tile[1] + 1)
+        bomb_movement = Bomb.BOMB_ROLLING_DOWN
+      else:     # STATE_WALKING_LEFT
+        forward_tile = (current_tile[0] - 1,current_tile[1])
+        bomb_movement = Bomb.BOMB_ROLLING_LEFT
+    
+      if forward_tile != None:
+        if game_map.tile_has_bomb(forward_tile):
+          # kick happens
+          kicked_bomb = game_map.bomb_on_tile(forward_tile)
+          
+          # align the bomb in case of kicking an already moving bomb:
+          bomb_position = kicked_bomb.get_position()
+          
+          if bomb_movement == Bomb.BOMB_ROLLING_LEFT or bomb_movement == Bomb.BOMB_ROLLING_RIGHT:
+            kicked_bomb.set_position((bomb_position[0],math.floor(bomb_position[1]) + 0.5))
+          else:
+            kicked_bomb.set_position((math.floor(bomb_position[0]) + 0.5,bomb_position[1]))
+             
+          kicked_bomb.movement = bomb_movement
+          game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
+          
+    
     if old_state == self.state:
       self.state_time += dt
     else:
       self.state_time = 0       # reset the state time
 
 class Bomb(Positionable):
+  ROLLING_SPEED = 4
+  
+  BOMB_ROLLING_UP = 0
+  BOMB_ROLLING_RIGHT = 1
+  BOMB_ROLLING_DOWN = 2
+  BOMB_ROLLING_LEFT = 3
+  BOMB_NO_MOVEMENT = 4
+  
   def __init__(self, player):
     super(Bomb,self).__init__()
     self.time_of_existence = 0                       ##< for how long (in ms) the bomb has existed
@@ -318,13 +370,14 @@ class Bomb(Positionable):
     self.set_position(player.get_position())
     self.move_to_tile_center()
     self.has_spring = player.bombs_have_spring()
+    self.movement = Bomb.BOMB_NO_MOVEMENT
 
 ## Represents a flame coming off of an exploding bomb.
 
 class Flame(object):
   def __init__(self):
     self.player = None          ##< reference to player to which the exploding bomb belonged
-    self.time_to_burnout = 3000 ##< time in ms till the flame disappears
+    self.time_to_burnout = 1500 ##< time in ms till the flame disappears
     self.direction = "all"      ##< string representation of the flame direction
 
 class MapTile(object):
@@ -479,18 +532,21 @@ class Map(object):
     
     return len(self.tiles[tile_coordinates[1]][tile_coordinates[0]].flames) >= 1
 
-  ## Checks if there is a bomb at given tile (coordinates may be float or int).
-
-  def tile_has_bomb(self,tile_coordinates):
+  def bomb_on_tile(self,tile_coordinates):
     tile_coordinates = Positionable.position_to_tile(tile_coordinates)
     
     for bomb in self.bombs:
       bomb_tile_position = Positionable.position_to_tile(bomb.get_position())
 
       if bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
-        return True
+        return bomb
     
-    return False
+    return None
+
+  ## Checks if there is a bomb at given tile (coordinates may be float or int).
+
+  def tile_has_bomb(self,tile_coordinates):
+    return self.bomb_on_tile(tile_coordinates) != None
 
   ## Checks if given tile coordinates are within the map boundaries.
 
@@ -620,7 +676,7 @@ class Map(object):
   def update(self,dt):
     i = 0
     
-    while i <= len(self.bombs) - 1:
+    while i <= len(self.bombs) - 1:    # update all bombs
       bomb = self.bombs[i]
       bomb.time_of_existence += dt
       
@@ -628,6 +684,65 @@ class Map(object):
         self.bomb_explodes(bomb)
       else:
         i += 1
+        
+      if bomb.movement != Bomb.BOMB_NO_MOVEMENT:
+        bomb_position = bomb.get_position()
+        bomb_tile = Positionable.position_to_tile(bomb_position)
+        
+        if self.tiles[bomb_tile[1]][bomb_tile[0]].item != None:   # rolling bomb destroys items
+          self.tiles[bomb_tile[1]][bomb_tile[0]].item = None
+        
+        bomb_position_within_tile = (bomb_position[0] % 1,bomb_position[1] % 1) 
+        check_collision = False
+        forward_tile = None
+        distance_to_travel = dt / 1000.0 * Bomb.ROLLING_SPEED
+        
+        helper_boundaries = (0.5,0.9)
+        helper_boundaries2 = (1 - helper_boundaries[1],1 - helper_boundaries[0])
+        
+        opposite_direction = Bomb.BOMB_NO_MOVEMENT
+        
+        if bomb.movement == Bomb.BOMB_ROLLING_UP:
+          bomb.set_position((bomb_position[0],bomb_position[1] - distance_to_travel))
+          opposite_direction = Bomb.BOMB_ROLLING_DOWN
+        
+          if helper_boundaries2[0] < bomb_position_within_tile[1] < helper_boundaries2[1]:
+            check_collision = True
+            forward_tile = (bomb_tile[0],bomb_tile[1] - 1)
+        
+        elif bomb.movement == Bomb.BOMB_ROLLING_RIGHT:
+          bomb.set_position((bomb_position[0] + distance_to_travel,bomb_position[1]))
+          opposite_direction = Bomb.BOMB_ROLLING_LEFT
+          
+          if helper_boundaries[0] < bomb_position_within_tile[0] < helper_boundaries[1]:
+            check_collision = True
+            forward_tile = (bomb_tile[0] + 1,bomb_tile[1])
+          
+        elif bomb.movement == Bomb.BOMB_ROLLING_DOWN:
+          bomb.set_position((bomb_position[0],bomb_position[1] + distance_to_travel))
+          opposite_direction = Bomb.BOMB_ROLLING_UP
+          
+          if helper_boundaries[0] < bomb_position_within_tile[1] < helper_boundaries[1]:
+            check_collision = True
+            forward_tile = (bomb_tile[0],bomb_tile[1] + 1)
+          
+        elif bomb.movement == Bomb.BOMB_ROLLING_LEFT:
+          bomb.set_position((bomb_position[0] - distance_to_travel,bomb_position[1]))        
+          opposite_direction = Bomb.BOMB_ROLLING_RIGHT
+
+          if helper_boundaries2[0] < bomb_position_within_tile[0] < helper_boundaries2[1]:
+            check_collision = True
+            forward_tile = (bomb_tile[0] - 1,bomb_tile[1])
+
+        if check_collision and not self.tile_is_walkable(forward_tile):
+          bomb.move_to_tile_center()          
+          
+          if bomb.has_spring:
+            bomb.movement = opposite_direction
+            self.add_sound_event(SoundPlayer.SOUND_EVENT_SPRING)
+          else:
+            bomb.movement = Bomb.BOMB_NO_MOVEMENT
+            self.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
 
     for line in self.tiles:
       for tile in line:
@@ -770,6 +885,7 @@ class SoundPlayer(object):
   SOUND_EVENT_WALK = 2
   SOUND_EVENT_KICK = 3
   SOUND_EVENT_DIARRHEA = 4
+  SOUND_EVENT_SPRING = 5
   
   def __init__(self):
     pygame.mixer.init()
@@ -778,8 +894,11 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"explosion.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"bomb.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_WALK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"footsteps.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_KICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"kick.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"spring.wav"))
     
     self.playing_walk = False
+    self.kick_last_played_time = 0
     
   ## Processes a list of sound events (see class constants) by playing
   #  appropriate sounds.
@@ -788,18 +907,25 @@ class SoundPlayer(object):
     stop_playing_walk = True
     
     for sound_event in sound_event_list:
-      if sound_event == SoundPlayer.SOUND_EVENT_EXPLOSION:
-        self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION].play()
-      if sound_event == SoundPlayer.SOUND_EVENT_BOMB_PUT:
-        self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT].play()
-        
-        
       if sound_event == SoundPlayer.SOUND_EVENT_WALK:
         if not self.playing_walk:
           self.sound[SoundPlayer.SOUND_EVENT_WALK].play(loops=-1)
           self.playing_walk = True
         
         stop_playing_walk = False
+      elif sound_event == SoundPlayer.SOUND_EVENT_EXPLOSION:
+        self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION].play()
+      elif sound_event == SoundPlayer.SOUND_EVENT_BOMB_PUT:
+        self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT].play()
+      elif sound_event == SoundPlayer.SOUND_EVENT_KICK:
+        time_now = pygame.time.get_ticks()
+        
+        if time_now > self.kick_last_played_time + 200: # wait 200 ms before playing kick sound again        
+          self.sound[SoundPlayer.SOUND_EVENT_KICK].play()
+          self.kick_last_played_time = time_now
+      elif sound_event == SoundPlayer.SOUND_EVENT_SPRING:
+        self.sound[SoundPlayer.SOUND_EVENT_SPRING].play()
+    
     
     if self.playing_walk and stop_playing_walk:
       self.sound[SoundPlayer.SOUND_EVENT_WALK].stop()
