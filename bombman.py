@@ -236,18 +236,22 @@ class Player(Positionable):
       if not moved and input_action == PlayerKeyMaps.ACTION_UP:
         self.position[1] -= distance_to_travel
         self.state = Player.STATE_WALKING_UP
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
       elif not moved and input_action == PlayerKeyMaps.ACTION_DOWN:
         self.position[1] += distance_to_travel
         self.state = Player.STATE_WALKING_DOWN
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
       elif not moved and input_action == PlayerKeyMaps.ACTION_RIGHT:
         self.position[0] += distance_to_travel
         self.state = Player.STATE_WALKING_RIGHT
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
       elif not moved and input_action == PlayerKeyMaps.ACTION_LEFT:
         self.position[0] -= distance_to_travel
         self.state = Player.STATE_WALKING_LEFT
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
     
       if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position):
@@ -773,16 +777,35 @@ class SoundPlayer(object):
     self.sound = {}
     self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"explosion.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"bomb.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_WALK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"footsteps.wav"))
+    
+    self.playing_walk = False
     
   ## Processes a list of sound events (see class constants) by playing
   #  appropriate sounds.
     
-  def process_events(self,sound_event_list):
+  def process_events(self,sound_event_list): 
+    stop_playing_walk = True
+    
     for sound_event in sound_event_list:
       if sound_event == SoundPlayer.SOUND_EVENT_EXPLOSION:
         self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION].play()
       if sound_event == SoundPlayer.SOUND_EVENT_BOMB_PUT:
         self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT].play()
+        
+        
+      if sound_event == SoundPlayer.SOUND_EVENT_WALK:
+        if not self.playing_walk:
+          self.sound[SoundPlayer.SOUND_EVENT_WALK].play(loops=-1)
+          self.playing_walk = True
+        
+        stop_playing_walk = False
+    
+    if self.playing_walk and stop_playing_walk:
+      self.sound[SoundPlayer.SOUND_EVENT_WALK].stop()
+      self.playing_walk = False
+    
+  #  if not self.playing_walk = False
     
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
