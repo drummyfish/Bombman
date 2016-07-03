@@ -58,7 +58,7 @@ import time
 
 MAP1 = ("env1;"
         "ffsb;"
-        "pppffffffffbbbbbbbbbbbsdk;"
+        "ddddddddddddddddd;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -131,9 +131,18 @@ class Player(Positionable):
   STATE_WALKING_LEFT = 7
   STATE_DEAD = 8
 
+  DISEASE_NONE = 0
+  DISEASE_DIARRHEA = 1
+  DISEASE_SLOW = 2
+  DISEASE_REVERSE_CONTROLS = 3
+  DISEASE_SHORT_FLAME = 4
+  DISEASE_SWITCH_PLAYERS = 5
+  DISEASE_FAST_BOMB = 6
+
   INITIAL_SPEED = 3
   MAX_SPEED = 10
   SPEEDUP_VALUE = 1
+  DISEASE_TIME = 13000
 
   def __init__(self):
     super(Player,self).__init__()
@@ -147,14 +156,20 @@ class Player(Positionable):
     self.items = {}                       ##< which items and how many the player has, format: [item code]: count
     self.has_spring = False               ##< whether player's bombs have springs
     self.has_shoe = False                 ##< whether player has a kicking shoe
+    self.disease_time_left = 0
+    self.disease = Player.DISEASE_NONE
 
-  ## Gives player an item with given code (see Map class constants).
+  ## Gives player an item with given code (see Map class constants). game_map
+  #  is needed so that sounds can be made on item pickup - if no map is provided,
+  #  no sounds will be generated.
 
-  def give_item(self,item):
+  def give_item(self,item,game_map = None):
     if not item in self.items:
       self.items[item] = 1
     else:
       self.items[item] += 1
+      
+    sound_to_make = None
       
     if item == Map.ITEM_BOMB:
       self.bombs_left += 1
@@ -164,13 +179,30 @@ class Player(Positionable):
       self.flame_length = 15
     elif item == Map.ITEM_SPRING:
       self.has_spring = True
+      sound_to_make = SoundPlayer.SOUND_EVENT_SPRING
     elif item == Map.ITEM_SPEEDUP:
       self.speed = min(self.speed + Player.SPEEDUP_VALUE,Player.MAX_SPEED)
     elif item == Map.ITEM_SHOE:
       self.has_shoe = True
+    elif item == Map.ITEM_DISEASE:
+      self.disease_time_left = Player.DISEASE_TIME
       
+      chosen_disease = random.choice([
+        (Player.DISEASE_DIARRHEA,SoundPlayer.SOUND_EVENT_DIARRHEA)
+        # TODO: add diseases here
+        ])
+      
+      self.disease = chosen_disease[0]
+      sound_to_make = chosen_disease[1]
+    
+    if game_map != None and sound_to_make != None:
+      game_map.add_sound_event(sound_to_make)
+    
   def has_kicking_shoe(self):
     return self.has_shoe
+      
+  def get_disease(self):
+    return self.disease
       
   def bombs_have_spring(self):
     return self.has_spring
@@ -226,6 +258,9 @@ class Player(Positionable):
     previous_position = copy.copy(self.position)  # in case of collision we save the previous position
 
     putting_bomb = False
+    
+    if self.disease == Player.DISEASE_DIARRHEA:
+      input_actions.append((self.number,PlayerKeyMaps.ACTION_BOMB))  # inject bomb put event
 
     for item in input_actions:
       if item[0] != self.number:
@@ -330,7 +365,7 @@ class Player(Positionable):
         forward_tile = (current_tile[0] - 1,current_tile[1])
         bomb_movement = Bomb.BOMB_ROLLING_LEFT
     
-      if forward_tile != None:
+      if self.has_shoe and forward_tile != None:
         if game_map.tile_has_bomb(forward_tile):
           # kick happens
           kicked_bomb = game_map.bomb_on_tile(forward_tile)
@@ -346,6 +381,13 @@ class Player(Positionable):
           kicked_bomb.movement = bomb_movement
           game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
           
+    # check disease:
+    
+    if self.disease != Player.DISEASE_NONE:
+      self.disease_time_left = max(0,self.disease_time_left - dt)
+      
+      if self.disease_time_left == 0:
+        self.disease = Player.DISEASE_NONE
     
     if old_state == self.state:
       self.state_time += dt
@@ -780,7 +822,7 @@ class Map(object):
       player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
       
       if player_tile.item != None:
-        player.give_item(player_tile.item)
+        player.give_item(player_tile.item,self)
         player_tile.item = None
           
   def add_bomb(self,bomb):
@@ -896,6 +938,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_WALK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"footsteps.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_KICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"kick.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"spring.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"fart.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -925,7 +968,9 @@ class SoundPlayer(object):
           self.kick_last_played_time = time_now
       elif sound_event == SoundPlayer.SOUND_EVENT_SPRING:
         self.sound[SoundPlayer.SOUND_EVENT_SPRING].play()
-    
+      elif sound_event == SoundPlayer.SOUND_EVENT_DIARRHEA:
+        self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA].play()
+      
     
     if self.playing_walk and stop_playing_walk:
       self.sound[SoundPlayer.SOUND_EVENT_WALK].stop()
@@ -941,7 +986,7 @@ class Renderer(object):
 
   PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
   BOMB_SPRITE_CENTER = (22,33)
-  SHADOW_CENTER = (25,22)
+  SHADOW_SPRITE_CENTER = (25,22)
 
   MAP_BORDER_WIDTH = 10
 
@@ -1023,7 +1068,11 @@ class Renderer(object):
     
     self.other_images["shadow"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_shadow.png"))
     self.other_images["spring"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_spring.png"))
-      
+     
+    self.other_images["disease"] = []
+    self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
+    self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease2.png")))    
+     
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
   def color_surface(self,surface,color_number):
@@ -1120,6 +1169,10 @@ class Renderer(object):
             image_to_render = self.player_images[object_to_render.get_number()]["walk down"][animation_frame]
           else: # Player.STATE_WALKING_LEFT
             image_to_render = self.player_images[object_to_render.get_number()]["walk left"][animation_frame]
+        
+          if object_to_render.get_disease() != Player.DISEASE_NONE:
+            overlay_images.append(self.other_images["disease"][animation_frame % 2])
+            
         else:    # bomb
           sprite_center = Renderer.BOMB_SPRITE_CENTER
           animation_frame = (object_to_render.time_of_existence / 100) % 4
@@ -1128,7 +1181,7 @@ class Renderer(object):
           if object_to_render.has_spring:
             overlay_images.append(self.other_images["spring"])
         
-        render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_CENTER)
+        render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
         render_position = (render_position[0] + Renderer.MAP_BORDER_WIDTH,render_position[1] + Renderer.MAP_BORDER_WIDTH)
         result.blit(self.other_images["shadow"],render_position)
         
