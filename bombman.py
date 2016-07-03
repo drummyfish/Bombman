@@ -57,8 +57,8 @@ import random
 import time
 
 MAP1 = ("env1;"
-        "ffsb;"
-        "ddddddddddddddddd;"
+        "ffsbkp;"
+        "ddddddkkkkkkkkkpppppppp;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -140,9 +140,10 @@ class Player(Positionable):
   DISEASE_FAST_BOMB = 6
 
   INITIAL_SPEED = 3
+  SLOW_SPEED = 1.5
   MAX_SPEED = 10
   SPEEDUP_VALUE = 1
-  DISEASE_TIME = 13000
+  DISEASE_TIME = 16000
 
   def __init__(self):
     super(Player,self).__init__()
@@ -188,7 +189,9 @@ class Player(Positionable):
       self.disease_time_left = Player.DISEASE_TIME
       
       chosen_disease = random.choice([
-        (Player.DISEASE_DIARRHEA,SoundPlayer.SOUND_EVENT_DIARRHEA)
+          (Player.DISEASE_SHORT_FLAME,None),     
+          (Player.DISEASE_SLOW,SoundPlayer.SOUND_EVENT_SLOW),
+          (Player.DISEASE_DIARRHEA,SoundPlayer.SOUND_EVENT_DIARRHEA)
         # TODO: add diseases here
         ])
       
@@ -238,7 +241,9 @@ class Player(Positionable):
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
   def react_to_inputs(self,input_actions,dt,game_map):
-    distance_to_travel = dt / 1000.0 * self.speed
+    current_speed = self.speed if self.disease != Player.DISEASE_SLOW else Player.SLOW_SPEED
+    
+    distance_to_travel = dt / 1000.0 * current_speed
 
     self.position = list(self.position)    # in case position was tuple
 
@@ -590,6 +595,17 @@ class Map(object):
   def tile_has_bomb(self,tile_coordinates):
     return self.bomb_on_tile(tile_coordinates) != None
 
+  def tile_has_player(self,tile_coordinates):
+    tile_coordinates = Positionable.position_to_tile(tile_coordinates)
+    
+    for player in self.players:
+      player_tile_position = Positionable.position_to_tile(player.get_position())
+
+      if player_tile_position[0] == tile_coordinates[0] and player_tile_position[1] == tile_coordinates[1]:
+        return True
+    
+    return False
+
   ## Checks if given tile coordinates are within the map boundaries.
 
   def tile_is_withing_map(self,tile_coordinates):
@@ -776,7 +792,7 @@ class Map(object):
             check_collision = True
             forward_tile = (bomb_tile[0] - 1,bomb_tile[1])
 
-        if check_collision and not self.tile_is_walkable(forward_tile):
+        if check_collision and (not self.tile_is_walkable(forward_tile) or self.tile_has_player(forward_tile)):
           bomb.move_to_tile_center()          
           
           if bomb.has_spring:
@@ -928,6 +944,7 @@ class SoundPlayer(object):
   SOUND_EVENT_KICK = 3
   SOUND_EVENT_DIARRHEA = 4
   SOUND_EVENT_SPRING = 5
+  SOUND_EVENT_SLOW = 6
   
   def __init__(self):
     pygame.mixer.init()
@@ -939,6 +956,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_KICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"kick.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"spring.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"fart.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"slow.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -970,6 +988,8 @@ class SoundPlayer(object):
         self.sound[SoundPlayer.SOUND_EVENT_SPRING].play()
       elif sound_event == SoundPlayer.SOUND_EVENT_DIARRHEA:
         self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA].play()
+      elif sound_event == SoundPlayer.SOUND_EVENT_SLOW:
+        self.sound[SoundPlayer.SOUND_EVENT_SLOW].play()
       
     
     if self.playing_walk and stop_playing_walk:
