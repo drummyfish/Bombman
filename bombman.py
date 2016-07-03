@@ -58,7 +58,7 @@ import time
 
 MAP1 = ("env3;"
         "bb;"
-        "bbbbmmmmmmmmmmmmmmmmmmmmmmmm;"
+        "bbbbrrrrrrrrrrrrrrrr;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -172,6 +172,18 @@ class Player(Positionable):
     else:
       self.items[item] += 1
       
+    if item == Map.ITEM_RANDOM:
+      item = random.choice((
+        Map.ITEM_BOMB,
+        Map.ITEM_FLAME,
+        Map.ITEM_SUPERFLAME,
+        Map.ITEM_MULTIBOMB,
+        Map.ITEM_SPRING,
+        Map.ITEM_SHOE,
+        Map.ITEM_SPEEDUP,
+        Map.ITEM_DISEASE
+        ))
+      
     sound_to_make = SoundPlayer.SOUND_EVENT_CLICK
       
     if item == Map.ITEM_BOMB:
@@ -179,7 +191,7 @@ class Player(Positionable):
     elif item == Map.ITEM_FLAME:
       self.flame_length += 1
     elif item == Map.ITEM_SUPERFLAME:
-      self.flame_length = 15
+      self.flame_length = max(Map.MAP_WIDTH,Map.MAP_HEIGHT)
     if item == Map.ITEM_MULTIBOMB:
       self.has_multibomb = True
     elif item == Map.ITEM_SPRING:
@@ -1178,6 +1190,8 @@ class Renderer(object):
     self.item_images[Map.ITEM_SPRING] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_spring.png"))
     self.item_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_shoe.png"))
     self.item_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_multibomb.png"))
+    self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_random.png"))
+    
       
     # load other images:
     
