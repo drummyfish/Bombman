@@ -186,16 +186,31 @@ class Player(Positionable):
     elif item == Map.ITEM_SHOE:
       self.has_shoe = True
     elif item == Map.ITEM_DISEASE:
-      self.disease_time_left = Player.DISEASE_TIME
-      
       chosen_disease = random.choice([
-          (Player.DISEASE_SHORT_FLAME,SoundPlayer.SOUND_EVENT_DISEASE),     
-          (Player.DISEASE_SLOW,SoundPlayer.SOUND_EVENT_SLOW),
-          (Player.DISEASE_DIARRHEA,SoundPlayer.SOUND_EVENT_DIARRHEA)
-        # TODO: add diseases here
+        (Player.DISEASE_SHORT_FLAME,SoundPlayer.SOUND_EVENT_DISEASE),     
+        (Player.DISEASE_SLOW,SoundPlayer.SOUND_EVENT_SLOW),
+        (Player.DISEASE_DIARRHEA,SoundPlayer.SOUND_EVENT_DIARRHEA),
+        (Player.DISEASE_FAST_BOMB,SoundPlayer.SOUND_EVENT_DISEASE),
+        (Player.DISEASE_REVERSE_CONTROLS,SoundPlayer.SOUND_EVENT_DISEASE),
+        (Player.DISEASE_SWITCH_PLAYERS,SoundPlayer.SOUND_EVENT_DISEASE)
         ])
       
-      self.disease = chosen_disease[0]
+      if chosen_disease[0] == Player.DISEASE_SWITCH_PLAYERS:
+        if game_map != None:
+          players = game_map.get_players()
+          
+          player_to_switch = self
+          
+          while player_to_switch == self:
+            player_to_switch = random.choice(players)
+          
+          my_position = self.get_position()
+          self.set_position(player_to_switch.get_position())
+          player_to_switch.set_position(my_position)
+      else:
+        self.disease = chosen_disease[0]
+        self.disease_time_left = Player.DISEASE_TIME
+    
       sound_to_make = chosen_disease[1]
     
     if game_map != None and sound_to_make != None:
@@ -273,6 +288,16 @@ class Player(Positionable):
       
       input_action = item[1]
 
+      if self.disease == Player.DISEASE_REVERSE_CONTROLS:
+        if input_action == PlayerKeyMaps.ACTION_UP:
+          input_action = PlayerKeyMaps.ACTION_DOWN
+        elif input_action == PlayerKeyMaps.ACTION_RIGHT:
+          input_action = PlayerKeyMaps.ACTION_LEFT
+        elif input_action == PlayerKeyMaps.ACTION_DOWN:
+          input_action = PlayerKeyMaps.ACTION_UP
+        elif input_action == PlayerKeyMaps.ACTION_LEFT:
+          input_action = PlayerKeyMaps.ACTION_RIGHT
+          
       if not moved and input_action == PlayerKeyMaps.ACTION_UP:
         self.position[1] -= distance_to_travel
         self.state = Player.STATE_WALKING_UP
@@ -351,6 +376,8 @@ class Player(Positionable):
       
       if self.disease == Player.DISEASE_SHORT_FLAME:
         new_bomb.flame_length = 1
+      elif self.disease == Player.DISEASE_FAST_BOMB:
+        new_bomb.explodes_in = 800
     
     # check if bomb kick happens
     
