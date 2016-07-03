@@ -58,7 +58,7 @@ import time
 
 MAP1 = ("env1;"
         "ffsbkp;"
-        "ddddddkkkkkkkkkpppppppp;"
+        "ddddddddddddddddddddddddddddddd;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -143,7 +143,7 @@ class Player(Positionable):
   SLOW_SPEED = 1.5
   MAX_SPEED = 10
   SPEEDUP_VALUE = 1
-  DISEASE_TIME = 16000
+  DISEASE_TIME = 20000
 
   def __init__(self):
     super(Player,self).__init__()
@@ -189,7 +189,7 @@ class Player(Positionable):
       self.disease_time_left = Player.DISEASE_TIME
       
       chosen_disease = random.choice([
-          (Player.DISEASE_SHORT_FLAME,None),     
+          (Player.DISEASE_SHORT_FLAME,SoundPlayer.SOUND_EVENT_DISEASE),     
           (Player.DISEASE_SLOW,SoundPlayer.SOUND_EVENT_SLOW),
           (Player.DISEASE_DIARRHEA,SoundPlayer.SOUND_EVENT_DIARRHEA)
         # TODO: add diseases here
@@ -348,6 +348,9 @@ class Player(Positionable):
       game_map.add_bomb(new_bomb)
       game_map.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
       self.bombs_left -= 1
+      
+      if self.disease == Player.DISEASE_SHORT_FLAME:
+        new_bomb.flame_length = 1
     
     # check if bomb kick happens
     
@@ -424,7 +427,7 @@ class Bomb(Positionable):
 class Flame(object):
   def __init__(self):
     self.player = None          ##< reference to player to which the exploding bomb belonged
-    self.time_to_burnout = 1500 ##< time in ms till the flame disappears
+    self.time_to_burnout = 1000 ##< time in ms till the flame disappears
     self.direction = "all"      ##< string representation of the flame direction
 
 class MapTile(object):
@@ -945,6 +948,7 @@ class SoundPlayer(object):
   SOUND_EVENT_DIARRHEA = 4
   SOUND_EVENT_SPRING = 5
   SOUND_EVENT_SLOW = 6
+  SOUND_EVENT_DISEASE = 7
   
   def __init__(self):
     pygame.mixer.init()
@@ -957,6 +961,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"spring.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"fart.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"slow.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"disease.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -990,6 +995,8 @@ class SoundPlayer(object):
         self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA].play()
       elif sound_event == SoundPlayer.SOUND_EVENT_SLOW:
         self.sound[SoundPlayer.SOUND_EVENT_SLOW].play()
+      elif sound_event == SoundPlayer.SOUND_EVENT_DISEASE:
+        self.sound[SoundPlayer.SOUND_EVENT_DISEASE].play()
       
     
     if self.playing_walk and stop_playing_walk:
