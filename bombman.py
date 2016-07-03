@@ -58,7 +58,7 @@ import time
 
 MAP1 = ("env3;"
         "bb;"
-        "bbbbbkkkkkkkkkksssssssssppppppppppddddddd;"
+        "bbbbmmmmmmmmmmmmmmmmmmmmmmmm;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -138,6 +138,7 @@ class Player(Positionable):
   DISEASE_SHORT_FLAME = 4
   DISEASE_SWITCH_PLAYERS = 5
   DISEASE_FAST_BOMB = 6
+  DISEASE_NO_BOMB = 7
 
   INITIAL_SPEED = 3
   SLOW_SPEED = 1.5
@@ -195,7 +196,8 @@ class Player(Positionable):
         (Player.DISEASE_DIARRHEA,SoundPlayer.SOUND_EVENT_DIARRHEA),
         (Player.DISEASE_FAST_BOMB,SoundPlayer.SOUND_EVENT_DISEASE),
         (Player.DISEASE_REVERSE_CONTROLS,SoundPlayer.SOUND_EVENT_DISEASE),
-        (Player.DISEASE_SWITCH_PLAYERS,SoundPlayer.SOUND_EVENT_DISEASE)
+        (Player.DISEASE_SWITCH_PLAYERS,SoundPlayer.SOUND_EVENT_DISEASE),
+        (Player.DISEASE_NO_BOMB,SoundPlayer.SOUND_EVENT_DISEASE)
         ])
       
       if chosen_disease[0] == Player.DISEASE_SWITCH_PLAYERS:
@@ -218,6 +220,22 @@ class Player(Positionable):
     
     if game_map != None and sound_to_make != None:
       game_map.add_sound_event(sound_to_make)
+    
+  def lay_bomb(self,game_map,tile_coordinates = None):  
+    new_bomb = Bomb(self)
+    
+    if tile_coordinates != None:
+      new_bomb.set_position(tile_coordinates)
+      new_bomb.move_to_tile_center()
+    
+    game_map.add_bomb(new_bomb)
+    game_map.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
+    self.bombs_left -= 1
+      
+    if self.disease == Player.DISEASE_SHORT_FLAME:
+      new_bomb.flame_length = 1
+    elif self.disease == Player.DISEASE_FAST_BOMB:
+      new_bomb.explodes_in = 800    
     
   def has_kicking_shoe(self):
     return self.has_shoe
@@ -281,6 +299,7 @@ class Player(Positionable):
     previous_position = copy.copy(self.position)  # in case of collision we save the previous position
 
     putting_bomb = False
+    putting_multibomb = False
     
     if self.disease == Player.DISEASE_DIARRHEA:
       input_actions.append((self.number,PlayerKeyMaps.ACTION_BOMB))  # inject bomb put event
@@ -322,9 +341,12 @@ class Player(Positionable):
         game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
     
-      if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position):
+      if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position) and not self.disease == Player.DISEASE_NO_BOMB:
         putting_bomb = True
     
+      if self.has_multibomb and input_action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:  # check multibomb
+        putting_multibomb = True
+          
     # resolve collisions:
 
     check_collisions = True
@@ -372,15 +394,7 @@ class Player(Positionable):
           self.position[0] += distance_to_travel
     
     if putting_bomb and not game_map.tile_has_bomb(Positionable.position_to_tile(self.position)):
-      new_bomb = Bomb(self)
-      game_map.add_bomb(new_bomb)
-      game_map.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
-      self.bombs_left -= 1
-      
-      if self.disease == Player.DISEASE_SHORT_FLAME:
-        new_bomb.flame_length = 1
-      elif self.disease == Player.DISEASE_FAST_BOMB:
-        new_bomb.explodes_in = 800
+      self.lay_bomb(game_map)
     
     # check if bomb kick happens
     
@@ -418,7 +432,31 @@ class Player(Positionable):
              
           kicked_bomb.movement = bomb_movement
           game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
-          
+    
+    # put multibomb
+    
+    if putting_multibomb:
+      current_tile = Positionable.position_to_tile(self.position)
+      
+      if self.state in (Player.STATE_WALKING_UP,Player.STATE_IDLE_UP):
+        tile_increment = (0,-1)
+      elif self.state in (Player.STATE_WALKING_RIGHT,Player.STATE_IDLE_RIGHT):
+        tile_increment = (1,0)
+      elif self.state in (Player.STATE_WALKING_DOWN,Player.STATE_IDLE_DOWN):
+        tile_increment = (0,1)
+      else:     # left
+        tile_increment = (-1,0)
+  
+      i = 1
+  
+      while self.bombs_left > 0:
+        next_tile = (current_tile[0] + i * tile_increment[0],current_tile[1] + i * tile_increment[1])
+        if not game_map.tile_is_walkable(next_tile) or game_map.tile_has_player(next_tile):
+          break
+        
+        self.lay_bomb(game_map,next_tile)
+        i += 1
+  
     # check disease:
     
     if self.disease != Player.DISEASE_NONE:
@@ -937,10 +975,14 @@ class PlayerKeyMaps(object):
   ACTION_LEFT = 3
   ACTION_BOMB = 4
   ACTION_SPECIAL = 5
-  ACTION_MENU = 6       ##< brings up the main menu
+  ACTION_MENU = 6       ##< brings up the main menu 
+  ACTION_BOMB_DOUBLE = 7
 
   def __init__(self):
     self.key_maps = {}  ##< maps keys to tuples of a format: (player_number, action), for general actions player_number will be -1
+    
+    self.bomb_key_last_pressed_time = [0 for i in range(10)]  ##< for bomb double press detection
+    self.bomb_key_previous_state = [False for i in range(10)] ##< for bomb double press detection
 
   ## Sets a key mapping for a player of specified (non-negative) number.
 
@@ -962,9 +1004,26 @@ class PlayerKeyMaps(object):
 
     result = []
 
+    reset_bomb_key_previous_state = [True for i in range(10)]
+
     for key_code in self.key_maps:
       if keys_pressed[key_code]:
-        result.append(self.key_maps[key_code])
+        action_tuple = self.key_maps[key_code]  
+        result.append(action_tuple)
+        
+        if action_tuple[1] == PlayerKeyMaps.ACTION_BOMB:
+          player_number = action_tuple[0]
+          
+          if self.bomb_key_previous_state[player_number] == False and pygame.time.get_ticks() - self.bomb_key_last_pressed_time[player_number] < 200:
+            result.append((player_number,PlayerKeyMaps.ACTION_BOMB_DOUBLE))
+          
+          self.bomb_key_last_pressed_time[player_number] = pygame.time.get_ticks()
+          self.bomb_key_previous_state[player_number] = True
+          reset_bomb_key_previous_state[player_number] = False
+
+    for i in range(10):
+      if reset_bomb_key_previous_state[i]:
+        self.bomb_key_previous_state[i] = False
 
     return result
 
