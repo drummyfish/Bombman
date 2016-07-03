@@ -56,9 +56,9 @@ import copy
 import random
 import time
 
-MAP1 = ("env1;"
-        "ffsbkp;"
-        "ddddddddddddddddddddddddddddddd;"
+MAP1 = ("env3;"
+        "bb;"
+        "bbbbbkkkkkkkkkksssssssssppppppppppddddddd;"
         "x . x x x x x x . x x x x . x"
         ". 0 . x x x x . 9 . x x . 3 ."
         "x . x x . x x x . x x . x . x"
@@ -159,6 +159,7 @@ class Player(Positionable):
     self.has_shoe = False                 ##< whether player has a kicking shoe
     self.disease_time_left = 0
     self.disease = Player.DISEASE_NONE
+    self.has_multibomb = False
 
   ## Gives player an item with given code (see Map class constants). game_map
   #  is needed so that sounds can be made on item pickup - if no map is provided,
@@ -170,7 +171,7 @@ class Player(Positionable):
     else:
       self.items[item] += 1
       
-    sound_to_make = None
+    sound_to_make = SoundPlayer.SOUND_EVENT_CLICK
       
     if item == Map.ITEM_BOMB:
       self.bombs_left += 1
@@ -178,6 +179,8 @@ class Player(Positionable):
       self.flame_length += 1
     elif item == Map.ITEM_SUPERFLAME:
       self.flame_length = 15
+    if item == Map.ITEM_MULTIBOMB:
+      self.has_multibomb = True
     elif item == Map.ITEM_SPRING:
       self.has_spring = True
       sound_to_make = SoundPlayer.SOUND_EVENT_SPRING
@@ -976,6 +979,7 @@ class SoundPlayer(object):
   SOUND_EVENT_SPRING = 5
   SOUND_EVENT_SLOW = 6
   SOUND_EVENT_DISEASE = 7
+  SOUND_EVENT_CLICK = 8
   
   def __init__(self):
     pygame.mixer.init()
@@ -989,6 +993,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"fart.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"slow.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"disease.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"click.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -1000,32 +1005,31 @@ class SoundPlayer(object):
     stop_playing_walk = True
     
     for sound_event in sound_event_list:
-      if sound_event == SoundPlayer.SOUND_EVENT_WALK:
+      
+      if sound_event in (          # simple sound play
+        SoundPlayer.SOUND_EVENT_EXPLOSION,
+        SoundPlayer.SOUND_EVENT_CLICK,
+        SoundPlayer.SOUND_EVENT_BOMB_PUT,
+        SoundPlayer.SOUND_EVENT_SPRING,
+        SoundPlayer.SOUND_EVENT_DIARRHEA,
+        SoundPlayer.SOUND_EVENT_SLOW,
+        SoundPlayer.SOUND_EVENT_DISEASE
+        ):
+        self.sound[sound_event].play()
+      
+      elif sound_event == SoundPlayer.SOUND_EVENT_WALK:
         if not self.playing_walk:
           self.sound[SoundPlayer.SOUND_EVENT_WALK].play(loops=-1)
           self.playing_walk = True
         
         stop_playing_walk = False
-      elif sound_event == SoundPlayer.SOUND_EVENT_EXPLOSION:
-        self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION].play()
-      elif sound_event == SoundPlayer.SOUND_EVENT_BOMB_PUT:
-        self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT].play()
       elif sound_event == SoundPlayer.SOUND_EVENT_KICK:
         time_now = pygame.time.get_ticks()
         
         if time_now > self.kick_last_played_time + 200: # wait 200 ms before playing kick sound again        
           self.sound[SoundPlayer.SOUND_EVENT_KICK].play()
           self.kick_last_played_time = time_now
-      elif sound_event == SoundPlayer.SOUND_EVENT_SPRING:
-        self.sound[SoundPlayer.SOUND_EVENT_SPRING].play()
-      elif sound_event == SoundPlayer.SOUND_EVENT_DIARRHEA:
-        self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA].play()
-      elif sound_event == SoundPlayer.SOUND_EVENT_SLOW:
-        self.sound[SoundPlayer.SOUND_EVENT_SLOW].play()
-      elif sound_event == SoundPlayer.SOUND_EVENT_DISEASE:
-        self.sound[SoundPlayer.SOUND_EVENT_DISEASE].play()
       
-    
     if self.playing_walk and stop_playing_walk:
       self.sound[SoundPlayer.SOUND_EVENT_WALK].stop()
       self.playing_walk = False
