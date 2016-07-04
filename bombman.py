@@ -59,16 +59,16 @@ import time
 MAP1 = ("env3;"
         "bb;"
         "bbbbrrrrrrrrrrrrrrrr;"
-        "x . x x x x x x . x x x x . x"
-        ". 0 . x x x x . 9 . x x . 3 ."
-        "x . x x . x x x . x x . x . x"
-        "x x x . 4 . x x x x . 5 . x x"
-        "x x x x . x x x x x x . x x x"
+        "x T x x x x x x . x x x x . x"
+        ". 0 . x x x x B 9 . x x . 3 ."
+        "x . x x T x x x . x x . x . x"
+        "x x x . 4 . x x x x A 5 . x x"
+        "x x x x T x x x x x x . x x x"
         "# x x x x x # # # # x x x x #"
-        "x x x x . x x x x x x . x x x"
-        "x x x . 7 . x x x x . 6 . x x"
+        "x x x x . x x x x x x T x x x"
+        "x x x A 7 . x x x x . 6 . x x"
         "x . x x . x x . x x x . x . x"
-        ". 2 . x x x . 8 . x x x . 1 ."
+        ". 2 . x x x . 8 B x x x . 1 ."
         "x . x x x x x . x x x x x . x")
 
 # colors used for players and teams
@@ -515,12 +515,17 @@ class MapTile(object):
   TILE_BLOCK = 1                ##< non-walkable but destroyable map tile
   TILE_WALL = 2                 ##< non-walkable and non-destroyable map tile
   
+  SPECIAL_OBJECT_TRAMPOLINE = 0
+  SPECIAL_OBJECT_TELEPORT_A = 1
+  SPECIAL_OBJECT_TELEPORT_B = 2
+  
   def __init__(self, coordinates):
     self.kind = MapTile.TILE_FLOOR
     self.flames = []
     self.coordinates = coordinates
     self.to_be_destroyed = False   ##< Flag that marks the tile to be destroyed after the flames go out.
     self.item = None               ##< Item that's present on the file
+    self.special_object = None     ##< special object present on the tile, like trampoline or teleport
 
 ## Holds and manipulates the map data including the players, bombs etc.
 
@@ -582,6 +587,13 @@ class Map(object):
         tile.kind = MapTile.TILE_WALL
       else:
         tile.kind = MapTile.TILE_FLOOR
+        
+        if tile_character == "A":
+          tile.special_object = MapTile.SPECIAL_OBJECT_TELEPORT_A
+        elif tile_character == "B":
+          tile.special_object = MapTile.SPECIAL_OBJECT_TELEPORT_A
+        elif tile_character == "T":
+          tile.special_object = MapTile.SPECIAL_OBJECT_TRAMPOLINE
 
       self.tiles[-1].append(tile)
 
@@ -627,6 +639,12 @@ class Map(object):
 
   def add_sound_event(self,sound_event):
     self.sound_events.append(sound_event)
+    
+  def get_tile_at(self,tile_coordinates):
+    if self.tile_is_withing_map(tile_coordinates):
+      return self.tiles[tile_coordinates[1]][tile_coordinates[0]]
+    
+    return None
     
   def get_and_clear_sound_events(self):
     result = self.sound_events[:]      # copy of the list
@@ -1234,12 +1252,24 @@ class Renderer(object):
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
       print("prerendering map...")
 
+      # following images are only needed here, so we dont store them to self
+      image_trampoline = pygame.image.load(os.path.join(RESOURCE_PATH,"other_trampoline.png"))
+      image_teleport = pygame.image.load(os.path.join(RESOURCE_PATH,"other_teleport.png"))
+
       self.prerendered_map_background.fill((255,255,255))
 
       for j in range(Map.MAP_HEIGHT):
         for i in range(Map.MAP_WIDTH):
-          self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],(i * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH,j * Renderer.MAP_TILE_HEIGHT + + Renderer.MAP_BORDER_WIDTH))
-
+          render_position = (i * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH,j * Renderer.MAP_TILE_HEIGHT + + Renderer.MAP_BORDER_WIDTH)          
+          self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],render_position)
+       
+          tile = map_to_render.get_tile_at((i,j))
+          
+          if tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_A or tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_B:
+            self.prerendered_map_background.blit(image_teleport,render_position)
+          elif tile.special_object == MapTile.SPECIAL_OBJECT_TRAMPOLINE:
+            self.prerendered_map_background.blit(image_trampoline,render_position)
+          
       self.prerendered_map = map_to_render
 
     result.blit(self.prerendered_map_background,(0,0))
