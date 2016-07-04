@@ -35,6 +35,7 @@
 #                     m - multibomb
 #                     r - random
 #                     x - boxing glove
+#                     e - detonator
 #                     TODO
 # <map items>     - Set of items that will be hidden in block on the map. This is a string of the
 #                   same format as in <player items>. If there is more items specified than there is
@@ -57,9 +58,9 @@ import copy
 import random
 import time
 
-MAP1 = ("env5;"
-        "bb;"
-        "bbbbrrrrrrxxxxxxxxxxxxxxxxxxxxxxx;"
+MAP1 = ("env3;"
+        "bbex;"
+        "bbbbrrrrrrxxeeeeeeeeeeeeeeeeeeee;"
         "x T x x x x x x . x x x x . x"
         ". 0 . x x x x B 9 . x x . 3 ."
         "x . x x T x x x . x x . x . x"
@@ -164,6 +165,9 @@ class Player(Positionable):
     self.has_multibomb = False
     self.has_boxing_glove = False
     self.boxing = False
+    self.detonator_boms_left = 0          ##< what number of following bombs will have detonators
+    self.detonator_bombs = []             ##< references to bombs to be detonated
+    self.wait_for_special_release = False ##< helper used to wait for special key release
     
   def is_boxing(self):
     return self.boxing
@@ -188,7 +192,8 @@ class Player(Positionable):
         Map.ITEM_SHOE,
         Map.ITEM_SPEEDUP,
         Map.ITEM_DISEASE,
-        Map.ITEM_BOXING_GLOVE
+        Map.ITEM_BOXING_GLOVE,
+        Map.ITEM_DETONATOR
         ))
       
     sound_to_make = SoundPlayer.SOUND_EVENT_CLICK
@@ -201,6 +206,8 @@ class Player(Positionable):
       self.flame_length = max(Map.MAP_WIDTH,Map.MAP_HEIGHT)
     if item == Map.ITEM_MULTIBOMB:
       self.has_multibomb = True
+    elif item == Map.ITEM_DETONATOR:
+      self.detonator_boms_left = 3      
     elif item == Map.ITEM_SPRING:
       self.has_spring = True
       sound_to_make = SoundPlayer.SOUND_EVENT_SPRING
@@ -256,7 +263,12 @@ class Player(Positionable):
     if self.disease == Player.DISEASE_SHORT_FLAME:
       new_bomb.flame_length = 1
     elif self.disease == Player.DISEASE_FAST_BOMB:
-      new_bomb.explodes_in = 800    
+      new_bomb.explodes_in = 800 
+      
+    if self.detonator_boms_left > 0:
+      new_bomb.detonator_time_left = Bomb.DETONATOR_EXPIRATION_TIME
+      self.detonator_bombs.append(new_bomb)
+      self.detonator_boms_left -= 1
     
   def has_kicking_shoe(self):
     return self.has_shoe
@@ -321,7 +333,9 @@ class Player(Positionable):
 
     putting_bomb = False
     putting_multibomb = False
+    detonator_triggered = False
     self.boxing = False
+    special_was_pressed = False
     
     if self.disease == Player.DISEASE_DIARRHEA:
       input_actions.append((self.number,PlayerKeyMaps.ACTION_BOMB))  # inject bomb put event
@@ -368,10 +382,26 @@ class Player(Positionable):
     
       if self.has_multibomb and input_action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:  # check multibomb
         putting_multibomb = True
+
+      if input_action == PlayerKeyMaps.ACTION_SPECIAL:
+        special_was_pressed = True
         
-      if self.has_boxing_glove and input_action == PlayerKeyMaps.ACTION_SPECIAL:
-        self.boxing = True
+        if not self.wait_for_special_release:       
+          while len(self.detonator_bombs) != 0:   # find a bomb to ddetonate (some may have exploded by themselves already)
+            bomb_to_check = self.detonator_bombs.pop()
           
+            if bomb_to_check.has_detonator():
+              game_map.bomb_explodes(bomb_to_check)
+              detonator_triggered = True
+              self.wait_for_special_release = True    # to not detonate other bombs until the key is released and pressed again
+              break
+            
+          if not detonator_triggered and self.has_boxing_glove:
+            self.boxing = True
+      
+    if not special_was_pressed:
+      self.wait_for_special_release = False
+      
     # resolve collisions:
 
     check_collisions = True
@@ -504,16 +534,22 @@ class Bomb(Positionable):
   BOMB_ROLLING_LEFT = 3
   BOMB_NO_MOVEMENT = 4
   
+  DETONATOR_EXPIRATION_TIME = 20000
+  
   def __init__(self, player):
     super(Bomb,self).__init__()
     self.time_of_existence = 0                       ##< for how long (in ms) the bomb has existed
     self.flame_length = player.get_flame_length()    ##< how far the flame will go
     self.player = player                             ##< to which player the bomb belongs
-    self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created
+    self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created (detonator_time_left must expire before this starts counting down)
+    self.detonator_time_left = 0                     ##< if > 0, the bomb has a detonator on it, after expiring it becomes a regular bomb
     self.set_position(player.get_position())
     self.move_to_tile_center()
     self.has_spring = player.bombs_have_spring()
     self.movement = Bomb.BOMB_NO_MOVEMENT
+
+  def has_detonator(self):
+    return self.detonator_time_left > 0 and self.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME
 
 ## Represents a flame coming off of an exploding bomb.
 
@@ -565,6 +601,7 @@ class Map(object):
   ITEM_SHOE = 7
   ITEM_MULTIBOMB = 8
   ITEM_BOXING_GLOVE = 9
+  ITEM_DETONATOR = 10
   
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
@@ -687,6 +724,8 @@ class Map(object):
       return Map.ITEM_RANDOM
     elif letter == "x":
       return Map.ITEM_BOXING_GLOVE
+    elif letter == "e":
+      return Map.ITEM_DETONATOR
     else:
       return -1
 
@@ -842,9 +881,11 @@ class Map(object):
             flame_stop[direction] = True
           
         axis_position[direction] += increment[direction]
- 
+    
     bomb.player.bomb_exploded()
-    self.bombs.remove(bomb)
+   
+    if bomb in self.bombs:
+      self.bombs.remove(bomb)
 
   ## Updates some things on the map that change with time.
 
@@ -855,7 +896,7 @@ class Map(object):
       bomb = self.bombs[i]
       bomb.time_of_existence += dt
       
-      if bomb.time_of_existence > bomb.explodes_in: # bomb explodes
+      if bomb.time_of_existence > bomb.explodes_in + bomb.detonator_time_left: # bomb explodes
         self.bomb_explodes(bomb)
       else:
         i += 1
@@ -1229,13 +1270,15 @@ class Renderer(object):
     self.item_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_multibomb.png"))
     self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_random.png"))
     self.item_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_boxing_glove.png"))
-      
+    self.item_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_detonator.png"))
+    
     # load other images:
     
     self.other_images = {}
     
     self.other_images["shadow"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_shadow.png"))
     self.other_images["spring"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_spring.png"))
+    self.other_images["antena"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_antena.png"))
      
     self.other_images["disease"] = []
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
@@ -1328,7 +1371,7 @@ class Renderer(object):
         
         overlay_images = []     # images that should additionaly be rendered over image_to_render
         
-        if isinstance(object_to_render,Player):
+        if isinstance(object_to_render,Player):      # <= not very nice, maybe fix this later
           sprite_center = Renderer.PLAYER_SPRITE_CENTER
           
           animation_frame = (object_to_render.get_state_time() / 100) % 4
@@ -1366,11 +1409,17 @@ class Renderer(object):
               image_to_render = self.player_images[object_to_render.get_number()]["walk left"][animation_frame]
         
           if object_to_render.get_disease() != Player.DISEASE_NONE:
-            overlay_images.append(self.other_images["disease"][animation_frame % 2])
-            
+            overlay_images.append(self.other_images["disease"][animation_frame % 2])          
         else:    # bomb
           sprite_center = Renderer.BOMB_SPRITE_CENTER
           animation_frame = (object_to_render.time_of_existence / 100) % 4
+         
+          if object_to_render.has_detonator():
+            overlay_images.append(self.other_images["antena"])
+            
+            if object_to_render.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME:
+              animation_frame = 0                 # bomb won't pulse if within detonator expiration time
+          
           image_to_render = self.bomb_images[animation_frame]
           
           if object_to_render.has_spring:
