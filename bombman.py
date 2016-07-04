@@ -56,7 +56,7 @@ import copy
 import random
 import time
 
-MAP1 = ("env3;"
+MAP1 = ("env5;"
         "bb;"
         "bbbbrrrrrrrrrrrrrrrr;"
         "x T x x x x x x . x x x x . x"
@@ -1142,7 +1142,7 @@ class Renderer(object):
 
     self.environment_images = {}
 
-    environment_names = ["env1","env2","env3","env4"]
+    environment_names = ["env1","env2","env3","env4","env5"]
 
     for environment_name in environment_names:
       filename_floor = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_floor.png")
