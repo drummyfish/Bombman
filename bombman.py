@@ -34,6 +34,7 @@
 #                     d - disease
 #                     m - multibomb
 #                     r - random
+#                     x - boxing glove
 #                     TODO
 # <map items>     - Set of items that will be hidden in block on the map. This is a string of the
 #                   same format as in <player items>. If there is more items specified than there is
@@ -58,7 +59,7 @@ import time
 
 MAP1 = ("env5;"
         "bb;"
-        "bbbbrrrrrrrrrrrrrrrr;"
+        "bbbbrrrrrrxxxxxxxxxxxxxxxxxxxxxxx;"
         "x T x x x x x x . x x x x . x"
         ". 0 . x x x x B 9 . x x . 3 ."
         "x . x x T x x x . x x . x . x"
@@ -161,6 +162,11 @@ class Player(Positionable):
     self.disease_time_left = 0
     self.disease = Player.DISEASE_NONE
     self.has_multibomb = False
+    self.has_boxing_glove = False
+    self.boxing = False
+    
+  def is_boxing(self):
+    return self.boxing
 
   ## Gives player an item with given code (see Map class constants). game_map
   #  is needed so that sounds can be made on item pickup - if no map is provided,
@@ -181,7 +187,8 @@ class Player(Positionable):
         Map.ITEM_SPRING,
         Map.ITEM_SHOE,
         Map.ITEM_SPEEDUP,
-        Map.ITEM_DISEASE
+        Map.ITEM_DISEASE,
+        Map.ITEM_BOXING_GLOVE
         ))
       
     sound_to_make = SoundPlayer.SOUND_EVENT_CLICK
@@ -201,6 +208,8 @@ class Player(Positionable):
       self.speed = min(self.speed + Player.SPEEDUP_VALUE,Player.MAX_SPEED)
     elif item == Map.ITEM_SHOE:
       self.has_shoe = True
+    elif item == Map.ITEM_BOXING_GLOVE:
+      self.has_boxing_glove = True
     elif item == Map.ITEM_DISEASE:
       chosen_disease = random.choice([
         (Player.DISEASE_SHORT_FLAME,SoundPlayer.SOUND_EVENT_DISEASE),     
@@ -312,6 +321,7 @@ class Player(Positionable):
 
     putting_bomb = False
     putting_multibomb = False
+    self.boxing = False
     
     if self.disease == Player.DISEASE_DIARRHEA:
       input_actions.append((self.number,PlayerKeyMaps.ACTION_BOMB))  # inject bomb put event
@@ -358,6 +368,9 @@ class Player(Positionable):
     
       if self.has_multibomb and input_action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:  # check multibomb
         putting_multibomb = True
+        
+      if self.has_boxing_glove and input_action == PlayerKeyMaps.ACTION_SPECIAL:
+        self.boxing = True
           
     # resolve collisions:
 
@@ -551,6 +564,7 @@ class Map(object):
   ITEM_SPRING = 6
   ITEM_SHOE = 7
   ITEM_MULTIBOMB = 8
+  ITEM_BOXING_GLOVE = 9
   
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
@@ -671,6 +685,8 @@ class Map(object):
       return Map.ITEM_MULTIBOMB
     elif letter == "r":
       return Map.ITEM_RANDOM
+    elif letter == "x":
+      return Map.ITEM_BOXING_GLOVE
     else:
       return -1
 
@@ -1174,6 +1190,9 @@ class Renderer(object):
         
         self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk3.png")),i))
         self.player_images[-1][string_index].append(self.player_images[-1][string_index][0])
+        
+        string_index = "box " + helper_string
+        self.player_images[-1][string_index] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_box.png")),i)
      
     self.bomb_images = []
     self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb1.png")))
@@ -1209,7 +1228,7 @@ class Renderer(object):
     self.item_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_shoe.png"))
     self.item_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_multibomb.png"))
     self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_random.png"))
-    
+    self.item_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_boxing_glove.png"))
       
     # load other images:
     
@@ -1314,22 +1333,37 @@ class Renderer(object):
           
           animation_frame = (object_to_render.get_state_time() / 100) % 4
           
-          if object_to_render.get_state() == Player.STATE_IDLE_UP:
-            image_to_render = self.player_images[object_to_render.get_number()]["up"]
-          elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT:
-            image_to_render = self.player_images[object_to_render.get_number()]["right"]
-          elif object_to_render.get_state() == Player.STATE_IDLE_DOWN:
-            image_to_render = self.player_images[object_to_render.get_number()]["down"]
-          elif object_to_render.get_state() == Player.STATE_IDLE_LEFT:
-            image_to_render = self.player_images[object_to_render.get_number()]["left"]
-          elif object_to_render.get_state() == Player.STATE_WALKING_UP:
-            image_to_render = self.player_images[object_to_render.get_number()]["walk up"][animation_frame]
-          elif object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
-            image_to_render = self.player_images[object_to_render.get_number()]["walk right"][animation_frame]
-          elif object_to_render.get_state() == Player.STATE_WALKING_DOWN:
-            image_to_render = self.player_images[object_to_render.get_number()]["walk down"][animation_frame]
-          else: # Player.STATE_WALKING_LEFT
-            image_to_render = self.player_images[object_to_render.get_number()]["walk left"][animation_frame]
+          if object_to_render.is_boxing():
+            if animation_frame == 0:
+              helper_string = ""
+            else:
+              helper_string = "box "
+            
+            if object_to_render.get_state() == Player.STATE_IDLE_UP or object_to_render.get_state() == Player.STATE_WALKING_UP:
+              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "up"]
+            elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT or object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
+              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "right"]
+            elif object_to_render.get_state() == Player.STATE_IDLE_DOWN or object_to_render.get_state() == Player.STATE_WALKING_DOWN:
+              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "down"]
+            else:      # left
+              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "left"]
+          else: 
+            if object_to_render.get_state() == Player.STATE_IDLE_UP:
+              image_to_render = self.player_images[object_to_render.get_number()]["up"]
+            elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT:
+              image_to_render = self.player_images[object_to_render.get_number()]["right"]
+            elif object_to_render.get_state() == Player.STATE_IDLE_DOWN:
+              image_to_render = self.player_images[object_to_render.get_number()]["down"]
+            elif object_to_render.get_state() == Player.STATE_IDLE_LEFT:
+              image_to_render = self.player_images[object_to_render.get_number()]["left"]
+            elif object_to_render.get_state() == Player.STATE_WALKING_UP:
+              image_to_render = self.player_images[object_to_render.get_number()]["walk up"][animation_frame]
+            elif object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
+              image_to_render = self.player_images[object_to_render.get_number()]["walk right"][animation_frame]
+            elif object_to_render.get_state() == Player.STATE_WALKING_DOWN:
+              image_to_render = self.player_images[object_to_render.get_number()]["walk down"][animation_frame]
+            else: # Player.STATE_WALKING_LEFT
+              image_to_render = self.player_images[object_to_render.get_number()]["walk left"][animation_frame]
         
           if object_to_render.get_disease() != Player.DISEASE_NONE:
             overlay_images.append(self.other_images["disease"][animation_frame % 2])
@@ -1396,6 +1430,9 @@ class Game(object):
 
     self.game_map = Map(MAP1,PlaySetup())
 
+    show_fps_in = 0
+    pygame_clock = pygame.time.Clock()
+
     while True:     # main loop
       dt = min(pygame.time.get_ticks() - time_before,100)
       time_before = pygame.time.get_ticks()
@@ -1409,6 +1446,14 @@ class Game(object):
       pygame.display.flip()
       
       self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
+
+      pygame_clock.tick()
+
+      if show_fps_in <= 0:
+        print("fps: " + str(pygame_clock.get_fps()))
+        show_fps_in = 255
+      else:
+        show_fps_in -= 1
 
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
