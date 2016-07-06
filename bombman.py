@@ -533,6 +533,7 @@ class Player(Positionable):
     
     if throwing:
       bomb_thrown = game_map.bomb_on_tile(current_tile)
+      game_map.add_sound_event(SoundPlayer.SOUND_EVENT_THROW)
     
       if bomb_thrown != None:
         direction_vector = self.get_direction_vector()
@@ -1289,15 +1290,15 @@ class PlayerKeyMaps(object):
         
       if pressed[0]:
         self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = current_time# + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
           
       if pressed[1]:
         self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = current_time# + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
       
       if pressed[2]:
         self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = current_time# + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
       
       pygame.mouse.set_pos(screen_center)
 
@@ -1336,6 +1337,7 @@ class SoundPlayer(object):
   SOUND_EVENT_SLOW = 6
   SOUND_EVENT_DISEASE = 7
   SOUND_EVENT_CLICK = 8
+  SOUND_EVENT_THROW = 9
   
   def __init__(self):
     pygame.mixer.init()
@@ -1350,6 +1352,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"slow.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"disease.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"click.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"throw.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -1361,7 +1364,6 @@ class SoundPlayer(object):
     stop_playing_walk = True
     
     for sound_event in sound_event_list:
-      
       if sound_event in (          # simple sound play
         SoundPlayer.SOUND_EVENT_EXPLOSION,
         SoundPlayer.SOUND_EVENT_CLICK,
@@ -1369,10 +1371,11 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_SPRING,
         SoundPlayer.SOUND_EVENT_DIARRHEA,
         SoundPlayer.SOUND_EVENT_SLOW,
-        SoundPlayer.SOUND_EVENT_DISEASE
+        SoundPlayer.SOUND_EVENT_DISEASE,
+        SoundPlayer.SOUND_EVENT_THROW
         ):
         self.sound[sound_event].play()
-      
+    
       elif sound_event == SoundPlayer.SOUND_EVENT_WALK:
         if not self.playing_walk:
           self.sound[SoundPlayer.SOUND_EVENT_WALK].play(loops=-1)
