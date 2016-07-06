@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-
+#
 # Bombman - free and open-source Bomberman clone
 #
 # Copyright (C) 2016 Miloslav Číž
@@ -112,7 +112,12 @@ class Positionable(object):
   def get_position(self):
     return self.position
   
-  def move_to_tile_center(self):
+  ## Moves the object to center of tile (if not specified, objects current tile is used).
+  
+  def move_to_tile_center(self, tile_coordinates=None):
+    if tile_coordinates != None:
+      self.position = tile_coordinates
+    
     self.position = (math.floor(self.position[0]) + 0.5,math.floor(self.position[1]) + 0.5)
 
   ## Converts float position to integer tile position.
@@ -176,7 +181,7 @@ class Player(Positionable):
   #  is needed so that sounds can be made on item pickup - if no map is provided,
   #  no sounds will be generated.
 
-  def give_item(self,item,game_map = None):
+  def give_item(self, item,game_map=None):
     if not item in self.items:
       self.items[item] = 1
     else:
@@ -249,7 +254,7 @@ class Player(Positionable):
     if game_map != None and sound_to_make != None:
       game_map.add_sound_event(sound_to_make)
     
-  def lay_bomb(self,game_map,tile_coordinates = None):  
+  def lay_bomb(self, game_map, tile_coordinates=None):  
     new_bomb = Bomb(self)
     
     if tile_coordinates != None:
@@ -281,13 +286,13 @@ class Player(Positionable):
       
   ## Says how many of a given item the player has.
       
-  def how_many_items(self,item):
+  def how_many_items(self, item):
     if not item in self.items:
       return 0
     
     return self.items[item]
     
-  def set_number(self,number):
+  def set_number(self, number):
     self.number = number
 
   ## Must be called when this player's bomb explodes so that their bomb limit is increased again.
@@ -321,7 +326,7 @@ class Player(Positionable):
 
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
-  def react_to_inputs(self,input_actions,dt,game_map):
+  def react_to_inputs(self, input_actions, dt, game_map):
     current_speed = self.speed if self.disease != Player.DISEASE_SLOW else Player.SLOW_SPEED
     
     distance_to_travel = dt / 1000.0 * current_speed
@@ -604,7 +609,7 @@ class Bomb(Positionable):
         self.flight_info.direction = (-1,0)
 
     destination_tile_coords = (destination_tile_coords[0] % Map.MAP_WIDTH,destination_tile_coords[1] % Map.MAP_HEIGHT)
-    self.position = (destination_tile_coords[0] + 0.5,destination_tile_coords[1] + 0.5)
+    self.move_to_tile_center(destination_tile_coords)
 
   def has_detonator(self):
     return self.detonator_time_left > 0 and self.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME
@@ -735,7 +740,7 @@ class Map(object):
       if player_slots[i] != None:
         new_player = Player()
         new_player.set_number(i)
-        new_player.set_position((starting_positions[i][0] + 0.5,starting_positions[i][1] + 0.5))
+        new_player.move_to_tile_center(starting_positions[i])
         self.players.append(new_player)
         self.players_by_numbers[i] = new_player
       else:
@@ -751,10 +756,10 @@ class Map(object):
 
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
 
-  def add_sound_event(self,sound_event):
+  def add_sound_event(self, sound_event):
     self.sound_events.append(sound_event)
     
-  def get_tile_at(self,tile_coordinates):
+  def get_tile_at(self, tile_coordinates):
     if self.tile_is_withing_map(tile_coordinates):
       return self.tiles[tile_coordinates[1]][tile_coordinates[0]]
     
@@ -766,7 +771,7 @@ class Map(object):
     return result
 
   ## Converts given letter (as in map encoding string) to item code (see class constants).
-  def letter_to_item(self,letter):
+  def letter_to_item(self, letter):
     if letter == "f":
       return Map.ITEM_FLAME
     elif letter == "F":
@@ -792,29 +797,26 @@ class Map(object):
     else:
       return -1
 
-  def tile_has_flame(self,tile_coordinates):
-    if tile_coordinates[0] < 0 or tile_coordinates[1] < 0 or tile_coordinates[0] >= Map.MAP_WIDTH or tile_coordinates[1] >= Map.MAP_HEIGHT:
+  def tile_has_flame(self, tile_coordinates):
+    if not self.tile_is_withing_map(tile_coordinates):
       return False     # coordinates outside the map
     
     return len(self.tiles[tile_coordinates[1]][tile_coordinates[0]].flames) >= 1
 
-  def bomb_on_tile(self,tile_coordinates):
-    tile_coordinates = Positionable.position_to_tile(tile_coordinates)
+  def bomb_on_tile(self, tile_coordinates):
+    bombs = self.bombs_on_tile(tile_coordinates)
     
-    for bomb in self.bombs:
-      bomb_tile_position = Positionable.position_to_tile(bomb.get_position())
-
-      if bomb.movement != Bomb.BOMB_FLYING and bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
-        return bomb
+    if len(bombs) > 0:
+      return bombs[0]
     
     return None
 
   ## Checks if there is a bomb at given tile (coordinates may be float or int).
 
-  def tile_has_bomb(self,tile_coordinates):
+  def tile_has_bomb(self, tile_coordinates):
     return self.bomb_on_tile(tile_coordinates) != None
 
-  def tile_has_player(self,tile_coordinates):
+  def tile_has_player(self, tile_coordinates):
     tile_coordinates = Positionable.position_to_tile(tile_coordinates)
     
     for player in self.players:
@@ -827,10 +829,10 @@ class Map(object):
 
   ## Checks if given tile coordinates are within the map boundaries.
 
-  def tile_is_withing_map(self,tile_coordinates):
+  def tile_is_withing_map(self, tile_coordinates):
     return tile_coordinates[0] >= 0 and tile_coordinates[1] >= 0 and tile_coordinates[0] <= Map.MAP_WIDTH - 1 and tile_coordinates[1] <= Map.MAP_HEIGHT - 1
 
-  def tile_is_walkable(self,tile_coordinates):
+  def tile_is_walkable(self, tile_coordinates):
     if not self.tile_is_withing_map(tile_coordinates):
       return False
     
@@ -863,7 +865,7 @@ class Map(object):
     
     return Map.COLLISION_NONE
 
-  def bombs_on_tile(self,tile_coordinates):
+  def bombs_on_tile(self, tile_coordinates):
     result = []
     
     tile_coordinates = Positionable.position_to_tile(tile_coordinates)
@@ -871,7 +873,7 @@ class Map(object):
     for bomb in self.bombs:
       bomb_tile_position = Positionable.position_to_tile(bomb.get_position())
 
-      if bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
+      if bomb.movement != Bomb.BOMB_FLYING and bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
         result.append(bomb)
       
     return result
@@ -879,7 +881,7 @@ class Map(object):
   ## Tells the map that given bomb is exploding, the map then creates
   #  flames from the bomb, the bomb is destroyed and players are informed.
 
-  def bomb_explodes(self,bomb):
+  def bomb_explodes(self, bomb):
     if bomb.movement == Bomb.BOMB_FLYING:
       return
     
@@ -955,7 +957,7 @@ class Map(object):
 
   ## Updates some things on the map that change with time.
 
-  def update(self,dt):
+  def update(self, dt):
     i = 0
     
     while i <= len(self.bombs) - 1:    # update all bombs
@@ -979,17 +981,14 @@ class Map(object):
           
           if bomb.flight_info.distance_travelled >= bomb.flight_info.total_distance_to_travel:
             bomb_tile = Positionable.position_to_tile(bomb.get_position())
-            
 
-            
             if not self.tile_is_walkable(bomb_tile) or self.tile_has_player(bomb_tile):
-              print(bomb_tile,self.tile_is_walkable(bomb_tile),self.tile_has_player(bomb_tile))
-              
               destination_tile = (bomb_tile[0] + bomb.flight_info.direction[0],bomb_tile[1] + bomb.flight_info.direction[1])
               bomb.send_flying(destination_tile)
-            else:
+            else:  # bomb lands
               bomb.movement = Bomb.BOMB_NO_MOVEMENT
-
+              self.get_tile_at(bomb_tile).item = None
+              
         else:            # bomb rolling
           bomb_position = bomb.get_position()
           bomb_tile = Positionable.position_to_tile(bomb_position)
@@ -1088,7 +1087,7 @@ class Map(object):
         player.give_item(player_tile.item,self)
         player_tile.item = None
           
-  def add_bomb(self,bomb):
+  def add_bomb(self, bomb):
     self.bombs.append(bomb)
 
   def get_bombs(self):
@@ -1236,7 +1235,7 @@ class SoundPlayer(object):
   ## Processes a list of sound events (see class constants) by playing
   #  appropriate sounds.
     
-  def process_events(self,sound_event_list): 
+  def process_events(self, sound_event_list): 
     stop_playing_walk = True
     
     for sound_event in sound_event_list:
@@ -1375,7 +1374,7 @@ class Renderer(object):
      
   ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
-  def color_surface(self,surface,color_number):
+  def color_surface(self, surface, color_number):
     result = surface.copy()
     
     # change all red pixels to specified color:
@@ -1391,7 +1390,7 @@ class Renderer(object):
     
     return result
 
-  def tile_position_to_pixel_position(self,tile_position,center=(0,0)):
+  def tile_position_to_pixel_position(self, tile_position,center=(0,0)):
     return (int(float(tile_position[0]) * Renderer.MAP_TILE_WIDTH) - center[0],int(float(tile_position[1]) * Renderer.MAP_TILE_HEIGHT) - center[1])
 
   def set_resolution(self, new_resolution):
@@ -1541,7 +1540,7 @@ class Renderer(object):
       
         object_to_render_index += 1
             
-      for tile in reversed(line):  # render tiles in the current line
+      for tile in reversed(line):           # render tiles in the current line
         if not tile.to_be_destroyed:        # don't render a tile that is being destroyed
           if tile.kind == MapTile.TILE_BLOCK:
             result.blit(environment_images[1],(x,y + y_offset_block))
