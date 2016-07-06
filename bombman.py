@@ -59,7 +59,7 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "bbex;"
+        "bbexk;"
         "bbbbrrrrrrxxeeeeeeeeeeeeeeeeeeee;"
         "x T x x x x x x . x x x x . x"
         ". 0 . x x x x B 9 . x x . 3 ."
@@ -390,7 +390,7 @@ class Player(Positionable):
           while len(self.detonator_bombs) != 0:   # find a bomb to ddetonate (some may have exploded by themselves already)
             bomb_to_check = self.detonator_bombs.pop()
           
-            if bomb_to_check.has_detonator():
+            if bomb_to_check.has_detonator() and not bomb_to_check.has_exploded:
               game_map.bomb_explodes(bomb_to_check)
               detonator_triggered = True
               self.wait_for_special_release = True    # to not detonate other bombs until the key is released and pressed again
@@ -451,7 +451,7 @@ class Player(Positionable):
     if putting_bomb and not game_map.tile_has_bomb(Positionable.position_to_tile(self.position)):
       self.lay_bomb(game_map)
     
-    # check if bomb kick happens
+    # check if bomb kick or box happens
     
     if collision_happened: 
       current_tile = Positionable.position_to_tile(self.position)
@@ -474,19 +474,22 @@ class Player(Positionable):
     
       if self.has_shoe and forward_tile != None:
         if game_map.tile_has_bomb(forward_tile):
-          # kick happens
-          kicked_bomb = game_map.bomb_on_tile(forward_tile)
-          
-          # align the bomb in case of kicking an already moving bomb:
-          bomb_position = kicked_bomb.get_position()
-          
-          if bomb_movement == Bomb.BOMB_ROLLING_LEFT or bomb_movement == Bomb.BOMB_ROLLING_RIGHT:
-            kicked_bomb.set_position((bomb_position[0],math.floor(bomb_position[1]) + 0.5))
+          # kick or box happens
+          if self.boxing:
+            print("box")
           else:
-            kicked_bomb.set_position((math.floor(bomb_position[0]) + 0.5,bomb_position[1]))
+            kicked_bomb = game_map.bomb_on_tile(forward_tile)
+          
+            # align the bomb in case of kicking an already moving bomb:
+            bomb_position = kicked_bomb.get_position()
+          
+            if bomb_movement == Bomb.BOMB_ROLLING_LEFT or bomb_movement == Bomb.BOMB_ROLLING_RIGHT:
+              kicked_bomb.set_position((bomb_position[0],math.floor(bomb_position[1]) + 0.5))
+            else:
+              kicked_bomb.set_position((math.floor(bomb_position[0]) + 0.5,bomb_position[1]))
              
-          kicked_bomb.movement = bomb_movement
-          game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
+            kicked_bomb.movement = bomb_movement
+            game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
     
     # put multibomb
     
@@ -525,14 +528,24 @@ class Player(Positionable):
     else:
       self.state_time = 0       # reset the state time
 
+## Info about a bomb's flight (when boxed or thrown).
+
+class BombFlightInfo(object):
+  def __init__(self):
+    total_distance_to_travel = 0     ##< in tiles
+    distance_travelled = 0           ##< in tiles
+    direction = (0,0)                ##< in which direction the bomb is flying, 0, 1 or -1
+
 class Bomb(Positionable):
   ROLLING_SPEED = 4
+  FLYING_SPEED = 5
   
   BOMB_ROLLING_UP = 0
   BOMB_ROLLING_RIGHT = 1
   BOMB_ROLLING_DOWN = 2
   BOMB_ROLLING_LEFT = 3
-  BOMB_NO_MOVEMENT = 4
+  BOMB_FLYING = 4
+  BOMB_NO_MOVEMENT = 5
   
   DETONATOR_EXPIRATION_TIME = 20000
   
@@ -547,9 +560,15 @@ class Bomb(Positionable):
     self.move_to_tile_center()
     self.has_spring = player.bombs_have_spring()
     self.movement = Bomb.BOMB_NO_MOVEMENT
+    self.has_exploded = False
 
   def has_detonator(self):
     return self.detonator_time_left > 0 and self.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME
+
+  def exploded(self):
+    if not self.has_exploded:
+      self.player.bomb_exploded()
+      self.has_exploded = True
 
 ## Represents a flame coming off of an exploding bomb.
 
@@ -882,7 +901,7 @@ class Map(object):
           
         axis_position[direction] += increment[direction]
     
-    bomb.player.bomb_exploded()
+    bomb.exploded()
    
     if bomb in self.bombs:
       self.bombs.remove(bomb)
@@ -894,6 +913,11 @@ class Map(object):
     
     while i <= len(self.bombs) - 1:    # update all bombs
       bomb = self.bombs[i]
+      
+      if bomb.has_exploded:            # just in case
+        self.bombs.remove(bomb)
+        continue
+      
       bomb.time_of_existence += dt
       
       if bomb.time_of_existence > bomb.explodes_in + bomb.detonator_time_left: # bomb explodes
