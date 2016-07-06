@@ -59,7 +59,7 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "bbexk;"
+        "bbxk;"
         "bbbbrrrrrrxxeeeeeeeeeeeeeeeeeeee;"
         "x T x x x x x x . x x x x . x"
         ". 0 . x x x x B 9 . x x . 3 ."
@@ -307,6 +307,18 @@ class Player(Positionable):
   def get_flame_length(self):
     return self.flame_length
 
+  ## Gets a direction vector (x and y: 0, 1 or -1) depending on where the player is facing.
+
+  def get_direction_vector(self):
+    if self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_IDLE_UP:
+      return (0,-1)
+    elif self.state == Player.STATE_WALKING_RIGHT or self.state == Player.STATE_IDLE_RIGHT:
+      return (1,0)
+    elif self.state == Player.STATE_WALKING_DOWN or self.state == Player.STATE_IDLE_DOWN:
+      return (0,1)
+    else:              # left
+      return (-1,0)    
+
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
   def react_to_inputs(self,input_actions,dt,game_map):
@@ -390,7 +402,7 @@ class Player(Positionable):
           while len(self.detonator_bombs) != 0:   # find a bomb to ddetonate (some may have exploded by themselves already)
             bomb_to_check = self.detonator_bombs.pop()
           
-            if bomb_to_check.has_detonator() and not bomb_to_check.has_exploded:
+            if bomb_to_check.has_detonator() and not bomb_to_check.has_exploded and bomb_to_check.movement != Bomb.BOMB_FLYING:
               game_map.bomb_explodes(bomb_to_check)
               detonator_triggered = True
               self.wait_for_special_release = True    # to not detonate other bombs until the key is released and pressed again
@@ -475,20 +487,25 @@ class Player(Positionable):
       if self.has_shoe and forward_tile != None:
         if game_map.tile_has_bomb(forward_tile):
           # kick or box happens
+          bomb_hit = game_map.bomb_on_tile(forward_tile)
+          
           if self.boxing:
-            print("box")
+            direction_vector = self.get_direction_vector()
+            destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)
+            
+            bomb_hit.send_flying(destination_tile)
           else:
-            kicked_bomb = game_map.bomb_on_tile(forward_tile)
+            bomb_hit = game_map.bomb_on_tile(forward_tile)
           
             # align the bomb in case of kicking an already moving bomb:
-            bomb_position = kicked_bomb.get_position()
+            bomb_position = bomb_hit.get_position()
           
             if bomb_movement == Bomb.BOMB_ROLLING_LEFT or bomb_movement == Bomb.BOMB_ROLLING_RIGHT:
-              kicked_bomb.set_position((bomb_position[0],math.floor(bomb_position[1]) + 0.5))
+              bomb_hit.set_position((bomb_position[0],math.floor(bomb_position[1]) + 0.5))
             else:
-              kicked_bomb.set_position((math.floor(bomb_position[0]) + 0.5,bomb_position[1]))
+              bomb_hit.set_position((math.floor(bomb_position[0]) + 0.5,bomb_position[1]))
              
-            kicked_bomb.movement = bomb_movement
+            bomb_hit.movement = bomb_movement
             game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
     
     # put multibomb
@@ -532,9 +549,9 @@ class Player(Positionable):
 
 class BombFlightInfo(object):
   def __init__(self):
-    total_distance_to_travel = 0     ##< in tiles
-    distance_travelled = 0           ##< in tiles
-    direction = (0,0)                ##< in which direction the bomb is flying, 0, 1 or -1
+    self.total_distance_to_travel = 0     ##< in tiles
+    self.distance_travelled = 0           ##< in tiles
+    self.direction = (0,0)                ##< in which direction the bomb is flying, 0, 1 or -1
 
 class Bomb(Positionable):
   ROLLING_SPEED = 4
@@ -561,6 +578,33 @@ class Bomb(Positionable):
     self.has_spring = player.bombs_have_spring()
     self.movement = Bomb.BOMB_NO_MOVEMENT
     self.has_exploded = False
+    self.flight_info = BombFlightInfo()
+    
+  ## Sends the bomb flying from its currents position to given tile (can be outside the map boundaries, will fly over the border from the other side).
+    
+  def send_flying(self, destination_tile_coords):
+    self.movement = Bomb.BOMB_FLYING
+
+    current_tile = Positionable.position_to_tile(self.position)
+    self.flight_info.distance_travelled = 0
+    
+    if current_tile[0] == destination_tile_coords[0]:
+      self.flight_info.total_distance_to_travel = abs(current_tile[1] - destination_tile_coords[1])
+      
+      if current_tile[1] > destination_tile_coords[1]:   # up
+        self.flight_info.direction = (0,-1) 
+      else:                                              # down
+        self.flight_info.direction = (0,1)
+    else:
+      self.flight_info.total_distance_to_travel = abs(current_tile[0] - destination_tile_coords[0])
+      
+      if current_tile[0] < destination_tile_coords[0]:   # right
+        self.flight_info.direction = (1,0)
+      else:                                              # left
+        self.flight_info.direction = (-1,0)
+
+    destination_tile_coords = (destination_tile_coords[0] % Map.MAP_WIDTH,destination_tile_coords[1] % Map.MAP_HEIGHT)
+    self.position = (destination_tile_coords[0] + 0.5,destination_tile_coords[1] + 0.5)
 
   def has_detonator(self):
     return self.detonator_time_left > 0 and self.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME
@@ -836,6 +880,9 @@ class Map(object):
   #  flames from the bomb, the bomb is destroyed and players are informed.
 
   def bomb_explodes(self,bomb):
+    if bomb.movement == Bomb.BOMB_FLYING:
+      return
+    
     self.add_sound_event(SoundPlayer.SOUND_EVENT_EXPLOSION)
     
     bomb_position = Positionable.position_to_tile(bomb.get_position())
@@ -926,63 +973,88 @@ class Map(object):
         i += 1
         
       if bomb.movement != Bomb.BOMB_NO_MOVEMENT:
-        bomb_position = bomb.get_position()
-        bomb_tile = Positionable.position_to_tile(bomb_position)
-        
-        if self.tiles[bomb_tile[1]][bomb_tile[0]].item != None:   # rolling bomb destroys items
-          self.tiles[bomb_tile[1]][bomb_tile[0]].item = None
-        
-        bomb_position_within_tile = (bomb_position[0] % 1,bomb_position[1] % 1) 
-        check_collision = False
-        forward_tile = None
-        distance_to_travel = dt / 1000.0 * Bomb.ROLLING_SPEED
-        
-        helper_boundaries = (0.5,0.9)
-        helper_boundaries2 = (1 - helper_boundaries[1],1 - helper_boundaries[0])
-        
-        opposite_direction = Bomb.BOMB_NO_MOVEMENT
-        
-        if bomb.movement == Bomb.BOMB_ROLLING_UP:
-          bomb.set_position((bomb_position[0],bomb_position[1] - distance_to_travel))
-          opposite_direction = Bomb.BOMB_ROLLING_DOWN
-        
-          if helper_boundaries2[0] < bomb_position_within_tile[1] < helper_boundaries2[1]:
-            check_collision = True
-            forward_tile = (bomb_tile[0],bomb_tile[1] - 1)
-        
-        elif bomb.movement == Bomb.BOMB_ROLLING_RIGHT:
-          bomb.set_position((bomb_position[0] + distance_to_travel,bomb_position[1]))
-          opposite_direction = Bomb.BOMB_ROLLING_LEFT
+        if bomb.movement == Bomb.BOMB_FLYING:
+          distance_to_travel = dt / 1000.0 * Bomb.FLYING_SPEED
+          bomb.flight_info.distance_travelled += distance_to_travel
           
-          if helper_boundaries[0] < bomb_position_within_tile[0] < helper_boundaries[1]:
-            check_collision = True
-            forward_tile = (bomb_tile[0] + 1,bomb_tile[1])
-          
-        elif bomb.movement == Bomb.BOMB_ROLLING_DOWN:
-          bomb.set_position((bomb_position[0],bomb_position[1] + distance_to_travel))
-          opposite_direction = Bomb.BOMB_ROLLING_UP
-          
-          if helper_boundaries[0] < bomb_position_within_tile[1] < helper_boundaries[1]:
-            check_collision = True
-            forward_tile = (bomb_tile[0],bomb_tile[1] + 1)
-          
-        elif bomb.movement == Bomb.BOMB_ROLLING_LEFT:
-          bomb.set_position((bomb_position[0] - distance_to_travel,bomb_position[1]))        
-          opposite_direction = Bomb.BOMB_ROLLING_RIGHT
+          if bomb.flight_info.distance_travelled >= bomb.flight_info.total_distance_to_travel:
+            bomb_tile = Positionable.position_to_tile(bomb.get_position())
+            
+            # We have to move the bomb from the tile temporarily in order to check
+            # if it's walkable, otherwise it would never be walkable because of it
+            # being there.
+            
+            position_backup = bomb.get_position()
+            bomb.set_position((-1,-1))
+            is_walkable = self.tile_is_walkable(bomb_tile)
+            bomb.set_position(position_backup)
+            
+            if not is_walkable or self.tile_has_player(bomb_tile):
+              print(bomb_tile,self.tile_is_walkable(bomb_tile),self.tile_has_player(bomb_tile))
+              
+              destination_tile = (bomb_tile[0] + bomb.flight_info.direction[0],bomb_tile[1] + bomb.flight_info.direction[1])
+              bomb.send_flying(destination_tile)
+            else:
+              bomb.movement = Bomb.BOMB_NO_MOVEMENT
 
-          if helper_boundaries2[0] < bomb_position_within_tile[0] < helper_boundaries2[1]:
-            check_collision = True
-            forward_tile = (bomb_tile[0] - 1,bomb_tile[1])
-
-        if check_collision and (not self.tile_is_walkable(forward_tile) or self.tile_has_player(forward_tile)):
-          bomb.move_to_tile_center()          
+        else:            # bomb rolling
+          bomb_position = bomb.get_position()
+          bomb_tile = Positionable.position_to_tile(bomb_position)
+        
+          if self.tiles[bomb_tile[1]][bomb_tile[0]].item != None:   # rolling bomb destroys items
+            self.tiles[bomb_tile[1]][bomb_tile[0]].item = None
+        
+          bomb_position_within_tile = (bomb_position[0] % 1,bomb_position[1] % 1) 
+          check_collision = False
+          forward_tile = None
+          distance_to_travel = dt / 1000.0 * Bomb.ROLLING_SPEED
           
-          if bomb.has_spring:
-            bomb.movement = opposite_direction
-            self.add_sound_event(SoundPlayer.SOUND_EVENT_SPRING)
-          else:
-            bomb.movement = Bomb.BOMB_NO_MOVEMENT
-            self.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
+          helper_boundaries = (0.5,0.9)
+          helper_boundaries2 = (1 - helper_boundaries[1],1 - helper_boundaries[0])
+        
+          opposite_direction = Bomb.BOMB_NO_MOVEMENT
+        
+          if bomb.movement == Bomb.BOMB_ROLLING_UP:
+            bomb.set_position((bomb_position[0],bomb_position[1] - distance_to_travel))
+            opposite_direction = Bomb.BOMB_ROLLING_DOWN
+        
+            if helper_boundaries2[0] < bomb_position_within_tile[1] < helper_boundaries2[1]:
+              check_collision = True
+              forward_tile = (bomb_tile[0],bomb_tile[1] - 1)
+        
+          elif bomb.movement == Bomb.BOMB_ROLLING_RIGHT:
+            bomb.set_position((bomb_position[0] + distance_to_travel,bomb_position[1]))
+            opposite_direction = Bomb.BOMB_ROLLING_LEFT
+          
+            if helper_boundaries[0] < bomb_position_within_tile[0] < helper_boundaries[1]:
+              check_collision = True
+              forward_tile = (bomb_tile[0] + 1,bomb_tile[1])
+          
+          elif bomb.movement == Bomb.BOMB_ROLLING_DOWN:
+            bomb.set_position((bomb_position[0],bomb_position[1] + distance_to_travel))
+            opposite_direction = Bomb.BOMB_ROLLING_UP
+          
+            if helper_boundaries[0] < bomb_position_within_tile[1] < helper_boundaries[1]:
+              check_collision = True
+              forward_tile = (bomb_tile[0],bomb_tile[1] + 1)
+          
+          elif bomb.movement == Bomb.BOMB_ROLLING_LEFT:
+            bomb.set_position((bomb_position[0] - distance_to_travel,bomb_position[1]))        
+            opposite_direction = Bomb.BOMB_ROLLING_RIGHT
+
+            if helper_boundaries2[0] < bomb_position_within_tile[0] < helper_boundaries2[1]:
+              check_collision = True
+              forward_tile = (bomb_tile[0] - 1,bomb_tile[1])
+
+          if check_collision and (not self.tile_is_walkable(forward_tile) or self.tile_has_player(forward_tile)):
+            bomb.move_to_tile_center()          
+          
+            if bomb.has_spring:
+              bomb.movement = opposite_direction
+              self.add_sound_event(SoundPlayer.SOUND_EVENT_SPRING)
+            else:
+              bomb.movement = Bomb.BOMB_NO_MOVEMENT
+              self.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
 
     for line in self.tiles:
       for tile in line:
@@ -1365,7 +1437,7 @@ class Renderer(object):
     ordered_objects_to_render = []
     ordered_objects_to_render.extend(map_to_render.get_players())
     ordered_objects_to_render.extend(map_to_render.get_bombs())
-    ordered_objects_to_render.sort(key = lambda what: what.get_position()[1])
+    ordered_objects_to_render.sort(key = lambda what: 1000 if (isinstance(what,Bomb) and what.movement == Bomb.BOMB_FLYING) else what.get_position()[1]) # flying bomb are rendered above everything else
     
     # render the map by lines:
 
@@ -1394,6 +1466,8 @@ class Renderer(object):
           break
         
         overlay_images = []     # images that should additionaly be rendered over image_to_render
+        
+        relative_offset = [0,0]    # to relatively shift images by given offset
         
         if isinstance(object_to_render,Player):      # <= not very nice, maybe fix this later
           sprite_center = Renderer.PLAYER_SPRITE_CENTER
@@ -1444,17 +1518,29 @@ class Renderer(object):
             if object_to_render.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME:
               animation_frame = 0                 # bomb won't pulse if within detonator expiration time
           
+          if object_to_render.movement == Bomb.BOMB_FLYING:
+            
+            normalised_distance_travelled = object_to_render.flight_info.distance_travelled / float(object_to_render.flight_info.total_distance_to_travel)
+            
+            helper_offset = -1 * object_to_render.flight_info.total_distance_to_travel + object_to_render.flight_info.distance_travelled
+            
+            relative_offset[0] = int(object_to_render.flight_info.direction[0] * helper_offset * Renderer.MAP_TILE_WIDTH)
+            relative_offset[1] = int(object_to_render.flight_info.direction[1] * helper_offset * Renderer.MAP_TILE_HALF_HEIGHT)
+            
+            relative_offset[1] -= int(math.sin(normalised_distance_travelled * math.pi) * object_to_render.flight_info.total_distance_to_travel * Renderer.MAP_TILE_HEIGHT / 2)  # height in air
+            
           image_to_render = self.bomb_images[animation_frame]
           
           if object_to_render.has_spring:
             overlay_images.append(self.other_images["spring"])
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
-        render_position = (render_position[0] + Renderer.MAP_BORDER_WIDTH,render_position[1] + Renderer.MAP_BORDER_WIDTH)
-        result.blit(self.other_images["shadow"],render_position)
+        render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0],render_position[1] + Renderer.MAP_BORDER_WIDTH)
+        result.blit(self.other_images["shadow"],(render_position[0],render_position[1]))
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
-        render_position = (render_position[0] + Renderer.MAP_BORDER_WIDTH,render_position[1] + Renderer.MAP_BORDER_WIDTH)
+        render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + relative_offset[1])
+        
         result.blit(image_to_render,render_position)
         
         for additional_image in overlay_images:
