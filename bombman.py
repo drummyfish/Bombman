@@ -36,6 +36,7 @@
 #                     r - random
 #                     x - boxing glove
 #                     e - detonator
+#                     t - throwing glove
 #                     TODO
 # <map items>     - Set of items that will be hidden in block on the map. This is a string of the
 #                   same format as in <player items>. If there is more items specified than there is
@@ -59,8 +60,8 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "bbxk;"
-        "bbbbrrrrrrxxeeeeeeeeeeeeeeeeeeee;"
+        "tbbmxk;"
+        "bbbbrrrrrrtttttttttttttttttttttttttt;"
         "x T x x x x x x . x x x x . x"
         ". 0 . x x x x B 9 . x x . 3 ."
         "x . x x T x x x . x x . x . x"
@@ -169,13 +170,19 @@ class Player(Positionable):
     self.disease = Player.DISEASE_NONE
     self.has_multibomb = False
     self.has_boxing_glove = False
+    self.has_throwing_glove = False
     self.boxing = False
     self.detonator_boms_left = 0          ##< what number of following bombs will have detonators
     self.detonator_bombs = []             ##< references to bombs to be detonated
     self.wait_for_special_release = False ##< helper used to wait for special key release
+    self.wait_for_bomb_release = False
+    self.throwing_time_left = 0           ##< for how longer (in ms) the player will be in a state of throwing (only for visuals)
     
   def is_boxing(self):
     return self.boxing
+
+  def is_throwing(self):
+    return self.throwing_time_left > 0
 
   ## Gives player an item with given code (see Map class constants). game_map
   #  is needed so that sounds can be made on item pickup - if no map is provided,
@@ -198,7 +205,8 @@ class Player(Positionable):
         Map.ITEM_SPEEDUP,
         Map.ITEM_DISEASE,
         Map.ITEM_BOXING_GLOVE,
-        Map.ITEM_DETONATOR
+        Map.ITEM_DETONATOR,
+        Map.ITEM_THROWING_GLOVE
         ))
       
     sound_to_make = SoundPlayer.SOUND_EVENT_CLICK
@@ -222,6 +230,8 @@ class Player(Positionable):
       self.has_shoe = True
     elif item == Map.ITEM_BOXING_GLOVE:
       self.has_boxing_glove = True
+    elif item == Map.ITEM_THROWING_GLOVE:
+      self.has_throwing_glove = True
     elif item == Map.ITEM_DISEASE:
       chosen_disease = random.choice([
         (Player.DISEASE_SHORT_FLAME,SoundPlayer.SOUND_EVENT_DISEASE),     
@@ -330,6 +340,8 @@ class Player(Positionable):
     current_speed = self.speed if self.disease != Player.DISEASE_SLOW else Player.SLOW_SPEED
     
     distance_to_travel = dt / 1000.0 * current_speed
+    
+    self.throwing_time_left = max(0,self.throwing_time_left - dt)
 
     self.position = list(self.position)    # in case position was tuple
 
@@ -350,9 +362,11 @@ class Player(Positionable):
 
     putting_bomb = False
     putting_multibomb = False
+    throwing = False
     detonator_triggered = False
     self.boxing = False
     special_was_pressed = False
+    bomb_was_pressed = False
     
     if self.disease == Player.DISEASE_DIARRHEA:
       input_actions.append((self.number,PlayerKeyMaps.ACTION_BOMB))  # inject bomb put event
@@ -394,11 +408,17 @@ class Player(Positionable):
         game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
     
-      if input_action == PlayerKeyMaps.ACTION_BOMB and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position) and not self.disease == Player.DISEASE_NO_BOMB:
-        putting_bomb = True
+      if input_action == PlayerKeyMaps.ACTION_BOMB:
+        bomb_was_pressed = True
+        
+        if not self.wait_for_bomb_release and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position) and not self.disease == Player.DISEASE_NO_BOMB:
+          putting_bomb = True
     
-      if self.has_multibomb and input_action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:  # check multibomb
-        putting_multibomb = True
+      if input_action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:  # check multibomb
+        if self.has_throwing_glove:
+          throwing = True
+        elif self.has_multibomb: 
+          putting_multibomb = True
 
       if input_action == PlayerKeyMaps.ACTION_SPECIAL:
         special_was_pressed = True
@@ -418,6 +438,9 @@ class Player(Positionable):
       
     if not special_was_pressed:
       self.wait_for_special_release = False
+      
+    if not bomb_was_pressed:
+      self.wait_for_bomb_release = False
       
     # resolve collisions:
 
@@ -470,23 +493,20 @@ class Player(Positionable):
     
     # check if bomb kick or box happens
     
+    direction_vector = self.get_direction_vector()
+    current_tile = Positionable.position_to_tile(self.position)
+    forward_tile = (current_tile[0] + direction_vector[0],current_tile[1] + direction_vector[1])
+    
     if collision_happened: 
-      current_tile = Positionable.position_to_tile(self.position)
-
-      forward_tile = None     # tile in front of the player
       bomb_movement = Bomb.BOMB_NO_MOVEMENT
     
       if self.state == Player.STATE_WALKING_UP:
-        forward_tile = (current_tile[0],current_tile[1] - 1)
         bomb_movement = Bomb.BOMB_ROLLING_UP
       elif self.state == Player.STATE_WALKING_RIGHT:
-        forward_tile = (current_tile[0] + 1,current_tile[1])
         bomb_movement = Bomb.BOMB_ROLLING_RIGHT
       elif self.state == Player.STATE_WALKING_DOWN:
-        forward_tile = (current_tile[0],current_tile[1] + 1)
         bomb_movement = Bomb.BOMB_ROLLING_DOWN
-      else:     # STATE_WALKING_LEFT
-        forward_tile = (current_tile[0] - 1,current_tile[1])
+      else:
         bomb_movement = Bomb.BOMB_ROLLING_LEFT
     
       if self.has_shoe and forward_tile != None:
@@ -495,9 +515,7 @@ class Player(Positionable):
           bomb_hit = game_map.bomb_on_tile(forward_tile)
           
           if self.boxing:
-            direction_vector = self.get_direction_vector()
-            destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)
-            
+            destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)           
             bomb_hit.send_flying(destination_tile)
           else:
             bomb_hit = game_map.bomb_on_tile(forward_tile)
@@ -513,9 +531,17 @@ class Player(Positionable):
             bomb_hit.movement = bomb_movement
             game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
     
-    # put multibomb
+    if throwing:
+      bomb_thrown = game_map.bomb_on_tile(current_tile)
     
-    if putting_multibomb:
+      if bomb_thrown != None:
+        direction_vector = self.get_direction_vector()
+        destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)
+        bomb_thrown.send_flying(destination_tile)
+        self.wait_for_bomb_release = True
+        self.throwing_time_left = 200
+    
+    elif putting_multibomb:  # put multibomb
       current_tile = Positionable.position_to_tile(self.position)
       
       if self.state in (Player.STATE_WALKING_UP,Player.STATE_IDLE_UP):
@@ -670,6 +696,7 @@ class Map(object):
   ITEM_MULTIBOMB = 8
   ITEM_BOXING_GLOVE = 9
   ITEM_DETONATOR = 10
+  ITEM_THROWING_GLOVE = 11
   
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
@@ -794,6 +821,8 @@ class Map(object):
       return Map.ITEM_BOXING_GLOVE
     elif letter == "e":
       return Map.ITEM_DETONATOR
+    elif letter == "t":
+      return Map.ITEM_THROWING_GLOVE
     else:
       return -1
 
@@ -981,6 +1010,7 @@ class Map(object):
           
           if bomb.flight_info.distance_travelled >= bomb.flight_info.total_distance_to_travel:
             bomb_tile = Positionable.position_to_tile(bomb.get_position())
+            self.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
 
             if not self.tile_is_walkable(bomb_tile) or self.tile_has_player(bomb_tile):
               destination_tile = (bomb_tile[0] + bomb.flight_info.direction[0],bomb_tile[1] + bomb.flight_info.direction[1])
@@ -1359,7 +1389,8 @@ class Renderer(object):
     self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_random.png"))
     self.item_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_boxing_glove.png"))
     self.item_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_detonator.png"))
-    
+    self.item_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_throwing_glove.png"))
+      
     # load other images:
     
     self.other_images = {}
@@ -1372,7 +1403,7 @@ class Renderer(object):
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease2.png")))    
      
-  ## Returns colored image from another image. This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
+  ## Returns colored image from another image (replaces red color with given color). This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
   def color_surface(self, surface, color_number):
     result = surface.copy()
@@ -1387,7 +1418,7 @@ class Renderer(object):
           pixel_color.g = COLOR_RGB_VALUES[color_number][1]
           pixel_color.b = COLOR_RGB_VALUES[color_number][2]
           result.set_at((i,j),pixel_color)
-    
+
     return result
 
   def tile_position_to_pixel_position(self, tile_position,center=(0,0)):
@@ -1457,7 +1488,7 @@ class Renderer(object):
         if object_to_render.get_position()[1] > line_number + 1:
           break
         
-        overlay_images = []     # images that should additionaly be rendered over image_to_render
+        overlay_images = []        # images that should additionaly be rendered over image_to_render
         
         relative_offset = [0,0]    # to relatively shift images by given offset
         
@@ -1466,8 +1497,8 @@ class Renderer(object):
           
           animation_frame = (object_to_render.get_state_time() / 100) % 4
           
-          if object_to_render.is_boxing():
-            if animation_frame == 0:
+          if object_to_render.is_boxing() or object_to_render.is_throwing():
+            if not object_to_render.is_throwing() and animation_frame == 0:
               helper_string = ""
             else:
               helper_string = "box "
@@ -1480,7 +1511,7 @@ class Renderer(object):
               image_to_render = self.player_images[object_to_render.get_number()][helper_string + "down"]
             else:      # left
               image_to_render = self.player_images[object_to_render.get_number()][helper_string + "left"]
-          else: 
+          else:
             if object_to_render.get_state() == Player.STATE_IDLE_UP:
               image_to_render = self.player_images[object_to_render.get_number()]["up"]
             elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT:
