@@ -1182,12 +1182,50 @@ class PlayerKeyMaps(object):
   ACTION_SPECIAL = 5
   ACTION_MENU = 6       ##< brings up the main menu 
   ACTION_BOMB_DOUBLE = 7
+  
+  MOUSE_CONTROL_UP = -1
+  MOUSE_CONTROL_RIGHT = -2
+  MOUSE_CONTROL_DOWN = -3
+  MOUSE_CONTROL_LEFT = -4
+  MOUSE_CONTROL_BUTTON_L = -5
+  MOUSE_CONTROL_BUTTON_M = -6
+  MOUSE_CONTROL_BUTTON_R = -7
+  
+  MOUSE_CONTROL_SMOOTH_OUT_TIME = 350
 
   def __init__(self):
     self.key_maps = {}  ##< maps keys to tuples of a format: (player_number, action), for general actions player_number will be -1
     
     self.bomb_key_last_pressed_time = [0 for i in range(10)]  ##< for bomb double press detection
     self.bomb_key_previous_state = [False for i in range(10)] ##< for bomb double press detection
+
+    self.allow_mouse_control = False       ##< if true, player movement by mouse is allowed, otherwise not
+
+    mouse_control_constants = [
+      PlayerKeyMaps.MOUSE_CONTROL_UP,
+      PlayerKeyMaps.MOUSE_CONTROL_RIGHT,
+      PlayerKeyMaps.MOUSE_CONTROL_DOWN,
+      PlayerKeyMaps.MOUSE_CONTROL_LEFT,
+      PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,
+      PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M,
+      PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R]
+
+    self.mouse_control_states = {}
+    self.mouse_control_keep_until = {} ## time in which specified control was activated, helps keeping them active for a certain amount of time to smooth them out 
+
+    mouse_control_states = {
+      PlayerKeyMaps.MOUSE_CONTROL_UP : False,
+      PlayerKeyMaps.MOUSE_CONTROL_RIGHT : False,
+      PlayerKeyMaps.MOUSE_CONTROL_DOWN : False,
+      PlayerKeyMaps.MOUSE_CONTROL_LEFT : False,
+      PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L : False,
+      PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M : False,
+      PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R : False
+      }
+
+    for item in mouse_control_constants:
+      self.mouse_control_states[item] = False
+      self.mouse_control_keep_until[item] = 0
 
   ## Sets a key mapping for a player of specified (non-negative) number.
 
@@ -1198,6 +1236,9 @@ class PlayerKeyMaps(object):
     self.key_maps[key_left]    = (player_number,PlayerKeyMaps.ACTION_LEFT)
     self.key_maps[key_bomb]    = (player_number,PlayerKeyMaps.ACTION_BOMB)
     self.key_maps[key_special] = (player_number,PlayerKeyMaps.ACTION_SPECIAL)
+
+  def allow_control_by_mouse(self, allow=True):
+   self.allow_mouse_control = allow
 
   def set_special_key_map(self, key_menu):
     self.key_maps[key_menu]      = (-1,PlayerKeyMaps.ACTION_MENU)
@@ -1211,8 +1252,59 @@ class PlayerKeyMaps(object):
 
     reset_bomb_key_previous_state = [True for i in range(10)]
 
+    # check mouse control:
+
+    if self.allow_mouse_control:
+      screen_center = (Renderer.SCREEN_WIDTH / 2,Renderer.SCREEN_HEIGHT / 2)
+      mouse_position = pygame.mouse.get_pos(screen_center)
+      pressed = pygame.mouse.get_pressed()
+      
+      current_time = pygame.time.get_ticks()
+      
+      for item in self.mouse_control_states:    # reset
+        if current_time > self.mouse_control_keep_until[item]:
+          self.mouse_control_states[item] = False
+      
+      dx = abs(mouse_position[0] - screen_center[0])
+      dy = abs(mouse_position[1] - screen_center[1])
+      
+      if dx > dy:  # choose the prevelant axis
+        if mouse_position[0] > screen_center[0]:
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = True
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = False          
+          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        elif mouse_position[0] < screen_center[0]:
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = True
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = False
+          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+      else:
+        if mouse_position[1] < screen_center[1]:
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_UP] = True
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = False
+          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_UP] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        elif mouse_position[1] > screen_center[1]:
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = True
+          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_UP] = False
+          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        
+      if pressed[0]:
+        self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = True
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+          
+      if pressed[1]:
+        self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = True
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+      
+      if pressed[2]:
+        self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = True
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+      
+      pygame.mouse.set_pos(screen_center)
+
     for key_code in self.key_maps:
-      if keys_pressed[key_code]:
+      key_is_active = self.mouse_control_states[key_code] if key_code < 0 else keys_pressed[key_code]
+      
+      if key_is_active:
         action_tuple = self.key_maps[key_code]  
         result.append(action_tuple)
         
@@ -1305,6 +1397,8 @@ class Renderer(object):
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
   MAP_TILE_HALF_WIDTH = MAP_TILE_WIDTH / 2
   MAP_TILE_HALF_HEIGHT = MAP_TILE_HEIGHT / 2
+  SCREEN_WIDTH = 800
+  SCREEN_HEIGHT = 600
 
   PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
   BOMB_SPRITE_CENTER = (22,33)
@@ -1313,7 +1407,7 @@ class Renderer(object):
   MAP_BORDER_WIDTH = 10
 
   def __init__(self):
-    self.screen_resolution = (800,600)
+    self.screen_resolution = (Renderer.SCREEN_WIDTH,Renderer.SCREEN_HEIGHT)
 
     self.environment_images = {}
 
@@ -1599,9 +1693,12 @@ class Game(object):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
     self.player_key_maps = PlayerKeyMaps()
+    
+    self.player_key_maps.allow_control_by_mouse()
 
     self.player_key_maps.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
     self.player_key_maps.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
+    self.player_key_maps.set_player_key_map(2,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
 
     self.renderer = Renderer()
     self.sound_player = SoundPlayer()
