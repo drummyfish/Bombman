@@ -804,7 +804,7 @@ class Map(object):
     for bomb in self.bombs:
       bomb_tile_position = Positionable.position_to_tile(bomb.get_position())
 
-      if bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
+      if bomb.movement != Bomb.BOMB_FLYING and bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
         return bomb
     
     return None
@@ -980,16 +980,9 @@ class Map(object):
           if bomb.flight_info.distance_travelled >= bomb.flight_info.total_distance_to_travel:
             bomb_tile = Positionable.position_to_tile(bomb.get_position())
             
-            # We have to move the bomb from the tile temporarily in order to check
-            # if it's walkable, otherwise it would never be walkable because of it
-            # being there.
+
             
-            position_backup = bomb.get_position()
-            bomb.set_position((-1,-1))
-            is_walkable = self.tile_is_walkable(bomb_tile)
-            bomb.set_position(position_backup)
-            
-            if not is_walkable or self.tile_has_player(bomb_tile):
+            if not self.tile_is_walkable(bomb_tile) or self.tile_has_player(bomb_tile):
               print(bomb_tile,self.tile_is_walkable(bomb_tile),self.tile_has_player(bomb_tile))
               
               destination_tile = (bomb_tile[0] + bomb.flight_info.direction[0],bomb_tile[1] + bomb.flight_info.direction[1])
