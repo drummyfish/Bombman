@@ -63,7 +63,7 @@ MAP1 = ("env3;"
         "tbbmxk;"
         "bbbbrrrrrrtttttttttttttttttttttttttt;"
         "x T x x x x x x . x x x x . x"
-        ". 0 . x x x x B 9 . x x . 3 ."
+        ". 0 . . . x x B 9 . x x . 3 ."
         "x . x x T x x x . x x . x . x"
         "x x x . 4 . x x x x A 5 . x x"
         "x x x x T x x x x x x . x x x"
@@ -126,6 +126,14 @@ class Positionable(object):
   @staticmethod
   def position_to_tile(position):
     return (int(math.floor(position[0])),int(math.floor(position[1])))
+  
+  def is_near_tile_center(self):
+    position_within_tile = (self.position[0] % 1,self.position[1] % 1)
+    
+    limit = 0.2
+    limit2 = 1.0 - limit
+    
+    return (limit < position_within_tile[0] < limit2) and (limit < position_within_tile[1] < limit2)
 
 class Player(Positionable):
   # possible player states
@@ -137,7 +145,8 @@ class Player(Positionable):
   STATE_WALKING_RIGHT = 5
   STATE_WALKING_DOWN = 6
   STATE_WALKING_LEFT = 7
-  STATE_DEAD = 8
+  STATE_IN_AIR = 8
+  STATE_DEAD = 9
 
   DISEASE_NONE = 0
   DISEASE_DIARRHEA = 1
@@ -153,6 +162,8 @@ class Player(Positionable):
   MAX_SPEED = 10
   SPEEDUP_VALUE = 1
   DISEASE_TIME = 20000
+  
+  JUMP_DURATION = 2000
 
   def __init__(self):
     super(Player,self).__init__()
@@ -177,9 +188,48 @@ class Player(Positionable):
     self.wait_for_special_release = False ##< helper used to wait for special key release
     self.wait_for_bomb_release = False
     self.throwing_time_left = 0           ##< for how longer (in ms) the player will be in a state of throwing (only for visuals)
+    self.state_backup = Player.STATE_IDLE_UP    ##< used to restore previous state, for example after jump
+    self.jumping_to = (0,0)               ##< coordinates of a tile the player is jumping to
     
   def is_boxing(self):
     return self.boxing
+
+  def send_to_air(self, game_map):
+    if self.state == Player.STATE_IN_AIR:
+      return
+    
+    game_map.add_sound_event(SoundPlayer.SOUND_EVENT_TRAMPOLINE)
+    
+    self.state_backup = self.state
+    self.state = Player.STATE_IN_AIR
+    self.jumping_from = Positionable.position_to_tile(self.position)
+    
+    landing_tiles = []  # potential tiles to land on
+    
+    # find a landing tile:
+    
+    for y in range (self.jumping_from[1] - 3,self.jumping_from[1] + 4):
+      for x in range (self.jumping_from[0] - 3,self.jumping_from[0] + 4):
+        tile = game_map.get_tile_at((x,y))
+        
+        if tile != None and game_map.tile_is_walkable((x,y)) and tile.special_object == None:
+          landing_tiles.append((x,y))
+    
+    if len(landing_tiles) == 0:    # this should practically not happen
+      self.jumping_to = (self.jumping_from[0],self.jumping_from[1] + 1)
+    else:
+      self.jumping_to = random.choice(landing_tiles)
+    
+    self.state_time = 0
+
+  def get_state_time(self):
+    return self.state_time
+
+  def get_jump_destination(self):
+    return self.jumping_to
+
+  def is_in_air(self):
+    return self.state == Player.STATE_IN_AIR
 
   def is_throwing(self):
     return self.throwing_time_left > 0
@@ -337,6 +387,15 @@ class Player(Positionable):
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
   def react_to_inputs(self, input_actions, dt, game_map):
+    if self.state == Player.STATE_IN_AIR:
+      self.state_time += dt
+      
+      if self.state_time >= Player.JUMP_DURATION:
+        self.state = self.state_backup
+        self.state_time = 0
+      else:
+        return
+    
     current_speed = self.speed if self.disease != Player.DISEASE_SLOW else Player.SLOW_SPEED
     
     distance_to_travel = dt / 1000.0 * current_speed
@@ -852,7 +911,7 @@ class Map(object):
     for player in self.players:
       player_tile_position = Positionable.position_to_tile(player.get_position())
 
-      if player_tile_position[0] == tile_coordinates[0] and player_tile_position[1] == tile_coordinates[1]:
+      if not player.is_in_air() and player_tile_position[0] == tile_coordinates[0] and player_tile_position[1] == tile_coordinates[1]:
         return True
     
     return False
@@ -1117,7 +1176,14 @@ class Map(object):
       if player_tile.item != None:
         player.give_item(player_tile.item,self)
         player_tile.item = None
-          
+      
+      if player.is_in_air():
+        if player.get_state_time() > Player.JUMP_DURATION / 2:  # jump to destination tile in the middle of the flight
+          player.move_to_tile_center(player.get_jump_destination())
+      
+      elif player_tile.special_object == MapTile.SPECIAL_OBJECT_TRAMPOLINE and player.is_near_tile_center():
+        player.send_to_air(self)
+      
   def add_bomb(self, bomb):
     self.bombs.append(bomb)
 
@@ -1338,6 +1404,7 @@ class SoundPlayer(object):
   SOUND_EVENT_DISEASE = 7
   SOUND_EVENT_CLICK = 8
   SOUND_EVENT_THROW = 9
+  SOUND_EVENT_TRAMPOLINE = 10
   
   def __init__(self):
     pygame.mixer.init()
@@ -1353,6 +1420,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"disease.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"click.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"throw.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"trampoline.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -1372,7 +1440,8 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_DIARRHEA,
         SoundPlayer.SOUND_EVENT_SLOW,
         SoundPlayer.SOUND_EVENT_DISEASE,
-        SoundPlayer.SOUND_EVENT_THROW
+        SoundPlayer.SOUND_EVENT_THROW,
+        SoundPlayer.SOUND_EVENT_TRAMPOLINE
         ):
         self.sound[sound_event].play()
     
@@ -1594,7 +1663,17 @@ class Renderer(object):
           
           animation_frame = (object_to_render.get_state_time() / 100) % 4
           
-          if object_to_render.is_boxing() or object_to_render.is_throwing():
+          if object_to_render.is_in_air():
+            image_to_render = self.player_images[object_to_render.get_number()]["down"]
+          
+            if object_to_render.get_state_time() < Player.JUMP_DURATION / 2:
+              quotient = abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
+            else:
+              quotient = 2.0 - abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
+              
+            relative_offset[1] = -1 * int(quotient * Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT)
+            
+          elif object_to_render.is_boxing() or object_to_render.is_throwing():
             if not object_to_render.is_throwing() and animation_frame == 0:
               helper_string = ""
             else:
