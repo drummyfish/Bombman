@@ -60,8 +60,8 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "tbbmxk;"
-        "bbbbrrrrrrtttttttttttttttttttttttttt;"
+        "bf;"
+        "bbbbbbFssssspppppddddmmmrxxettkkkkk;"
         "x T x x x x x x . x x x x . x"
         ". 0 . . . x x B 9 . x x . 3 ."
         "x . x x T x x x . x x . x . x"
@@ -173,7 +173,7 @@ class Player(Positionable):
     self.state_time = 0                   ##< how much time (in ms) has been spent in current time
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
     self.bombs_left = 1                   ##< how many more bombs the player can put at the time
-    self.flame_length = 2                 ##< how long the flame is in tiles
+    self.flame_length = 1                 ##< how long the flame is in tiles
     self.items = {}                       ##< which items and how many the player has, format: [item code]: count
     self.has_spring = False               ##< whether player's bombs have springs
     self.has_shoe = False                 ##< whether player has a kicking shoe
@@ -1770,6 +1770,46 @@ class Renderer(object):
 
     return result    
 
+class AI(object):
+  REPEAT_ACTIONS = (100,500)    ##< In order not to compute actions with every single call to
+                                #   play(), actions will be stored in self.outputs and repeated
+                                #   for next random(REPEAT_ACTIONS[0],REPEAT_ACTIONS[1]) ms - saves
+                                #   CPU time and prevents jerky AI movement.
+  
+  def __init__(self, player, game_map):
+    self.player = player
+    self.game_map = game_map
+    
+    self.outputs = []      # holds currently active outputs
+    self.recompute_compute_actions_on = 0
+    
+  ## Decides what moves to make and returns a list of event in the same
+  #  format as PlayerKeyMaps.get_current_actions().
+    
+  def play(self):
+    current_time = pygame.time.get_ticks()
+    
+    if current_time < self.recompute_compute_actions_on:
+      return self.outputs             # only repeat actions
+    
+    self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
+    
+    print(self.recompute_compute_actions_on)
+    
+    # calculate new actions here:
+      
+    self.outputs = []
+    maximum_score = 0       # maximum score so far
+    
+    # consider all possible moves and find the one with biggest score:
+    
+    #TODO
+    
+    # test: assign random action
+    self.outputs.append((self.player.get_number(),random.choice((PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT))))
+    
+    return self.outputs
+
 class Game(object):
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -1790,6 +1830,8 @@ class Game(object):
     time_before = pygame.time.get_ticks()
 
     self.game_map = Map(MAP1,PlaySetup())
+
+    self.test_ai = AI(self.game_map.get_players_by_numbers()[3],self.game_map)
 
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
@@ -1818,6 +1860,9 @@ class Game(object):
 
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
+    
+    actions_being_performed = actions_being_performed + self.test_ai.play()
+    
     players = self.game_map.get_players()
 
     for player in players:
