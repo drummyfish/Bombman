@@ -373,7 +373,7 @@ class Player(Positionable):
       new_bomb.explodes_in = 800 
       
     if self.detonator_boms_left > 0:
-      new_bomb.detonator_time_left = Bomb.DETONATOR_EXPIRATION_TIME
+      new_bomb.detonator_time = Bomb.DETONATOR_EXPIRATION_TIME
       self.detonator_bombs.append(new_bomb)
       self.detonator_boms_left -= 1
     
@@ -715,8 +715,8 @@ class Bomb(Positionable):
     self.time_of_existence = 0                       ##< for how long (in ms) the bomb has existed
     self.flame_length = player.get_flame_length()    ##< how far the flame will go
     self.player = player                             ##< to which player the bomb belongs
-    self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created (detonator_time_left must expire before this starts counting down)
-    self.detonator_time_left = 0                     ##< if > 0, the bomb has a detonator on it, after expiring it becomes a regular bomb
+    self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created (detonator_time must expire before this starts counting down)
+    self.detonator_time = 0                     ##< if > 0, the bomb has a detonator on it, after expiring it becomes a regular bomb
     self.set_position(player.get_position())
     self.move_to_tile_center()
     self.has_spring = player.bombs_have_spring()
@@ -751,7 +751,12 @@ class Bomb(Positionable):
     self.move_to_tile_center(destination_tile_coords)
 
   def has_detonator(self):
-    return self.detonator_time_left > 0 and self.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME
+    return self.detonator_time > 0 and self.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME
+
+  ## Returns a time until the bomb explodes by itself.
+
+  def time_until_explosion(self):
+    return self.explodes_in + self.detonator_time - self.time_of_existence
 
   def exploded(self):
     if not self.has_exploded:
@@ -816,6 +821,8 @@ class Map(object):
   ITEM_BOXING_GLOVE = 9
   ITEM_DETONATOR = 10
   ITEM_THROWING_GLOVE = 11
+  
+  SAFE_DANGER_VALUE = 5000     ##< time in ms, used in danger map to indicate safe tile
   
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
@@ -907,6 +914,12 @@ class Map(object):
       random_tile.item = self.letter_to_item(string_split[2][i])
       block_tiles.remove(random_tile)
 
+    # init danger map:
+    
+    self.danger_map = [[Map.SAFE_DANGER_VALUE for i in range(Map.MAP_WIDTH)] for j in range(Map.MAP_HEIGHT)]  ##< 2D array of times in ms for each square that
+                                                                                                              #   say in how long there will be a flame - used
+                                                                                                              #   by AI to make decisions about movement
+
     # initialise players:
 
     self.players = []                                        ##< list of players in the game
@@ -935,6 +948,49 @@ class Map(object):
 
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
 
+  def get_danger_value(self, tile_coordinates):
+    if not self.tile_is_withing_map(tile_coordinates):
+      return 0       # never walk outside map
+    
+    return self.danger_map[tile_coordinates[1]][tile_coordinates[0]]
+  
+  def update_danger_map(self):
+    for j in range(Map.MAP_HEIGHT):  # reset
+      for i in range(Map.MAP_WIDTH):
+        tile = self.tiles[j][i]
+        
+        if tile.kind == MapTile.TILE_BLOCK or len(tile.flames) >= 1:
+          self.danger_map[j][i] = 0  # 0 => there is a flame
+        else:
+          self.danger_map[j][i] = Map.SAFE_DANGER_VALUE
+
+    for bomb in self.bombs:
+      bomb_tile = Positionable.position_to_tile(bomb.get_position())
+      
+      time_until_explosion = bomb.time_until_explosion()
+      
+      self.danger_map[bomb_tile[1]][bomb_tile[0]] = min(self.danger_map[bomb_tile[1]][bomb_tile[0]],time_until_explosion)
+
+                         # up                              right                            down                             left
+      position         = [[bomb_tile[0],bomb_tile[1] - 1], [bomb_tile[0] + 1,bomb_tile[1]], [bomb_tile[0],bomb_tile[1] + 1], [bomb_tile[0] - 1,bomb_tile[1]]]
+      flame_stop       = [False,                           False,                           False,                           False]
+      tile_increment   = [(0,-1),                          (1,0),                           (0,1),                           (-1,0)]
+    
+      for i in range(bomb.flame_length):
+        for direction in (0,1,2,3):
+          if flame_stop[direction]:
+            continue
+        
+          if not self.tile_is_walkable(position[direction]) or not self.tile_is_withing_map(position[direction]):
+            flame_stop[direction] = True
+            continue
+          
+          current_tile = position[direction]
+          
+          self.danger_map[current_tile[1]][current_tile[0]] = min(self.danger_map[current_tile[1]][current_tile[0]],time_until_explosion)
+          position[direction][0] += tile_increment[direction][0] 
+          position[direction][1] += tile_increment[direction][1]
+          
   def add_sound_event(self, sound_event):
     self.sound_events.append(sound_event)
     
@@ -1071,9 +1127,6 @@ class Map(object):
   #  flames from the bomb, the bomb is destroyed and players are informed.
 
   def bomb_explodes(self, bomb):
-    if bomb.movement == Bomb.BOMB_FLYING:
-      return
-    
     self.add_sound_event(SoundPlayer.SOUND_EVENT_EXPLOSION)
     
     bomb_position = Positionable.position_to_tile(bomb.get_position())
@@ -1149,6 +1202,8 @@ class Map(object):
   def update(self, dt):
     i = 0
     
+    self.update_danger_map()   # TODO: maybe don't do this every frame, could be for example lazy evaluation, only when AI requests the map
+    
     while i <= len(self.bombs) - 1:    # update all bombs
       bomb = self.bombs[i]
       
@@ -1161,10 +1216,10 @@ class Map(object):
       bomb_position = bomb.get_position()
       bomb_tile = Positionable.position_to_tile(bomb_position)
 
-      if bomb.time_of_existence > bomb.explodes_in + bomb.detonator_time_left: # bomb explodes
+      if bomb.movement != Bomb.BOMB_FLYING and bomb.time_of_existence > bomb.explodes_in + bomb.detonator_time: # bomb explodes
         self.bomb_explodes(bomb)
         continue
-      elif self.tiles[bomb_tile[1]][bomb_tile[0]].special_object == MapTile.SPECIAL_OBJECT_LAVA and bomb.is_near_tile_center():
+      elif bomb.movement != Bomb.BOMB_FLYING and self.tiles[bomb_tile[1]][bomb_tile[0]].special_object == MapTile.SPECIAL_OBJECT_LAVA and bomb.is_near_tile_center():
         self.bomb_explodes(bomb)
         continue
       else:
@@ -1920,6 +1975,9 @@ class Renderer(object):
           sprite_name = tile.flames[0].direction
 
           result.blit(self.flame_images[flame_animation_frame][sprite_name],(x,y))
+
+        # for debug: uncomment this to see danger values on the map
+        # pygame.draw.rect(result,(int((1 - map_to_render.get_danger_value(tile.coordinates) / float(Map.SAFE_DANGER_VALUE)) * 255.0),0,0),pygame.Rect(x + 10,y + 10,30,30))
 
         x -= Renderer.MAP_TILE_WIDTH
   
