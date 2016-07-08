@@ -828,6 +828,7 @@ class Map(object):
 
   def __init__(self, map_data, play_setup):
     # make the tiles array:
+    self.danger_map_is_up_to_date = False                    # to regenerate danger map only when needed
     self.tiles = []
     starting_positions = [(0.0,0.0) for i in range(10)]      # starting position for each player
 
@@ -948,7 +949,15 @@ class Map(object):
 
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
 
+  ## Efficiently (lazily) gets a danger value of given tile. Danger value says
+  #  how much time in ms has will pass until there will be a fire at the tile.
+
   def get_danger_value(self, tile_coordinates):
+    if not self.danger_map_is_up_to_date:
+      print("updating danger map...")
+      self.update_danger_map()
+      self.danger_map_is_up_to_date = True
+    
     if not self.tile_is_withing_map(tile_coordinates):
       return 0       # never walk outside map
     
@@ -1200,9 +1209,9 @@ class Map(object):
   ## Updates some things on the map that change with time.
 
   def update(self, dt):
-    i = 0
+    self.danger_map_is_up_to_date = False   # reset this each frame
     
-    self.update_danger_map()   # TODO: maybe don't do this every frame, could be for example lazy evaluation, only when AI requests the map
+    i = 0
     
     while i <= len(self.bombs) - 1:    # update all bombs
       bomb = self.bombs[i]
@@ -1989,7 +1998,7 @@ class Renderer(object):
     return result    
 
 class AI(object):
-  REPEAT_ACTIONS = (100,500)    ##< In order not to compute actions with every single call to
+  REPEAT_ACTIONS = (200,500)    ##< In order not to compute actions with every single call to
                                 #   play(), actions will be stored in self.outputs and repeated
                                 #   for next random(REPEAT_ACTIONS[0],REPEAT_ACTIONS[1]) ms - saves
                                 #   CPU time and prevents jerky AI movement.
@@ -2001,7 +2010,23 @@ class AI(object):
     self.outputs = []      ##< holds currently active outputs
     self.recompute_compute_actions_on = 0
     
-    self.do_nothing = True      ##< this can turn AI off for debugging purposes
+    self.do_nothing = False      ##< this can turn AI off for debugging purposes
+    
+  ## Returns an integer score in range 0 - 100 for given file (100 = good, 0 = bad).
+    
+  def rate_tile(self, tile_coordinates):
+    danger = self.game_map.get_danger_value(tile_coordinates)
+    
+    if danger == 0:
+      return 0
+    
+    if danger < 1000:
+      return 20
+    
+    if danger < 2500:
+      return 50
+    
+    return 100
     
   ## Decides what moves to make and returns a list of event in the same
   #  format as PlayerKeyMaps.get_current_actions().
@@ -2017,18 +2042,35 @@ class AI(object):
     
     self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
     
-    # calculate new actions here:
+    # start decisions here:
+    
+    current_tile = Positionable.position_to_tile(self.player.get_position())
       
-    self.outputs = []
+    best_outputs = []       # list of lists of actions chosen as best
     maximum_score = 0       # maximum score so far
     
     # consider all possible moves and find the one with biggest score:
     
-    #TODO
+    # should I not do nothing?
+    
+    maximum_score = self.rate_tile(current_tile)
+    best_outputs.append([])
+    
+                       # up                     # right                     # down                     # left
+    tile_increment  = ((0,-1),                  (1,0),                      (0,1),                     (-1,0))
+    action =          (PlayerKeyMaps.ACTION_UP, PlayerKeyMaps.ACTION_RIGHT, PlayerKeyMaps.ACTION_DOWN, PlayerKeyMaps.ACTION_LEFT)
+    
+    for direction in (0,1,2,3):
+      score = self.rate_tile((current_tile[0] + tile_increment[direction][0],current_tile[1] + tile_increment[direction][1]))  
+        
+      if score > maximum_score:
+        maximum_score = score
+      elif score == maximum_score:
+        best_outputs.append([(self.player.get_number(),action[direction])])
+      
+    self.outputs = random.choice(best_outputs)   # select random actions out of the best ones
     
     # test: assign random action
-    self.outputs.append((self.player.get_number(),random.choice((PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT))))
-    
     return self.outputs
 
 class Game(object):
@@ -2061,8 +2103,6 @@ class Game(object):
       dt = min(pygame.time.get_ticks() - time_before,100)
       time_before = pygame.time.get_ticks()
 
-      self.simulation_step(dt)
-
       for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
 
@@ -2072,6 +2112,8 @@ class Game(object):
       self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
 
       pygame_clock.tick()
+
+      self.simulation_step(dt)
 
       if show_fps_in <= 0:
         print("fps: " + str(pygame_clock.get_fps()))
