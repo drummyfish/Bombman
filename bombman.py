@@ -64,12 +64,12 @@ MAP1 = ("env3;"
         "bbbbbbFssssspppppddddmmmrxxettkkkkk;"
         "x T x x x x x x . x x x x . x"
         ". 0 . . . x x B 9 . x x . 3 ."
-        "x . x x T x x x . x x . x . x"
+        "x . . A T x x x . x x . x . x"
         "x x x . 4 . x x x x A 5 . x x"
         "x x x x T x x x x x x . x x x"
         "# x x x x x # # # # x x x x #"
         "x x x x . x x x x x x T x x x"
-        "x x x A 7 . x x x x . 6 . x x"
+        "x x x x 7 . x x x x . 6 . x x"
         "x . x x . x x . x x x . x . x"
         ". 2 . x x x . 8 B x x x . 1 ."
         "x . x x x x x . x x x x x . x")
@@ -146,7 +146,8 @@ class Player(Positionable):
   STATE_WALKING_DOWN = 6
   STATE_WALKING_LEFT = 7
   STATE_IN_AIR = 8
-  STATE_DEAD = 9
+  STATE_TELEPORTING = 9
+  STATE_DEAD = 10
 
   DISEASE_NONE = 0
   DISEASE_DIARRHEA = 1
@@ -164,6 +165,7 @@ class Player(Positionable):
   DISEASE_TIME = 20000
   
   JUMP_DURATION = 2000
+  TELEPORT_DURATION = 2000
 
   def __init__(self):
     super(Player,self).__init__()
@@ -190,9 +192,32 @@ class Player(Positionable):
     self.throwing_time_left = 0           ##< for how longer (in ms) the player will be in a state of throwing (only for visuals)
     self.state_backup = Player.STATE_IDLE_UP    ##< used to restore previous state, for example after jump
     self.jumping_to = (0,0)               ##< coordinates of a tile the player is jumping to
+    self.teleporting_to = (0,0)
+    self.wait_for_tile_transition = False ##< used to stop the destination teleport from teleporting the player back immediatelly
     
   def is_boxing(self):
     return self.boxing
+
+  ##< Initialises the teleporting of the player with teleport they are standing on (if they're
+  #   not standing on a teleport, nothing happens).
+
+  def teleport(self, game_map):
+    if self.wait_for_tile_transition:
+      return
+    
+    current_tile = Positionable.position_to_tile(self.position)
+    destination_coordinates = game_map.get_tile_at(current_tile).destination_teleport
+    
+    if destination_coordinates == None:
+      return
+    
+    self.move_to_tile_center()
+    self.teleporting_to = destination_coordinates
+    
+    self.state_backup = self.state
+    self.state = Player.STATE_TELEPORTING
+    self.state_time = 0
+    self.wait_for_tile_transition = True
 
   def send_to_air(self, game_map):
     if self.state == Player.STATE_IN_AIR:
@@ -225,8 +250,14 @@ class Player(Positionable):
   def get_state_time(self):
     return self.state_time
 
+  def get_teleport_destination(self):
+    return self.teleporting_to
+
   def get_jump_destination(self):
     return self.jumping_to
+
+  def is_teleporting(self):
+    return self.state == Player.STATE_TELEPORTING
 
   def is_in_air(self):
     return self.state == Player.STATE_IN_AIR
@@ -393,6 +424,16 @@ class Player(Positionable):
       if self.state_time >= Player.JUMP_DURATION:
         self.state = self.state_backup
         self.state_time = 0
+        self.teleporting_to = None
+      else:
+        return
+    elif self.state == Player.STATE_TELEPORTING:
+      self.state_time += dt
+      
+      if self.state_time >= Player.TELEPORT_DURATION:
+        self.state = self.state_backup
+        self.state_time = 0
+        self.jumping_to = None
       else:
         return
     
@@ -506,14 +547,15 @@ class Player(Positionable):
     check_collisions = True
     collision_happened = False
 
-    current_tile = Positionable.position_to_tile(self.position)
+    current_tile = Positionable.position_to_tile(self.position)   
+    previous_tile = Positionable.position_to_tile(previous_position)
+    transitioning_tiles = current_tile != previous_tile
     
-    previous_tile = None
+    if transitioning_tiles:
+      self.wait_for_tile_transition = False
     
     if game_map.tile_has_bomb(current_tile):    # first check if the player is standing on a bomb
-      previous_tile = Positionable.position_to_tile(previous_position)
-      
-      if current_tile == previous_tile:         # no transition between tiles -> let the player move
+      if not transitioning_tiles:         # no transition between tiles -> let the player move
         check_collisions = False
 
     if check_collisions:
@@ -726,9 +768,10 @@ class MapTile(object):
     self.kind = MapTile.TILE_FLOOR
     self.flames = []
     self.coordinates = coordinates
-    self.to_be_destroyed = False   ##< Flag that marks the tile to be destroyed after the flames go out.
-    self.item = None               ##< Item that's present on the file
-    self.special_object = None     ##< special object present on the tile, like trampoline or teleport
+    self.to_be_destroyed = False     ##< Flag that marks the tile to be destroyed after the flames go out.
+    self.item = None                 ##< Item that's present on the file
+    self.special_object = None       ##< special object present on the tile, like trampoline or teleport
+    self.destination_teleport = None ##< in case of special_object equal to SPECIAL_OBJECT_TELEPORT_A or SPECIAL_OBJECT_TELEPORT_B holds the destionation teleport tile coordinates
 
 ## Holds and manipulates the map data including the players, bombs etc.
 
@@ -775,6 +818,9 @@ class Map(object):
 
     line = -1
     column = 0
+    
+    teleport_a_tile = None       # helper variables used to pair teleports
+    teleport_b_tile = None
 
     for i in range(len(string_split[3])):
       tile_character = string_split[3][i]
@@ -796,8 +842,22 @@ class Map(object):
         
         if tile_character == "A":
           tile.special_object = MapTile.SPECIAL_OBJECT_TELEPORT_A
+          
+          if teleport_a_tile == None:
+            teleport_a_tile = tile
+          else:
+            tile.destination_teleport = teleport_a_tile.coordinates
+            teleport_a_tile.destination_teleport = tile.coordinates
+          
         elif tile_character == "B":
           tile.special_object = MapTile.SPECIAL_OBJECT_TELEPORT_A
+          
+          if teleport_a_tile == None:
+            teleport_b_tile = tile
+          else:
+            tile.destination_teleport = teleport_b_tile.coordinates
+            teleport_b_tile.destination_teleport = tile.coordinates
+          
         elif tile_character == "T":
           tile.special_object = MapTile.SPECIAL_OBJECT_TRAMPOLINE
 
@@ -1179,10 +1239,14 @@ class Map(object):
       
       if player.is_in_air():
         if player.get_state_time() > Player.JUMP_DURATION / 2:  # jump to destination tile in the middle of the flight
-          player.move_to_tile_center(player.get_jump_destination())
-      
+          player.move_to_tile_center(player.get_jump_destination())      
+      elif player.is_teleporting():
+        if player.get_state_time() > Player.TELEPORT_DURATION / 2:
+          player.move_to_tile_center(player.get_teleport_destination())
       elif player_tile.special_object == MapTile.SPECIAL_OBJECT_TRAMPOLINE and player.is_near_tile_center():
         player.send_to_air(self)
+      elif (player_tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_A or player_tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_B) and player.is_near_tile_center():
+        player.teleport(self)
       
   def add_bomb(self, bomb):
     self.bombs.append(bomb)
@@ -1672,7 +1736,8 @@ class Renderer(object):
               quotient = 2.0 - abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
               
             relative_offset[1] = -1 * int(quotient * Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT)
-            
+          elif object_to_render.is_teleporting():
+            image_to_render = self.player_images[object_to_render.get_number()]["down"]  
           elif object_to_render.is_boxing() or object_to_render.is_throwing():
             if not object_to_render.is_throwing() and animation_frame == 0:
               helper_string = ""
@@ -1780,21 +1845,24 @@ class AI(object):
     self.player = player
     self.game_map = game_map
     
-    self.outputs = []      # holds currently active outputs
+    self.outputs = []      ##< holds currently active outputs
     self.recompute_compute_actions_on = 0
+    
+    self.do_nothing = True      ##< this can turn AI off for debugging purposes
     
   ## Decides what moves to make and returns a list of event in the same
   #  format as PlayerKeyMaps.get_current_actions().
     
   def play(self):
+    if self.do_nothing:
+      return []
+    
     current_time = pygame.time.get_ticks()
     
     if current_time < self.recompute_compute_actions_on:
       return self.outputs             # only repeat actions
     
     self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
-    
-    print(self.recompute_compute_actions_on)
     
     # calculate new actions here:
       
