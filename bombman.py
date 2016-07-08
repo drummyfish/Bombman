@@ -70,7 +70,7 @@ import time
 
 MAP1 = ("env3;"
         "bfkxt;"
-        "bbbbbbFssssspppppddddmmmrxxettkkkkk;"
+        "bbbbbbFsssssdddddddddddddddddddddddddddddddd;"
         "x T d x x x x x . x x x x . x"
         ". 0 . . . l x B 9 . x x . 3 ."
         "V . . A T x x x . x x . x . x"
@@ -382,6 +382,13 @@ class Player(Positionable):
       
   def get_disease(self):
     return self.disease
+  
+  def get_disease_time(self):
+    return self.disease_time_left
+  
+  def set_disease(self, disease, time_left):
+    self.disease = disease
+    self.disease_time_left = time_left
       
   def bombs_have_spring(self):
     return self.has_spring
@@ -968,7 +975,7 @@ class Map(object):
       for i in range(Map.MAP_WIDTH):
         tile = self.tiles[j][i]
         
-        if tile.kind == MapTile.TILE_BLOCK or len(tile.flames) >= 1:
+        if tile.kind == MapTile.TILE_BLOCK or len(tile.flames) >= 1 or self.tiles[j][i].special_object == MapTile.SPECIAL_OBJECT_LAVA:
           self.danger_map[j][i] = 0  # 0 => there is a flame
         else:
           self.danger_map[j][i] = Map.SAFE_DANGER_VALUE
@@ -1070,16 +1077,19 @@ class Map(object):
   def tile_has_bomb(self, tile_coordinates):
     return self.bomb_on_tile(tile_coordinates) != None
 
-  def tile_has_player(self, tile_coordinates):
-    tile_coordinates = Positionable.position_to_tile(tile_coordinates)
+  def get_players_at_tile(self, tile_coordinates):
+    result = []
     
     for player in self.players:
       player_tile_position = Positionable.position_to_tile(player.get_position())
 
       if not player.is_in_air() and player_tile_position[0] == tile_coordinates[0] and player_tile_position[1] == tile_coordinates[1]:
-        return True
+        result.append(player)
     
-    return False
+    return result
+
+  def tile_has_player(self, tile_coordinates):
+    return len(self.get_players_at_tile(tile_coordinates))
 
   ## Checks if given tile coordinates are within the map boundaries.
 
@@ -1379,6 +1389,11 @@ class Map(object):
         player.send_to_air(self)
       elif (player_tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_A or player_tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_B) and player.is_near_tile_center():
         player.teleport(self)
+      elif player.get_disease() != Player.DISEASE_NONE:
+        players_at_tile = self.get_players_at_tile(player_tile_position)
+
+        for player_at_tile in players_at_tile:
+          player_at_tile.set_disease(player.get_disease(),player.get_disease_time())
       
   def add_bomb(self, bomb):
     self.bombs.append(bomb)
@@ -2020,13 +2035,21 @@ class AI(object):
     if danger == 0:
       return 0
     
+    score = 0
+    
     if danger < 1000:
-      return 20
+      score = 20
+    elif danger < 2500:
+      score = 50
+    else:
+      score = 70
     
-    if danger < 2500:
-      return 50
+    tile_item = self.game_map.get_tile_at(tile_coordinates).item
     
-    return 100
+    if tile_item != None and tile_item != MapTile.ITEM_DISEASE:
+      score += 20
+    
+    return score
     
   ## Decides what moves to make and returns a list of event in the same
   #  format as PlayerKeyMaps.get_current_actions().
@@ -2044,9 +2067,10 @@ class AI(object):
     
     # start decisions here:
     
+    self.outputs = []
+    
     current_tile = Positionable.position_to_tile(self.player.get_position())
-      
-    best_outputs = []       # list of lists of actions chosen as best
+    
     maximum_score = 0       # maximum score so far
     
     # consider all possible moves and find the one with biggest score:
@@ -2054,7 +2078,7 @@ class AI(object):
     # should I not do nothing?
     
     maximum_score = self.rate_tile(current_tile)
-    best_outputs.append([])
+    best_direction_actions = []
     
                        # up                     # right                     # down                     # left
     tile_increment  = ((0,-1),                  (1,0),                      (0,1),                     (-1,0))
@@ -2066,10 +2090,11 @@ class AI(object):
       if score > maximum_score:
         maximum_score = score
       elif score == maximum_score:
-        best_outputs.append([(self.player.get_number(),action[direction])])
+        best_direction_actions.append(action[direction])
       
-    self.outputs = random.choice(best_outputs)   # select random actions out of the best ones
-    
+    if len(best_direction_actions) > 0:
+      self.outputs.append((self.player.get_number(),random.choice(best_direction_actions)))
+      
     # test: assign random action
     return self.outputs
 
