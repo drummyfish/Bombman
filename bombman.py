@@ -48,6 +48,14 @@
 #                     A - teleport A
 #                     B - teleport B
 #                     T - trampoline
+#                     u - arrow up, floor tile
+#                     r - arrow right, floor tile
+#                     d - arrow down, floor tile
+#                     l - arrow left, floor tile
+#                     U - arrow up, under block tile
+#                     R - arrow right, under block tile
+#                     D - arrow down, under block tile
+#                     L - arrow left, under block tile
 #                     <0-9> - starting position of the player specified by the number
 #                     TODO
 
@@ -60,16 +68,16 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "bf;"
+        "bfkxt;"
         "bbbbbbFssssspppppddddmmmrxxettkkkkk;"
-        "x T x x x x x x . x x x x . x"
-        ". 0 . . . x x B 9 . x x . 3 ."
+        "x T d x x x x x . x x x x . x"
+        ". 0 . . . l x B 9 . x x . 3 ."
         "x . . A T x x x . x x . x . x"
-        "x x x . 4 . x x x x A 5 . x x"
-        "x x x x T x x x x x x . x x x"
-        "# x x x x x # # # # x x x x #"
+        "x u r . 4 . x D x x A 5 . x x"
+        "x x x L T x x x x R x . x x x"
+        "# x x x x x x x # # x x x x #"
         "x x x x . x x x x x x T x x x"
-        "x x x x 7 . x x x x . 6 . x x"
+        "x x x x 7 . x U x x . 6 . x x"
         "x . x x . x x . x x x . x . x"
         ". 2 . x x x . 8 B x x x . 1 ."
         "x . x x x x x . x x x x x . x")
@@ -765,6 +773,10 @@ class MapTile(object):
   SPECIAL_OBJECT_TRAMPOLINE = 0
   SPECIAL_OBJECT_TELEPORT_A = 1
   SPECIAL_OBJECT_TELEPORT_B = 2
+  SPECIAL_OBJECT_ARROW_UP = 3
+  SPECIAL_OBJECT_ARROW_RIGHT = 4
+  SPECIAL_OBJECT_ARROW_DOWN = 5
+  SPECIAL_OBJECT_ARROW_LEFT = 6
   
   def __init__(self, coordinates):
     self.kind = MapTile.TILE_FLOOR
@@ -839,6 +851,22 @@ class Map(object):
         block_tiles.append(tile)
       elif tile_character == "#":
         tile.kind = MapTile.TILE_WALL
+      elif tile_character in ("u","r","d","l","U","R","D","L"):
+        if tile_character.islower():
+          tile.kind = MapTile.TILE_FLOOR
+        else:
+          tile.kind = MapTile.TILE_BLOCK
+        
+        tile_character = tile_character.lower()
+        
+        if tile_character == "u":
+          tile.special_object = MapTile.SPECIAL_OBJECT_ARROW_UP
+        elif tile_character == "r":
+          tile.special_object = MapTile.SPECIAL_OBJECT_ARROW_RIGHT
+        elif tile_character == "d":
+          tile.special_object = MapTile.SPECIAL_OBJECT_ARROW_DOWN
+        else:
+          tile.special_object = MapTile.SPECIAL_OBJECT_ARROW_LEFT
       else:
         tile.kind = MapTile.TILE_FLOOR
         
@@ -1151,7 +1179,32 @@ class Map(object):
         else:            # bomb rolling
           bomb_position = bomb.get_position()
           bomb_tile = Positionable.position_to_tile(bomb_position)
+          
+          if bomb.is_near_tile_center():
+            object_at_tile = self.tiles[bomb_tile[1]][bomb_tile[0]].special_object
+          
+            redirected = False
+          
+            if object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_UP:
+              bomb.movement = Bomb.BOMB_ROLLING_UP
+              bomb.set_position((bomb_tile[0] + 0.5,bomb_tile[1]))  # aline with x axis
+              redirected = True
+            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_RIGHT:
+              bomb.movement = Bomb.BOMB_ROLLING_RIGHT
+              bomb.set_position((bomb_position[0],bomb_tile[1] + 0.5))
+              redirected = True
+            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_DOWN:
+              bomb.movement = Bomb.BOMB_ROLLING_DOWN
+              bomb.set_position((bomb_tile[0] + 0.5,bomb_position[1]))
+              redirected = True
+            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_LEFT:
+              bomb.movement = Bomb.BOMB_ROLLING_LEFT
+              bomb.set_position((bomb_position[0],bomb_tile[1] + 0.5))
+              redirected = True
         
+            if redirected:
+              bomb_position = bomb.get_position()
+              
           if self.tiles[bomb_tile[1]][bomb_tile[0]].item != None:   # rolling bomb destroys items
             self.tiles[bomb_tile[1]][bomb_tile[0]].item = None
         
@@ -1164,7 +1217,7 @@ class Map(object):
           helper_boundaries2 = (1 - helper_boundaries[1],1 - helper_boundaries[0])
         
           opposite_direction = Bomb.BOMB_NO_MOVEMENT
-        
+          
           if bomb.movement == Bomb.BOMB_ROLLING_UP:
             bomb.set_position((bomb_position[0],bomb_position[1] - distance_to_travel))
             opposite_direction = Bomb.BOMB_ROLLING_DOWN
@@ -1678,6 +1731,10 @@ class Renderer(object):
       # following images are only needed here, so we dont store them to self
       image_trampoline = pygame.image.load(os.path.join(RESOURCE_PATH,"other_trampoline.png"))
       image_teleport = pygame.image.load(os.path.join(RESOURCE_PATH,"other_teleport.png"))
+      image_arrow_up = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_up.png"))
+      image_arrow_right = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_right.png"))
+      image_arrow_down = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_down.png"))
+      image_arrow_left = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_left.png"))
 
       self.prerendered_map_background.fill((255,255,255))
 
@@ -1692,6 +1749,14 @@ class Renderer(object):
             self.prerendered_map_background.blit(image_teleport,render_position)
           elif tile.special_object == MapTile.SPECIAL_OBJECT_TRAMPOLINE:
             self.prerendered_map_background.blit(image_trampoline,render_position)
+          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_UP:
+            self.prerendered_map_background.blit(image_arrow_up,render_position)
+          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_RIGHT:
+            self.prerendered_map_background.blit(image_arrow_right,render_position)
+          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_DOWN:
+            self.prerendered_map_background.blit(image_arrow_down,render_position)
+          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_LEFT:
+            self.prerendered_map_background.blit(image_arrow_left,render_position)
           
       self.prerendered_map = map_to_render
 
