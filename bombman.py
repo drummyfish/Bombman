@@ -165,7 +165,7 @@ class Player(Positionable):
   DISEASE_TIME = 20000
   
   JUMP_DURATION = 2000
-  TELEPORT_DURATION = 2000
+  TELEPORT_DURATION = 1500
 
   def __init__(self):
     super(Player,self).__init__()
@@ -210,6 +210,8 @@ class Player(Positionable):
     
     if destination_coordinates == None:
       return
+    
+    game_map.add_sound_event(SoundPlayer.SOUND_EVENT_TELEPORT)
     
     self.move_to_tile_center()
     self.teleporting_to = destination_coordinates
@@ -589,7 +591,7 @@ class Player(Positionable):
         elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
           self.position[0] += distance_to_travel
     
-    if putting_bomb and not game_map.tile_has_bomb(Positionable.position_to_tile(self.position)):
+    if putting_bomb and not game_map.tile_has_bomb(Positionable.position_to_tile(self.position)) and not game_map.tile_has_teleport(self.position):
       self.lay_bomb(game_map)
     
     # check if bomb kick or box happens
@@ -952,6 +954,14 @@ class Map(object):
     
     return len(self.tiles[tile_coordinates[1]][tile_coordinates[0]].flames) >= 1
 
+  def tile_has_teleport(self, tile_coordinates):
+    tile_coordinates = Positionable.position_to_tile(tile_coordinates)
+    
+    if not self.tile_is_withing_map(tile_coordinates):
+      return False     # coordinates outside the map
+    
+    return self.tiles[tile_coordinates[1]][tile_coordinates[0]].special_object in (MapTile.SPECIAL_OBJECT_TELEPORT_A,MapTile.SPECIAL_OBJECT_TELEPORT_B)
+
   def bomb_on_tile(self, tile_coordinates):
     bombs = self.bombs_on_tile(tile_coordinates)
     
@@ -1132,13 +1142,12 @@ class Map(object):
             bomb_tile = Positionable.position_to_tile(bomb.get_position())
             self.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
 
-            if not self.tile_is_walkable(bomb_tile) or self.tile_has_player(bomb_tile):
+            if not self.tile_is_walkable(bomb_tile) or self.tile_has_player(bomb_tile) or self.tile_has_teleport(bomb_tile):
               destination_tile = (bomb_tile[0] + bomb.flight_info.direction[0],bomb_tile[1] + bomb.flight_info.direction[1])
               bomb.send_flying(destination_tile)
             else:  # bomb lands
               bomb.movement = Bomb.BOMB_NO_MOVEMENT
-              self.get_tile_at(bomb_tile).item = None
-              
+              self.get_tile_at(bomb_tile).item = None        
         else:            # bomb rolling
           bomb_position = bomb.get_position()
           bomb_tile = Positionable.position_to_tile(bomb_position)
@@ -1188,7 +1197,7 @@ class Map(object):
               check_collision = True
               forward_tile = (bomb_tile[0] - 1,bomb_tile[1])
 
-          if check_collision and (not self.tile_is_walkable(forward_tile) or self.tile_has_player(forward_tile)):
+          if check_collision and (not self.tile_is_walkable(forward_tile) or self.tile_has_player(forward_tile) or self.tile_has_teleport(forward_tile)):
             bomb.move_to_tile_center()          
           
             if bomb.has_spring:
@@ -1469,6 +1478,7 @@ class SoundPlayer(object):
   SOUND_EVENT_CLICK = 8
   SOUND_EVENT_THROW = 9
   SOUND_EVENT_TRAMPOLINE = 10
+  SOUND_EVENT_TELEPORT = 11
   
   def __init__(self):
     pygame.mixer.init()
@@ -1485,6 +1495,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"click.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"throw.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"trampoline.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_TELEPORT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"teleport.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -1505,7 +1516,8 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_SLOW,
         SoundPlayer.SOUND_EVENT_DISEASE,
         SoundPlayer.SOUND_EVENT_THROW,
-        SoundPlayer.SOUND_EVENT_TRAMPOLINE
+        SoundPlayer.SOUND_EVENT_TRAMPOLINE,
+        SoundPlayer.SOUND_EVENT_TELEPORT
         ):
         self.sound[sound_event].play()
     
@@ -1737,7 +1749,16 @@ class Renderer(object):
               
             relative_offset[1] = -1 * int(quotient * Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT)
           elif object_to_render.is_teleporting():
-            image_to_render = self.player_images[object_to_render.get_number()]["down"]  
+            
+            if animation_frame == 0:
+              image_to_render = self.player_images[object_to_render.get_number()]["up"]  
+            elif animation_frame == 1:
+              image_to_render = self.player_images[object_to_render.get_number()]["right"]  
+            elif animation_frame == 2:
+              image_to_render = self.player_images[object_to_render.get_number()]["down"]  
+            else:
+              image_to_render = self.player_images[object_to_render.get_number()]["left"]  
+            
           elif object_to_render.is_boxing() or object_to_render.is_throwing():
             if not object_to_render.is_throwing() and animation_frame == 0:
               helper_string = ""
