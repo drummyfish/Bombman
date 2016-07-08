@@ -41,13 +41,14 @@
 # <map items>     - Set of items that will be hidden in block on the map. This is a string of the
 #                   same format as in <player items>. If there is more items specified than there is
 #                   block tiles, then some items will be left out.
-# <tiles>         - left to right, top to bottom sequenced array of map tiles:
+# <tiles>         - Left to right, top to bottom sequenced array of map tiles:
 #                     . - floor
 #                     x - block (destroyable)
 #                     # - wall (undestroyable)
 #                     A - teleport A
 #                     B - teleport B
 #                     T - trampoline
+#                     V - lava
 #                     u - arrow up, floor tile
 #                     r - arrow right, floor tile
 #                     d - arrow down, floor tile
@@ -72,9 +73,9 @@ MAP1 = ("env3;"
         "bbbbbbFssssspppppddddmmmrxxettkkkkk;"
         "x T d x x x x x . x x x x . x"
         ". 0 . . . l x B 9 . x x . 3 ."
-        "x . . A T x x x . x x . x . x"
-        "x u r . 4 . x D x x A 5 . x x"
-        "x x x L T x x x x R x . x x x"
+        "V . . A T x x x . x x . x . x"
+        "x u r . 4 . x D x x A 5 V V x"
+        "x x x L T x x x x R x . V V x"
         "# x x x x x x x # # x x x x #"
         "x x x x . x x x x x x T x x x"
         "x x x x 7 . x U x x . 6 . x x"
@@ -777,6 +778,7 @@ class MapTile(object):
   SPECIAL_OBJECT_ARROW_RIGHT = 4
   SPECIAL_OBJECT_ARROW_DOWN = 5
   SPECIAL_OBJECT_ARROW_LEFT = 6
+  SPECIAL_OBJECT_LAVA = 7
   
   def __init__(self, coordinates):
     self.kind = MapTile.TILE_FLOOR
@@ -878,7 +880,6 @@ class Map(object):
           else:
             tile.destination_teleport = teleport_a_tile.coordinates
             teleport_a_tile.destination_teleport = tile.coordinates
-          
         elif tile_character == "B":
           tile.special_object = MapTile.SPECIAL_OBJECT_TELEPORT_A
           
@@ -887,10 +888,11 @@ class Map(object):
           else:
             tile.destination_teleport = teleport_b_tile.coordinates
             teleport_b_tile.destination_teleport = tile.coordinates
-          
         elif tile_character == "T":
           tile.special_object = MapTile.SPECIAL_OBJECT_TRAMPOLINE
-
+        elif tile_character == "V":
+          tile.special_object = MapTile.SPECIAL_OBJECT_LAVA
+        
       self.tiles[-1].append(tile)
 
       if tile_character.isdigit():
@@ -1155,12 +1157,19 @@ class Map(object):
         continue
       
       bomb.time_of_existence += dt
-      
+            
+      bomb_position = bomb.get_position()
+      bomb_tile = Positionable.position_to_tile(bomb_position)
+
       if bomb.time_of_existence > bomb.explodes_in + bomb.detonator_time_left: # bomb explodes
         self.bomb_explodes(bomb)
+        continue
+      elif self.tiles[bomb_tile[1]][bomb_tile[0]].special_object == MapTile.SPECIAL_OBJECT_LAVA and bomb.is_near_tile_center():
+        self.bomb_explodes(bomb)
+        continue
       else:
         i += 1
-        
+      
       if bomb.movement != Bomb.BOMB_NO_MOVEMENT:
         if bomb.movement == Bomb.BOMB_FLYING:
           distance_to_travel = dt / 1000.0 * Bomb.FLYING_SPEED
@@ -1176,10 +1185,7 @@ class Map(object):
             else:  # bomb lands
               bomb.movement = Bomb.BOMB_NO_MOVEMENT
               self.get_tile_at(bomb_tile).item = None        
-        else:            # bomb rolling
-          bomb_position = bomb.get_position()
-          bomb_tile = Positionable.position_to_tile(bomb_position)
-          
+        else:            # bomb rolling          
           if bomb.is_near_tile_center():
             object_at_tile = self.tiles[bomb_tile[1]][bomb_tile[0]].special_object
           
@@ -1735,6 +1741,7 @@ class Renderer(object):
       image_arrow_right = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_right.png"))
       image_arrow_down = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_down.png"))
       image_arrow_left = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_left.png"))
+      image_lava = pygame.image.load(os.path.join(RESOURCE_PATH,"other_lava.png"))
 
       self.prerendered_map_background.fill((255,255,255))
 
@@ -1757,6 +1764,8 @@ class Renderer(object):
             self.prerendered_map_background.blit(image_arrow_down,render_position)
           elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_LEFT:
             self.prerendered_map_background.blit(image_arrow_left,render_position)
+          elif tile.special_object == MapTile.SPECIAL_OBJECT_LAVA:
+            self.prerendered_map_background.blit(image_lava,render_position)
           
       self.prerendered_map = map_to_render
 
