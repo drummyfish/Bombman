@@ -2046,8 +2046,11 @@ class AI(object):
     
     tile_item = self.game_map.get_tile_at(tile_coordinates).item
     
-    if tile_item != None and tile_item != MapTile.ITEM_DISEASE:
-      score += 20
+    if tile_item != None:
+      if tile_item != Map.ITEM_DISEASE:
+        score += 20
+      else:
+        score -= 10
     
     return score
     
@@ -2071,29 +2074,32 @@ class AI(object):
     
     current_tile = Positionable.position_to_tile(self.player.get_position())
     
-    maximum_score = 0       # maximum score so far
+    # consider possible actions and find the one with biggest score:
     
-    # consider all possible moves and find the one with biggest score:
-    
-    # should I not do nothing?
+    # should I not move?
     
     maximum_score = self.rate_tile(current_tile)
-    best_direction_actions = []
+    best_direction_actions = [None]
     
                        # up                     # right                     # down                     # left
     tile_increment  = ((0,-1),                  (1,0),                      (0,1),                     (-1,0))
     action =          (PlayerKeyMaps.ACTION_UP, PlayerKeyMaps.ACTION_RIGHT, PlayerKeyMaps.ACTION_DOWN, PlayerKeyMaps.ACTION_LEFT)
     
+    # should I move up, right, down or left?
+    
     for direction in (0,1,2,3):
       score = self.rate_tile((current_tile[0] + tile_increment[direction][0],current_tile[1] + tile_increment[direction][1]))  
-        
+      
       if score > maximum_score:
         maximum_score = score
+        best_direction_actions = [action[direction]]
       elif score == maximum_score:
         best_direction_actions.append(action[direction])
       
-    if len(best_direction_actions) > 0:
-      self.outputs.append((self.player.get_number(),random.choice(best_direction_actions)))
+    chosen_movement_action = random.choice(best_direction_actions)
+    
+    if chosen_movement_action != None:
+      self.outputs.append((self.player.get_number(),chosen_movement_action))
       
     # test: assign random action
     return self.outputs
