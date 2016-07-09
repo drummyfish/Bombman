@@ -377,6 +377,9 @@ class Player(Positionable):
       self.detonator_bombs.append(new_bomb)
       self.detonator_boms_left -= 1
     
+  def get_bombs_left(self):
+    return self.bombs_left
+    
   def has_kicking_shoe(self):
     return self.has_shoe
       
@@ -961,7 +964,7 @@ class Map(object):
 
   def get_danger_value(self, tile_coordinates):
     if not self.danger_map_is_up_to_date:
-      print("updating danger map...")
+    #  print("updating danger map...")
       self.update_danger_map()
       self.danger_map_is_up_to_date = True
     
@@ -2040,9 +2043,9 @@ class AI(object):
     if danger < 1000:
       score = 20
     elif danger < 2500:
-      score = 50
+      score = 40
     else:
-      score = 70
+      score = 60
     
     tile_item = self.game_map.get_tile_at(tile_coordinates).item
     
@@ -2054,6 +2057,17 @@ class AI(object):
     
     return score
     
+  def number_of_blocks_next_to_tile(self, tile_coordinates):
+    count = 0
+    
+    for tile_offset in ((0,-1),(1,0),(0,1),(-1,0)):    # for each neigbour file
+      helper_tile = self.game_map.get_tile_at((tile_coordinates[0] + tile_offset[0],tile_coordinates[1] + tile_offset[1]))
+      
+      if helper_tile != None and helper_tile.kind == MapTile.TILE_BLOCK:
+        count += 1
+      
+    return count
+    
   ## Decides what moves to make and returns a list of event in the same
   #  format as PlayerKeyMaps.get_current_actions().
     
@@ -2063,12 +2077,12 @@ class AI(object):
     
     current_time = pygame.time.get_ticks()
     
-    if current_time < self.recompute_compute_actions_on:
+    if current_time < self.recompute_compute_actions_on or self.player.get_state() == Player.STATE_IN_AIR or self.player.get_state() == Player.STATE_TELEPORTING:
       return self.outputs             # only repeat actions
-    
-    self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
-    
+     
     # start decisions here:
+    
+    # moevement decisions:
     
     self.outputs = []
     
@@ -2101,7 +2115,31 @@ class AI(object):
     if chosen_movement_action != None:
       self.outputs.append((self.player.get_number(),chosen_movement_action))
       
-    # test: assign random action
+    # bomb decisions:
+    
+    # should I put bomb?
+    
+    bomb_laid = False
+    
+    if self.player.get_bombs_left() > 0 and not self.game_map.tile_has_bomb(current_tile) and self.game_map.get_danger_value(current_tile) > 2000:
+      chance_to_put_bomb = 100    # one in how many
+      
+      number_of_block_neighbours = self.number_of_blocks_next_to_tile(current_tile)
+      
+      if number_of_block_neighbours == 1:
+        chance_to_put_bomb = 3
+      elif number_of_block_neighbours == 2 or number_of_block_neighbours == 3:
+        chance_to_put_bomb = 2
+        
+      if random.randint(0,chance_to_put_bomb) == 0:
+        bomb_laid = True
+        self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB))
+  
+    if bomb_laid:   # if bomb was laid, the outputs must be recomputed fast in order to prevent laying bombs to other tiles
+      self.recompute_compute_actions_on = current_time + 10
+    else:
+      self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
+
     return self.outputs
 
 class Game(object):
@@ -2126,6 +2164,7 @@ class Game(object):
     self.game_map = Map(MAP1,PlaySetup())
 
     self.test_ai = AI(self.game_map.get_players_by_numbers()[3],self.game_map)
+    self.test_ai2 = AI(self.game_map.get_players_by_numbers()[2],self.game_map)
 
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
@@ -2156,6 +2195,7 @@ class Game(object):
     actions_being_performed = self.player_key_maps.get_current_actions()
     
     actions_being_performed = actions_being_performed + self.test_ai.play()
+    actions_being_performed = actions_being_performed + self.test_ai2.play()
     
     players = self.game_map.get_players()
 
