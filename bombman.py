@@ -499,14 +499,7 @@ class Player(Positionable):
       input_action = item[1]
 
       if self.disease == Player.DISEASE_REVERSE_CONTROLS:
-        if input_action == PlayerKeyMaps.ACTION_UP:
-          input_action = PlayerKeyMaps.ACTION_DOWN
-        elif input_action == PlayerKeyMaps.ACTION_RIGHT:
-          input_action = PlayerKeyMaps.ACTION_LEFT
-        elif input_action == PlayerKeyMaps.ACTION_DOWN:
-          input_action = PlayerKeyMaps.ACTION_UP
-        elif input_action == PlayerKeyMaps.ACTION_LEFT:
-          input_action = PlayerKeyMaps.ACTION_RIGHT
+        input_action = PlayerKeyMaps.get_opposite_action(input_action)
           
       if not moved and input_action == PlayerKeyMaps.ACTION_UP:
         self.position[1] -= distance_to_travel
@@ -1508,6 +1501,19 @@ class PlayerKeyMaps(object):
       self.mouse_control_states[item] = False
       self.mouse_control_keep_until[item] = 0
 
+  @staticmethod
+  def get_opposite_action(action):
+    if action == PlayerKeyMaps.ACTION_UP:
+      return PlayerKeyMaps.ACTION_DOWN
+    elif action == PlayerKeyMaps.ACTION_RIGHT:
+      return PlayerKeyMaps.ACTION_LEFT
+    elif action == PlayerKeyMaps.ACTION_DOWN:
+      return PlayerKeyMaps.ACTION_UP
+    elif action == PlayerKeyMaps.ACTION_LEFT:
+      return PlayerKeyMaps.ACTION_RIGHT
+    
+    return action
+
   ## Sets a key mapping for a player of specified (non-negative) number.
 
   def set_player_key_map(self, player_number, key_up, key_right, key_down, key_left, key_bomb, key_special):
@@ -1887,6 +1893,7 @@ class Renderer(object):
           break
         
         overlay_images = []        # images that should additionaly be rendered over image_to_render
+        draw_shadow = True
         
         relative_offset = [0,0]    # to relatively shift images by given offset
         
@@ -1897,6 +1904,7 @@ class Renderer(object):
           
           if object_to_render.is_in_air():
             image_to_render = self.player_images[object_to_render.get_number()]["down"]
+            draw_shadow = False
           
             if object_to_render.get_state_time() < Player.JUMP_DURATION / 2:
               quotient = abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
@@ -1975,9 +1983,10 @@ class Renderer(object):
           if object_to_render.has_spring:
             overlay_images.append(self.other_images["spring"])
         
-        render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
-        render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0],render_position[1] + Renderer.MAP_BORDER_WIDTH)
-        result.blit(self.other_images["shadow"],(render_position[0],render_position[1]))
+        if draw_shadow:
+          render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
+          render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0],render_position[1] + Renderer.MAP_BORDER_WIDTH)
+          result.blit(self.other_images["shadow"],(render_position[0],render_position[1]))
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
         render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + relative_offset[1])
@@ -2029,6 +2038,52 @@ class AI(object):
     self.recompute_compute_actions_on = 0
     
     self.do_nothing = False      ##< this can turn AI off for debugging purposes
+   
+  def tile_is_escapable(self, tile_coordinates):
+    if not self.game_map.tile_is_walkable(tile_coordinates):
+      return False
+    
+    tile = self.game_map.get_tile_at(tile_coordinates)
+    
+    if tile.special_object == MapTile.SPECIAL_OBJECT_LAVA:
+      return False
+    
+    return True
+   
+  ## Rates all 4 directions from a specified tile (up, right, down, left) with a number
+  #  that says how many possible safe tiles are there accesible in that direction in
+  #  case a bomb is present on the specified tile. A tuple of four integers is returned
+  #  with numbers for each direction - the higher number, the better it is to run to
+  #  safety in that direction. 0 means there is no escape and running in that direction
+  #  means death.
+    
+  def rate_bomb_escape_directions(self, tile_coordinates):
+                                # up    # right # down # left 
+    axis_directions =          ((0,-1), (1,0),  (0,1), (-1,0))
+    perpendicular_directions = ((1,0),  (0,1),  (1,0), (0,1))
+
+    result = [0,0,0,0]
+    
+    for direction in (0,1,2,3):
+      for i in range(1,self.player.get_flame_length() + 1):
+        axis_tile = (tile_coordinates[0] + i * axis_directions[direction][0],tile_coordinates[1] + i * axis_directions[direction][1])
+        
+        if not self.tile_is_escapable(axis_tile):
+          break
+        
+        perpendicular_tile1 = (axis_tile[0] + perpendicular_directions[direction][0],axis_tile[1] + perpendicular_directions[direction][1])
+        perpendicular_tile2 = (axis_tile[0] - perpendicular_directions[direction][0],axis_tile[1] - perpendicular_directions[direction][1])
+
+        if i >= self.player.get_flame_length():
+          result[direction] += 1
+          
+        if self.tile_is_escapable(perpendicular_tile1):
+          result[direction] += 1
+          
+        if self.tile_is_escapable(perpendicular_tile2):
+          result[direction] += 1
+    
+    return tuple(result)
     
   ## Returns an integer score in range 0 - 100 for given file (100 = good, 0 = bad).
     
@@ -2092,40 +2147,66 @@ class AI(object):
     
     # should I not move?
     
-    maximum_score = self.rate_tile(current_tile)
-    best_direction_actions = [None]
+    if self.game_map.tile_has_bomb(current_tile):
+      # standing on a bomb, find a way to escape
+      
+      escape_direction_ratings = self.rate_bomb_escape_directions(current_tile)
+      
+      # find maximum:
+      best_rating = escape_direction_ratings[0]
+      best_action = PlayerKeyMaps.ACTION_UP
+      
+      if escape_direction_ratings[1] > best_rating:
+        best_rating = escape_direction_ratings[1]
+        best_action = PlayerKeyMaps.ACTION_RIGHT
+        
+      if escape_direction_ratings[2] > best_rating:
+        best_rating = escape_direction_ratings[2]
+        best_action = PlayerKeyMaps.ACTION_DOWN
+      
+      if escape_direction_ratings[3] > best_rating:
+        best_rating = escape_direction_ratings[3]
+        best_action = PlayerKeyMaps.ACTION_LEFT
+      
+      chosen_movement_action = best_action 
+    else:   # not standing on a bomb
+      maximum_score = self.rate_tile(current_tile)
+      best_direction_actions = [None]
     
                        # up                     # right                     # down                     # left
-    tile_increment  = ((0,-1),                  (1,0),                      (0,1),                     (-1,0))
-    action =          (PlayerKeyMaps.ACTION_UP, PlayerKeyMaps.ACTION_RIGHT, PlayerKeyMaps.ACTION_DOWN, PlayerKeyMaps.ACTION_LEFT)
+      tile_increment  = ((0,-1),                  (1,0),                      (0,1),                     (-1,0))
+      action =          (PlayerKeyMaps.ACTION_UP, PlayerKeyMaps.ACTION_RIGHT, PlayerKeyMaps.ACTION_DOWN, PlayerKeyMaps.ACTION_LEFT)
     
-    # should I move up, right, down or left?
+      # should I move up, right, down or left?
     
-    for direction in (0,1,2,3):
-      score = self.rate_tile((current_tile[0] + tile_increment[direction][0],current_tile[1] + tile_increment[direction][1]))  
+      for direction in (0,1,2,3):
+        score = self.rate_tile((current_tile[0] + tile_increment[direction][0],current_tile[1] + tile_increment[direction][1]))  
       
-      if score > maximum_score:
-        maximum_score = score
-        best_direction_actions = [action[direction]]
-      elif score == maximum_score:
-        best_direction_actions.append(action[direction])
+        if score > maximum_score:
+          maximum_score = score
+          best_direction_actions = [action[direction]]
+        elif score == maximum_score:
+          best_direction_actions.append(action[direction])
       
-    chosen_movement_action = random.choice(best_direction_actions)
+      chosen_movement_action = random.choice(best_direction_actions)
     
     if chosen_movement_action != None:
+      if self.player.get_disease == Player.DISEASE_REVERSE_CONTROLS:
+        chosen_movement_action = PlayerKeyMaps.get_opposite_action(chosen_movement_action)
+      
       self.outputs.append((self.player.get_number(),chosen_movement_action))
       
     # bomb decisions:
     
-    # should I put bomb?
-    
     bomb_laid = False
     
-    if self.player.get_bombs_left() > 0 and not self.game_map.tile_has_bomb(current_tile) and self.game_map.get_danger_value(current_tile) > 2000:
+    # should I lay bomb?
+    
+    if self.player.get_bombs_left() > 0 and not self.game_map.tile_has_bomb(current_tile) and self.game_map.get_danger_value(current_tile) > 2000 and max(self.rate_bomb_escape_directions(current_tile)) > 0:
       chance_to_put_bomb = 100    # one in how many
       
       number_of_block_neighbours = self.number_of_blocks_next_to_tile(current_tile)
-      
+     
       if number_of_block_neighbours == 1:
         chance_to_put_bomb = 3
       elif number_of_block_neighbours == 2 or number_of_block_neighbours == 3:
@@ -2134,6 +2215,9 @@ class AI(object):
       if random.randint(0,chance_to_put_bomb) == 0:
         bomb_laid = True
         self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB))
+  
+  
+  
   
     if bomb_laid:   # if bomb was laid, the outputs must be recomputed fast in order to prevent laying bombs to other tiles
       self.recompute_compute_actions_on = current_time + 10
