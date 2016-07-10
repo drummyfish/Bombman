@@ -69,7 +69,7 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "f;"
+        "bbfm;"
         "bbbbbfffffffFkkksssssspppddddmrxet;"
         "x T d x x x x x . x x x . . x"
         ". 0 . . . l x B 9 . x x x 3 x"
@@ -228,8 +228,30 @@ class Player(Positionable):
     self.state = Player.STATE_DEAD
     game_map.add_sound_event(SoundPlayer.SOUND_EVENT_DEATH)
 
+  ##< Returns a number that says which way the player is facing (0 - up, 1 - right,
+  #   2 - down, 3 - left).
+
+  def get_direction_number(self):
+    if self.state == Player.STATE_IDLE_UP or self.state == Player.STATE_WALKING_UP:
+      return 0
+    elif self.state == Player.STATE_IDLE_RIGHT or self.state == Player.STATE_WALKING_RIGHT:
+      return 1
+    elif self.state == Player.STATE_IDLE_DOWN or self.state == Player.STATE_WALKING_DOWN:
+      return 2
+    else:
+      return 3
+    
   def is_dead(self):
     return self.state == Player.STATE_DEAD
+
+  ##< Returns a number of bomb the player can currently lay with multibomb (if
+  #   the player doesn't have multibomb, either 1 or 0 will be returned).
+
+  def get_multibomb_count(self):
+    if not self.has_multibomb:
+      return 1 if self.bombs_left > 0 else 0
+    
+    return self.bombs_left
 
   ##< Initialises the teleporting of the player with teleport they are standing on (if they're
   #   not standing on a teleport, nothing happens).
@@ -1561,6 +1583,21 @@ class PlayerKeyMaps(object):
       self.mouse_control_states[item] = False
       self.mouse_control_keep_until[item] = 0
 
+  ##< Gets a direction of given action (0 - up, 1 - right, 2 - down, 3 - left).
+
+  @staticmethod
+  def get_action_direction_number(action):
+    if action == PlayerKeyMaps.ACTION_UP:
+      return 0
+    elif action == PlayerKeyMaps.ACTION_RIGHT:
+      return 1
+    elif action == PlayerKeyMaps.ACTION_DOWN:
+      return 2
+    elif action == PlayerKeyMaps.ACTION_LEFT:
+      return 3
+    
+    return 0
+
   @staticmethod
   def get_opposite_action(action):
     if action == PlayerKeyMaps.ACTION_UP:
@@ -2360,9 +2397,15 @@ class AI(object):
       elif number_of_block_neighbours == 2 or number_of_block_neighbours == 3:
         chance_to_put_bomb = 2
         
-      if random.randint(0,chance_to_put_bomb) == 0:
+      do_lay_bomb = random.randint(0,chance_to_put_bomb) == 0
+      
+      if do_lay_bomb:
         bomb_laid = True
-        self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB))
+        
+        if random.randint(0,2) == 0 and self.should_lay_multibomb(chosen_movement_action):  # lay a single bomb or multibomb?
+          self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB_DOUBLE))
+        else:
+          self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB))
   
     # should I box?
     
@@ -2377,6 +2420,44 @@ class AI(object):
 
     return self.outputs
 
+  def should_lay_multibomb(self, movement_action):
+    if self.player.can_throw():    # multibomb not possible with throwing glove
+      return False
+    
+    multibomb_count = self.player.get_multibomb_count()
+    
+    if multibomb_count > 1:  # multibomb possible
+      current_tile = self.player.get_tile_position()
+
+      player_direction = movement_action if movement_action != None else self.player.get_direction_number()
+
+      # by laying multibomb one of the escape routes will be cut off, let's check
+      # if there would be any escape routes left:
+      escape_direction_ratings = list(self.rate_bomb_escape_directions(current_tile))
+      escape_direction_ratings[player_direction] = 0
+      
+      if max(escape_direction_ratings) == 0:
+        return False
+
+      direction_vector = self.player.get_direction_vector()
+      
+      multibomb_safe = True
+      
+      for i in range(multibomb_count):
+        if not self.game_map.tile_is_walkable(current_tile) or not self.game_map.tile_is_withing_map(current_tile):
+          break
+        
+        if self.game_map.get_danger_value(current_tile) < 3000 or self.game_map.tile_has_lava(current_tile):
+          multibomb_safe = False
+          break
+        
+        current_tile = (current_tile[0] + direction_vector[0],current_tile[1] + direction_vector[1])
+        
+      if multibomb_safe:
+        return True
+      
+    return False
+       
 class Game(object):
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
