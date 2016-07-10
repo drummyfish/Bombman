@@ -69,7 +69,7 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "bbfm;"
+        "bbf;"
         "bbbbbfffffffFkkksssssspppddddmrxet;"
         "x T d x x x x x . x x x . . x"
         ". 0 . . . l x B 9 . x x x 3 x"
@@ -221,6 +221,12 @@ class Player(Positionable):
   def is_boxing(self):
     return self.boxing
 
+  ## Checks if there are any bombs waiting to be detonated with detonator by
+  #  the player.
+
+  def detonator_is_active(self):
+    return len(self.detonator_bombs) > 0
+
   def kill(self, game_map):
     if self.invincible:
       return
@@ -228,7 +234,7 @@ class Player(Positionable):
     self.state = Player.STATE_DEAD
     game_map.add_sound_event(SoundPlayer.SOUND_EVENT_DEATH)
 
-  ##< Returns a number that says which way the player is facing (0 - up, 1 - right,
+  ## Returns a number that says which way the player is facing (0 - up, 1 - right,
   #   2 - down, 3 - left).
 
   def get_direction_number(self):
@@ -244,7 +250,7 @@ class Player(Positionable):
   def is_dead(self):
     return self.state == Player.STATE_DEAD
 
-  ##< Returns a number of bomb the player can currently lay with multibomb (if
+  ## Returns a number of bomb the player can currently lay with multibomb (if
   #   the player doesn't have multibomb, either 1 or 0 will be returned).
 
   def get_multibomb_count(self):
@@ -253,7 +259,7 @@ class Player(Positionable):
     
     return self.bombs_left
 
-  ##< Initialises the teleporting of the player with teleport they are standing on (if they're
+  ## Initialises the teleporting of the player with teleport they are standing on (if they're
   #   not standing on a teleport, nothing happens).
 
   def teleport(self, game_map):
@@ -1054,6 +1060,9 @@ class Map(object):
       bomb_tile = bomb.get_tile_position()
       
       time_until_explosion = bomb.time_until_explosion()
+      
+      if bomb.has_detonator:    # detonator = bad
+        time_until_explosion = 100
       
       self.danger_map[bomb_tile[1]][bomb_tile[0]] = min(self.danger_map[bomb_tile[1]][bomb_tile[0]],time_until_explosion)
 
@@ -2409,7 +2418,7 @@ class AI(object):
   
     # should I box?
     
-    if self.player.can_box():
+    if self.player.can_box() and not self.player.detonator_is_active():
       if trapped or self.game_map.tile_has_bomb(self.player.get_forward_tile_position()):
         self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_SPECIAL))
   
@@ -2418,6 +2427,12 @@ class AI(object):
     else:
       self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
 
+    # should I detonate the detonator?
+    
+    if self.player.detonator_is_active():
+      if random.randint(0,2) == 0 and self.game_map.get_danger_value(current_tile) >= Map.SAFE_DANGER_VALUE:
+        self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_SPECIAL))
+  
     return self.outputs
 
   def should_lay_multibomb(self, movement_action):
