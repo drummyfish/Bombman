@@ -350,10 +350,13 @@ class Player(Positionable):
         if game_map != None:
           players = game_map.get_players()
           
+          players = [helper_player for helper_player in players if not helper_player.is_dead()]
+          
           player_to_switch = self
           
-          while player_to_switch == self:
-            player_to_switch = random.choice(players)
+          if len(players) > 1:  # should always be
+            while player_to_switch == self:
+              player_to_switch = random.choice(players)
           
           my_position = self.get_position()
           self.set_position(player_to_switch.get_position())
@@ -2053,7 +2056,7 @@ class Renderer(object):
     return result    
 
 class AI(object):
-  REPEAT_ACTIONS = (200,500)    ##< In order not to compute actions with every single call to
+  REPEAT_ACTIONS = (100,300)    ##< In order not to compute actions with every single call to
                                 #   play(), actions will be stored in self.outputs and repeated
                                 #   for next random(REPEAT_ACTIONS[0],REPEAT_ACTIONS[1]) ms - saves
                                 #   CPU time and prevents jerky AI movement.
@@ -2126,13 +2129,13 @@ class AI(object):
         perpendicular_tile1 = (axis_tile[0] + perpendicular_directions[direction][0],axis_tile[1] + perpendicular_directions[direction][1])
         perpendicular_tile2 = (axis_tile[0] - perpendicular_directions[direction][0],axis_tile[1] - perpendicular_directions[direction][1])
 
-        if i >= self.player.get_flame_length():
+        if i > self.player.get_flame_length() and self.game_map.get_danger_value(axis_tile) > 2000:
           result[direction] += 1
           
-        if self.tile_is_escapable(perpendicular_tile1):
+        if self.tile_is_escapable(perpendicular_tile1) and self.game_map.get_danger_value(perpendicular_tile1) > 2000:
           result[direction] += 1
           
-        if self.tile_is_escapable(perpendicular_tile2):
+        if self.tile_is_escapable(perpendicular_tile2) and self.game_map.get_danger_value(perpendicular_tile2) > 2000:
           result[direction] += 1
     
     return tuple(result)
@@ -2345,8 +2348,8 @@ class Game(object):
     actions_being_performed = self.player_key_maps.get_current_actions()
     
     actions_being_performed = actions_being_performed + self.test_ai.play()
-    actions_being_performed = actions_being_performed + self.test_ai2.play()
-    actions_being_performed = actions_being_performed + self.test_ai3.play()
+  #  actions_being_performed = actions_being_performed + self.test_ai2.play()
+  #  actions_being_performed = actions_being_performed + self.test_ai3.play()
     
     players = self.game_map.get_players()
 
