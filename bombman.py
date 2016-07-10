@@ -69,7 +69,7 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "bfkxt;"
+        "f;"
         "bbbbbfffffffFkkksssssspppddddmrxet;"
         "x T d x x x x x . x x x . . x"
         ". 0 . . . l x B 9 . x x x 3 x"
@@ -302,6 +302,9 @@ class Player(Positionable):
 
   def can_box(self):
     return self.has_boxing_glove
+
+  def can_throw(self):
+    return self.has_throwing_glove
 
   ## Gives player an item with given code (see Map class constants). game_map
   #  is needed so that sounds can be made on item pickup - if no map is provided,
@@ -2249,6 +2252,7 @@ class AI(object):
     
     current_tile = self.player.get_tile_position()
     trapped = self.is_trapped()
+    escape_direction_ratings = self.rate_bomb_escape_directions(current_tile)
     
     # consider possible actions and find the one with biggest score:
     
@@ -2257,8 +2261,6 @@ class AI(object):
       chosen_movement_action = random.choice((PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT))
     elif self.game_map.tile_has_bomb(current_tile):
       # standing on a bomb, find a way to escape
-      
-      escape_direction_ratings = self.rate_bomb_escape_directions(current_tile)
       
       # find maximum:
       best_rating = escape_direction_ratings[0]
@@ -2322,9 +2324,14 @@ class AI(object):
     
     bomb_laid = False
     
-    # should I lay bomb?
-    
-    if self.player.get_bombs_left() > 0 and not self.game_map.tile_has_bomb(current_tile) and self.game_map.get_danger_value(current_tile) > 2000 and max(self.rate_bomb_escape_directions(current_tile)) > 0:
+    if self.game_map.tile_has_bomb(current_tile):
+      # Should I throw?
+      
+      if self.player.can_throw() and max(escape_direction_ratings) == 0:
+        self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB_DOUBLE))
+    elif self.player.get_bombs_left() > 0 and (self.player.can_throw() or self.game_map.get_danger_value(current_tile) > 2000 and max(escape_direction_ratings) > 0):
+      # Should I lay bomb?
+      
       chance_to_put_bomb = 100    # one in how many
       
       number_of_block_neighbours = self.number_of_blocks_next_to_tile(current_tile)
@@ -2338,16 +2345,16 @@ class AI(object):
         bomb_laid = True
         self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB))
   
-    if bomb_laid:   # if bomb was laid, the outputs must be recomputed fast in order to prevent laying bombs to other tiles
-      self.recompute_compute_actions_on = current_time + 10
-    else:
-      self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
-
     # should I box?
     
     if self.player.can_box():
       if trapped or self.game_map.tile_has_bomb(self.player.get_forward_tile_position()):
         self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_SPECIAL))
+  
+    if bomb_laid:   # if bomb was laid, the outputs must be recomputed fast in order to prevent laying bombs to other tiles
+      self.recompute_compute_actions_on = current_time + 10
+    else:
+      self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
 
     return self.outputs
 
@@ -2375,6 +2382,7 @@ class Game(object):
     self.test_ai = AI(self.game_map.get_players_by_numbers()[3],self.game_map)
     self.test_ai2 = AI(self.game_map.get_players_by_numbers()[2],self.game_map)
     self.test_ai3 = AI(self.game_map.get_players_by_numbers()[1],self.game_map)
+    self.test_ai4 = AI(self.game_map.get_players_by_numbers()[0],self.game_map)
 
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
@@ -2407,6 +2415,7 @@ class Game(object):
     actions_being_performed = actions_being_performed + self.test_ai.play()
     actions_being_performed = actions_being_performed + self.test_ai2.play()
     actions_being_performed = actions_being_performed + self.test_ai3.play()
+    actions_being_performed = actions_being_performed + self.test_ai4.play()
     
     players = self.game_map.get_players()
 
