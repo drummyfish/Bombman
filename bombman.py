@@ -889,6 +889,7 @@ class Map(object):
     
     teleport_a_tile = None       # helper variables used to pair teleports
     teleport_b_tile = None
+    self.number_of_blocks = 0    ##< says how many block tiles there are currently on the map
 
     for i in range(len(string_split[3])):
       tile_character = string_split[3][i]
@@ -945,6 +946,9 @@ class Map(object):
         elif tile_character == "V":
           tile.special_object = MapTile.SPECIAL_OBJECT_LAVA
         
+      if tile.kind == MapTile.TILE_BLOCK:
+        self.number_of_blocks += 1
+        
       self.tiles[-1].append(tile)
 
       if tile_character.isdigit():
@@ -962,9 +966,7 @@ class Map(object):
     # init danger map:
     
     self.danger_map = [[Map.SAFE_DANGER_VALUE for i in range(Map.MAP_WIDTH)] for j in range(Map.MAP_HEIGHT)]  ##< 2D array of times in ms for each square that
-                                                                                                              #   say in how long there will be a flame - used
-                                                                                                              #   by AI to make decisions about movement
-
+       
     # initialise players:
 
     self.players = []                                        ##< list of players in the game
@@ -992,6 +994,9 @@ class Map(object):
     self.bombs = []                           ##< bombs on the map
 
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
+
+  def get_number_of_block_tiles(self):
+    return self.number_of_blocks
 
   ## Efficiently (lazily) gets a danger value of given tile. Danger value says
   #  how much time in ms has will pass until there will be a fire at the tile.
@@ -1387,6 +1392,7 @@ class Map(object):
       for tile in line:
         if tile.to_be_destroyed and tile.kind == MapTile.TILE_BLOCK and not self.tile_has_flame(tile.coordinates):
           tile.kind = MapTile.TILE_FLOOR
+          self.number_of_blocks -= 1
           tile.to_be_destroyed = False
         
         i = 0
@@ -2099,6 +2105,7 @@ class AI(object):
     self.recompute_compute_actions_on = 0
     
     self.do_nothing = False      ##< this can turn AI off for debugging purposes
+    self.didnt_move_since = 0 
    
   def tile_is_escapable(self, tile_coordinates):
     if not self.game_map.tile_is_walkable(tile_coordinates) or self.game_map.tile_has_flame(tile_coordinates):
@@ -2313,11 +2320,16 @@ class AI(object):
           best_direction_actions.append(action[direction])
       
       chosen_movement_action = random.choice(best_direction_actions)
-    
+       
     if chosen_movement_action != None:
       if self.player.get_disease == Player.DISEASE_REVERSE_CONTROLS:
         chosen_movement_action = PlayerKeyMaps.get_opposite_action(chosen_movement_action)
       
+      self.outputs.append((self.player.get_number(),chosen_movement_action))
+      self.didnt_move_since = pygame.time.get_ticks()
+
+    if pygame.time.get_ticks() - self.didnt_move_since > 10000:   # didn't move for 10 seconds or more => force move
+      chosen_movement_action = random.choice((PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT))
       self.outputs.append((self.player.get_number(),chosen_movement_action))
       
     # bomb decisions:
@@ -2332,7 +2344,14 @@ class AI(object):
     elif self.player.get_bombs_left() > 0 and (self.player.can_throw() or self.game_map.get_danger_value(current_tile) > 2000 and max(escape_direction_ratings) > 0):
       # Should I lay bomb?
       
+      block_tile_ratio = self.game_map.get_number_of_block_tiles() / float(Map.MAP_WIDTH * Map.MAP_HEIGHT)
+
       chance_to_put_bomb = 100    # one in how many
+      
+      if block_tile_ratio < 0.4:  # if there is not many tiles left, put bombs more often
+        chance_to_put_bomb = 80
+      elif block_tile_ratio < 0.2:
+        chance_to_put_bomb = 20
       
       number_of_block_neighbours = self.number_of_blocks_next_to_tile(current_tile)
      
