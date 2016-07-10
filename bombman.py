@@ -70,7 +70,7 @@ import time
 
 MAP1 = ("env3;"
         "bfkxt;"
-        "bbbbbbFsssssdddddddddddddddddddddddddddddddd;"
+        "bbbbbfffffffFkkksssssspppddddmrxet;"
         "x T d x x x x x . x x x x . x"
         ". 0 . . . l x B 9 . x x . 3 ."
         "V . . A T x x x . x x . x . x"
@@ -982,6 +982,12 @@ class Map(object):
       return 0       # never walk outside map
     
     return self.danger_map[tile_coordinates[1]][tile_coordinates[0]]
+  
+  def tile_has_lava(self, tile_coordinates):
+    if not self.tile_is_withing_map(tile_coordinates):
+      return False
+    
+    return self.tiles[tile_coordinates[1]][tile_coordinates[0]].special_object == MapTile.SPECIAL_OBJECT_LAVA
   
   def update_danger_map(self):
     for j in range(Map.MAP_HEIGHT):  # reset
@@ -2071,7 +2077,7 @@ class AI(object):
     self.do_nothing = False      ##< this can turn AI off for debugging purposes
    
   def tile_is_escapable(self, tile_coordinates):
-    if not self.game_map.tile_is_walkable(tile_coordinates):
+    if not self.game_map.tile_is_walkable(tile_coordinates) or self.game_map.tile_has_flame(tile_coordinates):
       return False
     
     tile = self.game_map.get_tile_at(tile_coordinates)
@@ -2129,13 +2135,13 @@ class AI(object):
         perpendicular_tile1 = (axis_tile[0] + perpendicular_directions[direction][0],axis_tile[1] + perpendicular_directions[direction][1])
         perpendicular_tile2 = (axis_tile[0] - perpendicular_directions[direction][0],axis_tile[1] - perpendicular_directions[direction][1])
 
-        if i > self.player.get_flame_length() and self.game_map.get_danger_value(axis_tile) > 2000:
+        if i > self.player.get_flame_length() and self.game_map.get_danger_value(axis_tile) >= Map.SAFE_DANGER_VALUE:
           result[direction] += 1
           
-        if self.tile_is_escapable(perpendicular_tile1) and self.game_map.get_danger_value(perpendicular_tile1) > 2000:
+        if self.tile_is_escapable(perpendicular_tile1) and self.game_map.get_danger_value(perpendicular_tile1) >= Map.SAFE_DANGER_VALUE:
           result[direction] += 1
           
-        if self.tile_is_escapable(perpendicular_tile2) and self.game_map.get_danger_value(perpendicular_tile2) > 2000:
+        if self.tile_is_escapable(perpendicular_tile2) and self.game_map.get_danger_value(perpendicular_tile2) >= Map.SAFE_DANGER_VALUE:  
           result[direction] += 1
     
     return tuple(result)
@@ -2164,6 +2170,17 @@ class AI(object):
         score += 20
       else:
         score -= 10
+        
+    top = (tile_coordinates[0],tile_coordinates[1] - 1)
+    right = (tile_coordinates[0] + 1,tile_coordinates[1])
+    down = (tile_coordinates[0],tile_coordinates[1] + 1)
+    left = (tile_coordinates[0] - 1,tile_coordinates[1])
+    
+    if self.game_map.tile_has_lava(top) or self.game_map.tile_has_lava(right) or self.game_map.tile_has_lava(down) or self.game_map.tile_has_lava(left):
+      score -= 5    # don't go near lava
+    
+    if self.game_map.tile_has_bomb(tile_coordinates):
+      score -= 5
     
     return score
     
@@ -2200,8 +2217,6 @@ class AI(object):
     
     # consider possible actions and find the one with biggest score:
     
-    # should I not move?
-    
     if self.game_map.tile_has_bomb(current_tile):
       # standing on a bomb, find a way to escape
       
@@ -2225,6 +2240,8 @@ class AI(object):
       
       chosen_movement_action = best_action 
     else:   # not standing on a bomb
+      
+      # Should I not move?
       maximum_score = self.rate_tile(current_tile)
       best_direction_actions = [None]
     
@@ -2348,8 +2365,8 @@ class Game(object):
     actions_being_performed = self.player_key_maps.get_current_actions()
     
     actions_being_performed = actions_being_performed + self.test_ai.play()
-  #  actions_being_performed = actions_being_performed + self.test_ai2.play()
-  #  actions_being_performed = actions_being_performed + self.test_ai3.play()
+    actions_being_performed = actions_being_performed + self.test_ai2.play()
+    actions_being_performed = actions_being_performed + self.test_ai3.play()
     
     players = self.game_map.get_players()
 
