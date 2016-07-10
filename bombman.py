@@ -71,9 +71,9 @@ import time
 MAP1 = ("env3;"
         "bfkxt;"
         "bbbbbfffffffFkkksssssspppddddmrxet;"
-        "x T d x x x x x . x x x x . x"
-        ". 0 . . . l x B 9 . x x . 3 ."
-        "V . . A T x x x . x x . x . x"
+        "x T d x x x x x . x x x . . x"
+        ". 0 . . . l x B 9 . x x x 3 x"
+        "V . . A T x x x . x x . x x x"
         "x u r . 4 . x D x x A 5 V V x"
         "x x x L T x x x x R x . V V x"
         "# x x x x x x x # # x x x x #"
@@ -121,6 +121,16 @@ class Positionable(object):
 
   def get_position(self):
     return self.position
+  
+  def get_neighbour_tile_coordinates(self):
+    tile_coordinates = self.get_tile_position()
+    
+    top = (tile_coordinates[0],tile_coordinates[1] - 1)
+    right = (tile_coordinates[0] + 1,tile_coordinates[1])
+    down = (tile_coordinates[0],tile_coordinates[1] + 1)
+    left = (tile_coordinates[0] - 1,tile_coordinates[1])  
+    
+    return (top,right,down,left)
   
   def get_tile_position(self):
     return Positionable.position_to_tile(self.position)
@@ -2191,9 +2201,22 @@ class AI(object):
       score -= 5    # don't go near lava
     
     if self.game_map.tile_has_bomb(tile_coordinates):
-      score -= 5
+      if not self.player.can_box():
+        score -= 5
     
     return score
+    
+  def is_trapped(self):
+    neighbour_tiles = self.player.get_neighbour_tile_coordinates()
+  
+    trapped = True
+    
+    for tile_coordinates in neighbour_tiles:
+      if self.game_map.tile_is_walkable(tile_coordinates):
+        trapped = False
+        break
+    
+    return trapped
     
   def number_of_blocks_next_to_tile(self, tile_coordinates):
     count = 0
@@ -2225,10 +2248,14 @@ class AI(object):
     self.outputs = []
     
     current_tile = self.player.get_tile_position()
+    trapped = self.is_trapped()
     
     # consider possible actions and find the one with biggest score:
     
-    if self.game_map.tile_has_bomb(current_tile):
+    if trapped:
+      # in case the player is trapped spin randomly and press box in hope to free itself
+      chosen_movement_action = random.choice((PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT))
+    elif self.game_map.tile_has_bomb(current_tile):
       # standing on a bomb, find a way to escape
       
       escape_direction_ratings = self.rate_bomb_escape_directions(current_tile)
@@ -2315,6 +2342,12 @@ class AI(object):
       self.recompute_compute_actions_on = current_time + 10
     else:
       self.recompute_compute_actions_on = current_time + random.randint(AI.REPEAT_ACTIONS[0],AI.REPEAT_ACTIONS[1])
+
+    # should I box?
+    
+    if self.player.can_box():
+      if trapped or self.game_map.tile_has_bomb(self.player.get_forward_tile_position()):
+        self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_SPECIAL))
 
     return self.outputs
 
