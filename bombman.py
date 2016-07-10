@@ -122,6 +122,9 @@ class Positionable(object):
   def get_position(self):
     return self.position
   
+  def get_tile_position(self):
+    return Positionable.position_to_tile(self.position)
+  
   ## Moves the object to center of tile (if not specified, objects current tile is used).
   
   def move_to_tile_center(self, tile_coordinates=None):
@@ -225,7 +228,7 @@ class Player(Positionable):
     if self.wait_for_tile_transition:
       return
     
-    current_tile = Positionable.position_to_tile(self.position)
+    current_tile = self.get_tile_position()
     destination_coordinates = game_map.get_tile_at(current_tile).destination_teleport
     
     if destination_coordinates == None:
@@ -249,7 +252,7 @@ class Player(Positionable):
     
     self.state_backup = self.state
     self.state = Player.STATE_IN_AIR
-    self.jumping_from = Positionable.position_to_tile(self.position)
+    self.jumping_from = self.get_tile_position()
     
     landing_tiles = []  # potential tiles to land on
     
@@ -286,6 +289,9 @@ class Player(Positionable):
 
   def is_throwing(self):
     return self.throwing_time_left > 0
+
+  def can_box(self):
+    return self.has_boxing_glove
 
   ## Gives player an item with given code (see Map class constants). game_map
   #  is needed so that sounds can be made on item pickup - if no map is provided,
@@ -450,6 +456,11 @@ class Player(Positionable):
     else:              # left
       return (-1,0)    
 
+  def get_forward_tile_position(self):
+    direction_vector = self.get_direction_vector()
+    position = self.get_tile_position()
+    return (position[0] + direction_vector[0],position[1] + direction_vector[1])
+
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
   def react_to_inputs(self, input_actions, dt, game_map):
@@ -578,7 +589,7 @@ class Player(Positionable):
     check_collisions = True
     collision_happened = False
 
-    current_tile = Positionable.position_to_tile(self.position)   
+    current_tile = self.get_tile_position()  
     previous_tile = Positionable.position_to_tile(previous_position)
     transitioning_tiles = current_tile != previous_tile
     
@@ -620,14 +631,14 @@ class Player(Positionable):
         elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
           self.position[0] += distance_to_travel
     
-    if putting_bomb and not game_map.tile_has_bomb(Positionable.position_to_tile(self.position)) and not game_map.tile_has_teleport(self.position):
+    if putting_bomb and not game_map.tile_has_bomb(self.get_tile_position()) and not game_map.tile_has_teleport(self.position):
       self.lay_bomb(game_map)
     
     # check if bomb kick or box happens
     
     direction_vector = self.get_direction_vector()
-    current_tile = Positionable.position_to_tile(self.position)
-    forward_tile = (current_tile[0] + direction_vector[0],current_tile[1] + direction_vector[1])
+    current_tile = self.get_tile_position()
+    forward_tile = self.get_forward_tile_position()
     
     if collision_happened: 
       bomb_movement = Bomb.BOMB_NO_MOVEMENT
@@ -641,7 +652,7 @@ class Player(Positionable):
       else:
         bomb_movement = Bomb.BOMB_ROLLING_LEFT
     
-      if self.has_shoe and forward_tile != None:
+      if self.has_shoe:
         if game_map.tile_has_bomb(forward_tile):
           # kick or box happens
           bomb_hit = game_map.bomb_on_tile(forward_tile)
@@ -675,7 +686,7 @@ class Player(Positionable):
         self.throwing_time_left = 200
     
     elif putting_multibomb:  # put multibomb
-      current_tile = Positionable.position_to_tile(self.position)
+      current_tile = self.get_tile_position()
       
       if self.state in (Player.STATE_WALKING_UP,Player.STATE_IDLE_UP):
         tile_increment = (0,-1)
@@ -749,7 +760,7 @@ class Bomb(Positionable):
   def send_flying(self, destination_tile_coords):
     self.movement = Bomb.BOMB_FLYING
 
-    current_tile = Positionable.position_to_tile(self.position)
+    current_tile = self.get_tile_position()
     self.flight_info.distance_travelled = 0
     
     if current_tile[0] == destination_tile_coords[0]:
@@ -1000,7 +1011,7 @@ class Map(object):
           self.danger_map[j][i] = Map.SAFE_DANGER_VALUE
 
     for bomb in self.bombs:
-      bomb_tile = Positionable.position_to_tile(bomb.get_position())
+      bomb_tile = bomb.get_tile_position()
       
       time_until_explosion = bomb.time_until_explosion()
       
@@ -1100,7 +1111,7 @@ class Map(object):
     result = []
     
     for player in self.players:
-      player_tile_position = Positionable.position_to_tile(player.get_position())
+      player_tile_position = player.get_tile_position()
 
       if not player.is_in_air() and player_tile_position[0] == tile_coordinates[0] and player_tile_position[1] == tile_coordinates[1]:
         result.append(player)
@@ -1154,7 +1165,7 @@ class Map(object):
     tile_coordinates = Positionable.position_to_tile(tile_coordinates)
     
     for bomb in self.bombs:
-      bomb_tile_position = Positionable.position_to_tile(bomb.get_position())
+      bomb_tile_position = bomb.get_tile_position()
 
       if bomb.movement != Bomb.BOMB_FLYING and bomb_tile_position[0] == tile_coordinates[0] and bomb_tile_position[1] == tile_coordinates[1]:
         result.append(bomb)
@@ -1167,7 +1178,7 @@ class Map(object):
   def bomb_explodes(self, bomb):
     self.add_sound_event(SoundPlayer.SOUND_EVENT_EXPLOSION)
     
-    bomb_position = Positionable.position_to_tile(bomb.get_position())
+    bomb_position = bomb.get_tile_position()
     
     new_flame = Flame()
     new_flame.direction = "all"
@@ -1252,7 +1263,7 @@ class Map(object):
       bomb.time_of_existence += dt
             
       bomb_position = bomb.get_position()
-      bomb_tile = Positionable.position_to_tile(bomb_position)
+      bomb_tile = bomb.get_tile_position()
 
       if bomb.movement != Bomb.BOMB_FLYING and bomb.time_of_existence > bomb.explodes_in + bomb.detonator_time: # bomb explodes
         self.bomb_explodes(bomb)
@@ -1269,7 +1280,7 @@ class Map(object):
           bomb.flight_info.distance_travelled += distance_to_travel
           
           if bomb.flight_info.distance_travelled >= bomb.flight_info.total_distance_to_travel:
-            bomb_tile = Positionable.position_to_tile(bomb.get_position())
+            bomb_tile = bomb.get_tile_position()
             self.add_sound_event(SoundPlayer.SOUND_EVENT_BOMB_PUT)
 
             if not self.tile_is_walkable(bomb_tile) or self.tile_has_player(bomb_tile) or self.tile_has_teleport(bomb_tile):
@@ -1394,10 +1405,10 @@ class Map(object):
       if player.is_dead():
         continue
       
-      player_tile_position = Positionable.position_to_tile(player.get_position())
+      player_tile_position = player.get_tile_position()
       player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
       
-      if self.tile_has_flame(player_tile.coordinates):
+      if player.get_state() != Player.STATE_IN_AIR and player.get_state != Player.STATE_TELEPORTING and (self.tile_has_flame(player_tile.coordinates) or self.tile_has_lava(player_tile.coordinates)):
         player.kill(self)
         continue
       
@@ -2100,8 +2111,8 @@ class AI(object):
     while random_another_player == self:
       random_another_player = random.choice(players)
       
-    my_tile_position = Positionable.position_to_tile(self.player.get_position())
-    another_player_tile_position = Positionable.position_to_tile(random_another_player.get_position())
+    my_tile_position = self.player.get_tile_position()
+    another_player_tile_position = random_another_player.get_tile_position()
 
     dx = another_player_tile_position[0] - my_tile_position[0]
     dy = another_player_tile_position[1] - my_tile_position[1]
@@ -2213,7 +2224,7 @@ class AI(object):
     
     self.outputs = []
     
-    current_tile = Positionable.position_to_tile(self.player.get_position())
+    current_tile = self.player.get_tile_position()
     
     # consider possible actions and find the one with biggest score:
     
@@ -2240,7 +2251,6 @@ class AI(object):
       
       chosen_movement_action = best_action 
     else:   # not standing on a bomb
-      
       # Should I not move?
       maximum_score = self.rate_tile(current_tile)
       best_direction_actions = [None]
@@ -2300,9 +2310,6 @@ class AI(object):
       if random.randint(0,chance_to_put_bomb) == 0:
         bomb_laid = True
         self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB))
-  
-  
-  
   
     if bomb_laid:   # if bomb was laid, the outputs must be recomputed fast in order to prevent laying bombs to other tiles
       self.recompute_compute_actions_on = current_time + 10
