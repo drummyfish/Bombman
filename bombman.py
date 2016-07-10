@@ -203,9 +203,20 @@ class Player(Positionable):
     self.jumping_to = (0,0)               ##< coordinates of a tile the player is jumping to
     self.teleporting_to = (0,0)
     self.wait_for_tile_transition = False ##< used to stop the destination teleport from teleporting the player back immediatelly
+    self.invincible = False               ##< can be used to make the player immortal
     
   def is_boxing(self):
     return self.boxing
+
+  def kill(self, game_map):
+    if self.invincible:
+      return
+    
+    self.state = Player.STATE_DEAD
+    game_map.add_sound_event(SoundPlayer.SOUND_EVENT_DEATH)
+
+  def is_dead(self):
+    return self.state == Player.STATE_DEAD
 
   ##< Initialises the teleporting of the player with teleport they are standing on (if they're
   #   not standing on a teleport, nothing happens).
@@ -439,6 +450,9 @@ class Player(Positionable):
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
   def react_to_inputs(self, input_actions, dt, game_map):
+    if self.state == Player.STATE_DEAD:
+      return
+    
     if self.state == Player.STATE_IN_AIR:
       self.state_time += dt
       
@@ -1368,8 +1382,15 @@ class Map(object):
           i += 1
     
     for player in self.players:
+      if player.is_dead():
+        continue
+      
       player_tile_position = Positionable.position_to_tile(player.get_position())
       player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
+      
+      if self.tile_has_flame(player_tile.coordinates):
+        player.kill(self)
+        continue
       
       if player_tile.item != None:
         player.give_item(player_tile.item,self)
@@ -1626,6 +1647,7 @@ class SoundPlayer(object):
   SOUND_EVENT_THROW = 9
   SOUND_EVENT_TRAMPOLINE = 10
   SOUND_EVENT_TELEPORT = 11
+  SOUND_EVENT_DEATH = 12
   
   def __init__(self):
     pygame.mixer.init()
@@ -1643,6 +1665,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"throw.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"trampoline.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_TELEPORT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"teleport.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_DEATH] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"death.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -1664,7 +1687,8 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_DISEASE,
         SoundPlayer.SOUND_EVENT_THROW,
         SoundPlayer.SOUND_EVENT_TRAMPOLINE,
-        SoundPlayer.SOUND_EVENT_TELEPORT
+        SoundPlayer.SOUND_EVENT_TELEPORT,
+        SoundPlayer.SOUND_EVENT_DEATH
         ):
         self.sound[sound_event].play()
     
@@ -1898,6 +1922,10 @@ class Renderer(object):
         relative_offset = [0,0]    # to relatively shift images by given offset
         
         if isinstance(object_to_render,Player):      # <= not very nice, maybe fix this later
+          if object_to_render.is_dead():
+            object_to_render_index += 1
+            continue
+          
           sprite_center = Renderer.PLAYER_SPRITE_CENTER
           
           animation_frame = (object_to_render.get_state_time() / 100) % 4
@@ -2050,6 +2078,30 @@ class AI(object):
     
     return True
    
+  ## Returns a two-number tuple of x, y coordinates, where x and y are
+  #  either -1, 0 or 1, indicating a rough general direction in which to
+  #  move in order to prevent AI from walking in nonsensical direction (towards
+  #  outside of the map etc.).
+   
+  def decide_general_direction(self):
+    players = self.game_map.get_players()
+    
+    random_another_player = self
+    
+    while random_another_player == self:
+      random_another_player = random.choice(players)
+      
+    my_tile_position = Positionable.position_to_tile(self.player.get_position())
+    another_player_tile_position = Positionable.position_to_tile(random_another_player.get_position())
+
+    dx = another_player_tile_position[0] - my_tile_position[0]
+    dy = another_player_tile_position[1] - my_tile_position[1]
+    
+    dx = min(max(-1,dx),1)
+    dy = min(max(-1,dy),1)
+    
+    return (dx,dy)
+    
   ## Rates all 4 directions from a specified tile (up, right, down, left) with a number
   #  that says how many possible safe tiles are there accesible in that direction in
   #  case a bomb is present on the specified tile. A tuple of four integers is returned
@@ -2173,6 +2225,8 @@ class AI(object):
       maximum_score = self.rate_tile(current_tile)
       best_direction_actions = [None]
     
+      general_direction = self.decide_general_direction()
+    
                        # up                     # right                     # down                     # left
       tile_increment  = ((0,-1),                  (1,0),                      (0,1),                     (-1,0))
       action =          (PlayerKeyMaps.ACTION_UP, PlayerKeyMaps.ACTION_RIGHT, PlayerKeyMaps.ACTION_DOWN, PlayerKeyMaps.ACTION_LEFT)
@@ -2181,6 +2235,17 @@ class AI(object):
     
       for direction in (0,1,2,3):
         score = self.rate_tile((current_tile[0] + tile_increment[direction][0],current_tile[1] + tile_increment[direction][1]))  
+      
+        # count in the general direction
+        extra_score = 0
+        
+        if tile_increment[direction][0] == general_direction[0]:
+          extra_score += 2
+        
+        if tile_increment[direction][1] == general_direction[1]:
+          extra_score += 2
+          
+        score += extra_score
       
         if score > maximum_score:
           maximum_score = score
@@ -2249,6 +2314,7 @@ class Game(object):
 
     self.test_ai = AI(self.game_map.get_players_by_numbers()[3],self.game_map)
     self.test_ai2 = AI(self.game_map.get_players_by_numbers()[2],self.game_map)
+    self.test_ai3 = AI(self.game_map.get_players_by_numbers()[1],self.game_map)
 
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
@@ -2280,6 +2346,7 @@ class Game(object):
     
     actions_being_performed = actions_being_performed + self.test_ai.play()
     actions_being_performed = actions_being_performed + self.test_ai2.play()
+    actions_being_performed = actions_being_performed + self.test_ai3.play()
     
     players = self.game_map.get_players()
 
