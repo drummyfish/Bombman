@@ -233,6 +233,15 @@ class Player(Positionable):
     
     self.state = Player.STATE_DEAD
     game_map.add_sound_event(SoundPlayer.SOUND_EVENT_DEATH)
+    
+    print(Renderer.map_position_to_pixel_position(self.position))
+    
+    random_animation = random.choice((
+      Renderer.ANIMATION_EVENT_EXPLOSION,
+      Renderer.ANIMATION_EVENT_RIP,
+      Renderer.ANIMATION_EVENT_SKELETION))
+    
+    game_map.add_animation_event(random_animation,Renderer.map_position_to_pixel_position(self.position,(0,-15)))
 
   ## Returns a number that says which way the player is facing (0 - up, 1 - right,
   #   2 - down, 3 - left).
@@ -1022,6 +1031,7 @@ class Map(object):
     self.bombs = []                           ##< bombs on the map
 
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
+    self.animation_events = []     ##< list of animation events, tuples in format (animation_event, coordinates)
 
   def get_number_of_block_tiles(self):
     return self.number_of_blocks
@@ -1089,6 +1099,9 @@ class Map(object):
   def add_sound_event(self, sound_event):
     self.sound_events.append(sound_event)
     
+  def add_animation_event(self, animation_event, coordinates):    
+    self.animation_events.append((animation_event,coordinates))
+    
   def get_tile_at(self, tile_coordinates):
     if self.tile_is_withing_map(tile_coordinates):
       return self.tiles[tile_coordinates[1]][tile_coordinates[0]]
@@ -1098,6 +1111,11 @@ class Map(object):
   def get_and_clear_sound_events(self):
     result = self.sound_events[:]      # copy of the list
     self.sound_events = []
+    return result
+
+  def get_and_clear_animation_events(self):
+    result = self.animation_events[:]  # copy of the list
+    self.animation_events = []
     return result
 
   ## Converts given letter (as in map encoding string) to item code (see class constants).
@@ -1797,6 +1815,46 @@ class SoundPlayer(object):
     
   #  if not self.playing_walk = False
     
+class Animation(object):
+  def __init__(self, filename_prefix, start_number, end_number, filename_postfix, framerate = 10):
+    self.framerate = framerate
+    self.frame_time = 1000 / self.framerate
+    
+    self.frame_images = []
+    
+    for i in range(start_number,end_number + 1):
+      self.frame_images.append(pygame.image.load(filename_prefix + str(i) + filename_postfix))
+      
+    self.playing_instances = []   ##< A set of playing animations, it is a list of tuples in
+                                   #  a format: (pixel_coordinates, started_playing).
+      
+  def play(self, coordinates):
+    # convert center coordinates to top left coordinates:
+    
+    top_left = (coordinates[0] - self.frame_images[0].get_size()[0] / 2,coordinates[1] - self.frame_images[0].get_size()[1] / 2)
+    self.playing_instances.append((top_left,pygame.time.get_ticks()))
+    
+  def draw(self, surface):
+    i = 0
+    
+    time_now = pygame.time.get_ticks()
+    
+    while True:
+      if i >= len(self.playing_instances):
+        break
+      
+      playing_instance = self.playing_instances[i]
+      
+      frame = int((time_now - playing_instance[1]) / self.frame_time)
+      
+      if frame >= len(self.frame_images):
+        self.playing_instances.remove(playing_instance)
+        continue
+        
+      surface.blit(self.frame_images[frame],playing_instance[0])
+      
+      i += 1
+    
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
@@ -1810,6 +1868,10 @@ class Renderer(object):
   SHADOW_SPRITE_CENTER = (25,22)
 
   MAP_BORDER_WIDTH = 37
+  
+  ANIMATION_EVENT_EXPLOSION = 0
+  ANIMATION_EVENT_RIP = 1
+  ANIMATION_EVENT_SKELETION = 2
 
   def __init__(self):
     self.screen_resolution = (Renderer.SCREEN_WIDTH,Renderer.SCREEN_HEIGHT)
@@ -1907,8 +1969,14 @@ class Renderer(object):
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease2.png")))    
      
+    # load animations:
     
-    self.map_render_location = ((Renderer.SCREEN_WIDTH - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_WIDTH * Map.MAP_WIDTH) / 2,(Renderer.SCREEN_HEIGHT - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT - self.gui_images["info board"].get_size()[1]) / 2)
+    self.animations = {}
+    self.animations[Renderer.ANIMATION_EVENT_EXPLOSION] = Animation(os.path.join(RESOURCE_PATH,"animation_explosion"),1,10,".png",7)
+    self.animations[Renderer.ANIMATION_EVENT_RIP] = Animation(os.path.join(RESOURCE_PATH,"animation_rip"),1,1,".png",0.3)
+    self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
+    
+    self.map_render_location = Renderer.get_map_render_position()
      
   ## Returns colored image from another image (replaces red color with given color). This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
@@ -1931,6 +1999,15 @@ class Renderer(object):
   def tile_position_to_pixel_position(self, tile_position,center=(0,0)):
     return (int(float(tile_position[0]) * Renderer.MAP_TILE_WIDTH) - center[0],int(float(tile_position[1]) * Renderer.MAP_TILE_HEIGHT) - center[1])
 
+  @staticmethod  
+  def get_map_render_position():  
+    return ((Renderer.SCREEN_WIDTH - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_WIDTH * Map.MAP_WIDTH) / 2,(Renderer.SCREEN_HEIGHT - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT - 50) / 2)  
+    
+  @staticmethod
+  def map_position_to_pixel_position(map_position, offset = (0,0)):
+    map_render_location = Renderer.get_map_render_position()
+    return (map_render_location[0] + int(map_position[0] * Renderer.MAP_TILE_WIDTH) + Renderer.MAP_BORDER_WIDTH + offset[0],map_render_location[1] + int(map_position[1] * Renderer.MAP_TILE_HEIGHT) + Renderer.MAP_BORDER_WIDTH + offset[1])
+    
   def set_resolution(self, new_resolution):
     self.screen_resolution = new_resolution
 
@@ -1950,6 +2027,10 @@ class Renderer(object):
         continue
       
       # rerendering needed here
+
+  def process_animation_events(self, animation_event_list):
+    for animation_event in animation_event_list:
+      self.animations[animation_event[0]].play(animation_event[1])
 
   def render_map(self, map_to_render):
     result = pygame.Surface(self.screen_resolution)
@@ -2163,6 +2244,11 @@ class Renderer(object):
   
       y += Renderer.MAP_TILE_HEIGHT
       line_number += 1
+      
+    # update animations:
+    
+    for animation_index in self.animations:
+      self.animations[animation_index].draw(result)
       
     # draw info boards:
       
@@ -2558,6 +2644,7 @@ class Game(object):
       self.screen.blit(self.renderer.render_map(self.game_map),(0,0))
       pygame.display.flip()
       
+      self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
       self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
 
       pygame_clock.tick()
