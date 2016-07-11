@@ -68,7 +68,7 @@ import copy
 import random
 import time
 
-MAP1 = ("env3;"
+MAP1 = ("env2;"
         "kxbf;"
         "bbbbbfffffffFkkksssssspppddddmrxxxxettt;"
         "x T d x x x x x . x x . . x x"
@@ -1531,14 +1531,7 @@ class PlaySetup(object):
     self.player_slots[1] = (-1,1)
     self.player_slots[2] = (-1,2)
     self.player_slots[3] = (-1,3)
-    
-    
-    self.player_slots[4] = (-1,4)
-    self.player_slots[5] = (-1,5)
-    self.player_slots[6] = (-1,6)
-    self.player_slots[7] = (-1,7)
-    self.player_slots[8] = (-1,8)
-    self.player_slots[9] = (-1,9)
+
 
   def get_slots(self):
     return self.player_slots
@@ -1865,8 +1858,6 @@ class Renderer(object):
     self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb3.png")))
     self.bomb_images.append(self.bomb_images[0])
      
-    self.map_render_location = ((Renderer.SCREEN_WIDTH - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_WIDTH * Map.MAP_WIDTH) / 2,(Renderer.SCREEN_HEIGHT - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT) / 2)
-     
     # load flame images:
     self.flame_images = []
     
@@ -1915,6 +1906,9 @@ class Renderer(object):
     self.other_images["disease"] = []
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease2.png")))    
+     
+    
+    self.map_render_location = ((Renderer.SCREEN_WIDTH - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_WIDTH * Map.MAP_WIDTH) / 2,(Renderer.SCREEN_HEIGHT - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT - self.gui_images["info board"].get_size()[1]) / 2)
      
   ## Returns colored image from another image (replaces red color with given color). This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
