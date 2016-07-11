@@ -69,14 +69,14 @@ import random
 import time
 
 MAP1 = ("env3;"
-        "bbf;"
-        "bbbbbfffffffFkkksssssspppddddmrxet;"
-        "x T d x x x x x . x x x . . x"
-        ". 0 . . . l x B 9 . x x x 3 x"
+        "kxbf;"
+        "bbbbbfffffffFkkksssssspppddddmrxxxxettt;"
+        "x T d x x x x x . x x . . x x"
+        ". 0 . . . l x B 9 . x x . 3 x"
         "V . . A T x x x . x x . x x x"
-        "x u r . 4 . x D x x A 5 V V x"
-        "x x x L T x x x x R x . V V x"
-        "# x x x x x x x # # x x x x #"
+        "x u r . 4 . x D x x A 5 x x x"
+        "x x x L T x V x x R x . x x x"
+        "# x x x x x V x # # x x x x #"
         "x x x x . x x x x x x T x x x"
         "x x x x 7 . x U x x . 6 . x x"
         "x . x x . x x . x x x . x . x"
@@ -1531,6 +1531,14 @@ class PlaySetup(object):
     self.player_slots[1] = (-1,1)
     self.player_slots[2] = (-1,2)
     self.player_slots[3] = (-1,3)
+    
+    
+    self.player_slots[4] = (-1,4)
+    self.player_slots[5] = (-1,5)
+    self.player_slots[6] = (-1,6)
+    self.player_slots[7] = (-1,7)
+    self.player_slots[8] = (-1,8)
+    self.player_slots[9] = (-1,9)
 
   def get_slots(self):
     return self.player_slots
@@ -1801,14 +1809,14 @@ class Renderer(object):
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
   MAP_TILE_HALF_WIDTH = MAP_TILE_WIDTH / 2
   MAP_TILE_HALF_HEIGHT = MAP_TILE_HEIGHT / 2
-  SCREEN_WIDTH = 800
-  SCREEN_HEIGHT = 600
+  SCREEN_WIDTH = 1366
+  SCREEN_HEIGHT = 768
 
   PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
   BOMB_SPRITE_CENTER = (22,33)
   SHADOW_SPRITE_CENTER = (25,22)
 
-  MAP_BORDER_WIDTH = 10
+  MAP_BORDER_WIDTH = 37
 
   def __init__(self):
     self.screen_resolution = (Renderer.SCREEN_WIDTH,Renderer.SCREEN_HEIGHT)
@@ -1857,6 +1865,8 @@ class Renderer(object):
     self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb3.png")))
     self.bomb_images.append(self.bomb_images[0])
      
+    self.map_render_location = ((Renderer.SCREEN_WIDTH - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_WIDTH * Map.MAP_WIDTH) / 2,(Renderer.SCREEN_HEIGHT - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT) / 2)
+     
     # load flame images:
     self.flame_images = []
     
@@ -1888,6 +1898,11 @@ class Renderer(object):
     self.item_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_boxing_glove.png"))
     self.item_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_detonator.png"))
     self.item_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_throwing_glove.png"))
+      
+    # load gui images:
+    self.gui_images = {}
+    self.gui_images["info board"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_info_board.png"))   
+    self.player_info_board_images = [None for i in range(10)]  # up to date infoboard image for each player
       
     # load other images:
     
@@ -1925,8 +1940,27 @@ class Renderer(object):
   def set_resolution(self, new_resolution):
     self.screen_resolution = new_resolution
 
+  ## Updates info board images in self.player_info_board_images. This should be called each frame, as
+  #  rerendering is done only when needed.
+
+  def update_info_boards(self, players):
+    for i in range(10):      # for each player number
+      update_needed = False
+      
+      if self.player_info_board_images[i] == None:
+        self.player_info_board_images[i] = self.gui_images["info board"].copy()
+        
+        update_needed = True
+      
+      if not update_needed:
+        continue
+      
+      # rerendering needed here
+
   def render_map(self, map_to_render):
     result = pygame.Surface(self.screen_resolution)
+    
+    self.update_info_boards(map_to_render.get_players())
 
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
       print("prerendering map...")
@@ -1939,8 +1973,9 @@ class Renderer(object):
       image_arrow_down = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_down.png"))
       image_arrow_left = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_left.png"))
       image_lava = pygame.image.load(os.path.join(RESOURCE_PATH,"other_lava.png"))
+      image_background = pygame.image.load(os.path.join(RESOURCE_PATH,"other_map_background.png"))
 
-      self.prerendered_map_background.fill((255,255,255))
+      self.prerendered_map_background.blit(image_background,(0,0))
 
       for j in range(Map.MAP_HEIGHT):
         for i in range(Map.MAP_WIDTH):
@@ -1966,7 +2001,7 @@ class Renderer(object):
           
       self.prerendered_map = map_to_render
 
-    result.blit(self.prerendered_map_background,(0,0))
+    result.blit(self.prerendered_map_background,self.map_render_location)
 
     # order the players and bombs by their y position so that they are drawn correctly
 
@@ -1980,7 +2015,7 @@ class Renderer(object):
     tiles = map_to_render.get_tiles()
     environment_images = self.environment_images[map_to_render.get_environment_name()]
     
-    y = Renderer.MAP_BORDER_WIDTH
+    y = Renderer.MAP_BORDER_WIDTH + self.map_render_location[1]
     y_offset_block = Renderer.MAP_TILE_HEIGHT - environment_images[1].get_size()[1]
     y_offset_wall = Renderer.MAP_TILE_HEIGHT - environment_images[2].get_size()[1]
     
@@ -1990,7 +2025,7 @@ class Renderer(object):
     flame_animation_frame = (pygame.time.get_ticks() / 100) % 2
     
     for line in tiles:
-      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH
+      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH + self.map_render_location[0]
       
       while True: # render players and bombs in the current line 
         if object_to_render_index >= len(ordered_objects_to_render):
@@ -2098,11 +2133,11 @@ class Renderer(object):
         
         if draw_shadow:
           render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
-          render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0],render_position[1] + Renderer.MAP_BORDER_WIDTH)
+          render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0] + self.map_render_location[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + self.map_render_location[1])
           result.blit(self.other_images["shadow"],(render_position[0],render_position[1]))
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
-        render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + relative_offset[1])
+        render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0] + self.map_render_location[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + relative_offset[1] + self.map_render_location[1])
         
         result.blit(image_to_render,render_position)
         
@@ -2130,10 +2165,25 @@ class Renderer(object):
 
         x -= Renderer.MAP_TILE_WIDTH
   
-      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH
+      x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH + self.map_render_location[0]
   
       y += Renderer.MAP_TILE_HEIGHT
       line_number += 1
+      
+    # draw info boards:
+      
+    players_by_numbers = map_to_render.get_players_by_numbers()
+      
+    x = self.map_render_location[0]
+    y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 10
+      
+    for i in players_by_numbers:
+      if players_by_numbers[i] == None:
+        continue
+        
+      result.blit(self.player_info_board_images[i],(x,y))
+        
+      x += self.gui_images["info board"].get_size()[0] + 3
 
     return result    
 
@@ -2477,6 +2527,7 @@ class Game(object):
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
+    self.screen = pygame.display.set_mode((Renderer.SCREEN_WIDTH,Renderer.SCREEN_HEIGHT))
     self.player_key_maps = PlayerKeyMaps()
     
     self.player_key_maps.allow_control_by_mouse()
@@ -2489,10 +2540,11 @@ class Game(object):
     self.sound_player = SoundPlayer()
 
   def run(self):
-    screen = pygame.display.set_mode((800,600))
     time_before = pygame.time.get_ticks()
 
-    self.game_map = Map(MAP1,PlaySetup())
+    play_setup = PlaySetup()
+    
+    self.game_map = Map(MAP1,play_setup)
 
     self.test_ai = AI(self.game_map.get_players_by_numbers()[3],self.game_map)
     self.test_ai2 = AI(self.game_map.get_players_by_numbers()[2],self.game_map)
@@ -2509,7 +2561,7 @@ class Game(object):
       for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
 
-      screen.blit(self.renderer.render_map(self.game_map),(0,0))
+      self.screen.blit(self.renderer.render_map(self.game_map),(0,0))
       pygame.display.flip()
       
       self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
@@ -2527,10 +2579,10 @@ class Game(object):
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
     
-    actions_being_performed = actions_being_performed + self.test_ai.play()
-    actions_being_performed = actions_being_performed + self.test_ai2.play()
-    actions_being_performed = actions_being_performed + self.test_ai3.play()
-    actions_being_performed = actions_being_performed + self.test_ai4.play()
+  #  actions_being_performed = actions_being_performed + self.test_ai.play()
+  #  actions_being_performed = actions_being_performed + self.test_ai2.play()
+  #  actions_being_performed = actions_being_performed + self.test_ai3.play()
+  #  actions_being_performed = actions_being_performed + self.test_ai4.play()
     
     players = self.game_map.get_players()
 
