@@ -68,7 +68,7 @@ import copy
 import random
 import time
 
-MAP1 = ("env2;"
+MAP1 = ("env1;"
         "kxb;"
         "bbbbbfffffffFkkksssssspppddddmrxxxxettt;"
         "x T d x x x x x . x x . . x x"
@@ -192,7 +192,7 @@ class Player(Positionable):
   def __init__(self):
     super(Player,self).__init__()
     self.number = 0                       ##< players number and also color index
-    self.team_color = COLOR_WHITE
+    self.team_number = 0
     self.state = Player.STATE_IDLE_DOWN
     self.state_time = 0                   ##< how much time (in ms) has been spent in current time
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
@@ -253,6 +253,9 @@ class Player(Positionable):
       Renderer.ANIMATION_EVENT_SKELETION))
     
     game_map.add_animation_event(random_animation,Renderer.map_position_to_pixel_position(self.position,(0,-15)))
+
+  def is_enemy(self, another_player):
+    return self.team_number != another_player.get_team_number()
 
   ## Returns a number that says which way the player is facing (0 - up, 1 - right,
   #   2 - down, 3 - left).
@@ -495,6 +498,9 @@ class Player(Positionable):
     
   def set_number(self, number):
     self.number = number
+    
+  def set_team_number(self, number):
+    self.team_number = number
 
   ## Must be called when this player's bomb explodes so that their bomb limit is increased again.
 
@@ -503,7 +509,10 @@ class Player(Positionable):
 
   def get_number(self):
     return self.number
-
+  
+  def get_team_number(self):
+    return self.team_number
+  
   def get_state(self):
     return self.state
 
@@ -1038,6 +1047,7 @@ class Map(object):
       if player_slots[i] != None:
         new_player = Player()
         new_player.set_number(i)
+        new_player.set_team_number(player_slots[i][1])
         new_player.move_to_tile_center(starting_positions[i])
         self.players.append(new_player)
         self.players_by_numbers[i] = new_player
@@ -1063,7 +1073,6 @@ class Map(object):
 
   def get_danger_value(self, tile_coordinates):
     if not self.danger_map_is_up_to_date:
-    #  print("updating danger map...")
       self.update_danger_map()
       self.danger_map_is_up_to_date = True
     
@@ -1567,17 +1576,16 @@ class PlaySetup(object):
     self.player_slots = [None for i in range(10)]    ##< player slots: (player_number, team_color), negative player_number = AI, slot index ~ player color index
 
     # default setup, player 0 vs 3 AI players:
-    self.player_slots[0] = (0,0)
+    self.player_slots[0] = (-1,0)
     self.player_slots[1] = (-1,1)
-    self.player_slots[2] = (-1,2)
-    self.player_slots[3] = (-1,3)
-    
-    self.player_slots[4] = (-1,4)
-    self.player_slots[5] = (-1,5)
-    self.player_slots[6] = (-1,6)
-    self.player_slots[7] = (-1,7)
-    self.player_slots[8] = (-1,8)
-    self.player_slots[9] = (-1,9)
+#    self.player_slots[2] = (-1,2)
+#    self.player_slots[3] = (-1,0)   
+#    self.player_slots[4] = (-1,1)
+#    self.player_slots[5] = (-1,2)
+#    self.player_slots[6] = (-1,0)
+#    self.player_slots[7] = (-1,1)
+#    self.player_slots[8] = (-1,2)
+#    self.player_slots[9] = (-1,0)
 
   def get_slots(self):
     return self.player_slots
@@ -2058,7 +2066,8 @@ class Renderer(object):
   #  rerendering is done only when needed.
 
   def update_info_boards(self, players):
-    for i in range(10):      # for each player number
+    for i in range(len(players)):      # for each player number
+      
       update_needed = False
       
       if self.player_info_board_images[i] == None:
@@ -2272,13 +2281,13 @@ class Renderer(object):
           elif object_to_render.is_teleporting():
             
             if animation_frame == 0:
-              image_to_render = self.player_images[object_to_render.get_number()]["up"]  
+              image_to_render = self.player_images[object_to_render.get_team_number()]["up"]  
             elif animation_frame == 1:
-              image_to_render = self.player_images[object_to_render.get_number()]["right"]  
+              image_to_render = self.player_images[object_to_render.get_team_number()]["right"]  
             elif animation_frame == 2:
-              image_to_render = self.player_images[object_to_render.get_number()]["down"]  
+              image_to_render = self.player_images[object_to_render.get_team_number()]["down"]  
             else:
-              image_to_render = self.player_images[object_to_render.get_number()]["left"]  
+              image_to_render = self.player_images[object_to_render.get_team_number()]["left"]  
             
           elif object_to_render.is_boxing() or object_to_render.is_throwing():
             if not object_to_render.is_throwing() and animation_frame == 0:
@@ -2287,30 +2296,30 @@ class Renderer(object):
               helper_string = "box "
             
             if object_to_render.get_state() == Player.STATE_IDLE_UP or object_to_render.get_state() == Player.STATE_WALKING_UP:
-              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "up"]
+              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "up"]
             elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT or object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
-              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "right"]
+              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "right"]
             elif object_to_render.get_state() == Player.STATE_IDLE_DOWN or object_to_render.get_state() == Player.STATE_WALKING_DOWN:
-              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "down"]
+              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "down"]
             else:      # left
-              image_to_render = self.player_images[object_to_render.get_number()][helper_string + "left"]
+              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "left"]
           else:
             if object_to_render.get_state() == Player.STATE_IDLE_UP:
-              image_to_render = self.player_images[object_to_render.get_number()]["up"]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["up"]
             elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT:
-              image_to_render = self.player_images[object_to_render.get_number()]["right"]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["right"]
             elif object_to_render.get_state() == Player.STATE_IDLE_DOWN:
-              image_to_render = self.player_images[object_to_render.get_number()]["down"]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["down"]
             elif object_to_render.get_state() == Player.STATE_IDLE_LEFT:
-              image_to_render = self.player_images[object_to_render.get_number()]["left"]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["left"]
             elif object_to_render.get_state() == Player.STATE_WALKING_UP:
-              image_to_render = self.player_images[object_to_render.get_number()]["walk up"][animation_frame]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["walk up"][animation_frame]
             elif object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
-              image_to_render = self.player_images[object_to_render.get_number()]["walk right"][animation_frame]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["walk right"][animation_frame]
             elif object_to_render.get_state() == Player.STATE_WALKING_DOWN:
-              image_to_render = self.player_images[object_to_render.get_number()]["walk down"][animation_frame]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["walk down"][animation_frame]
             else: # Player.STATE_WALKING_LEFT
-              image_to_render = self.player_images[object_to_render.get_number()]["walk left"][animation_frame]
+              image_to_render = self.player_images[object_to_render.get_team_number()]["walk left"][animation_frame]
         
           if object_to_render.get_disease() != Player.DISEASE_NONE:
             overlay_images.append(self.other_images["disease"][animation_frame % 2])          
@@ -2436,13 +2445,17 @@ class AI(object):
   def decide_general_direction(self):
     players = self.game_map.get_players()
     
-    random_another_player = self
+    enemy_player = self
     
-    while random_another_player == self:
-      random_another_player = random.choice(players)
+    for player in players:
+      if player == self.player or not player.is_enemy(self.player):
+        continue
+
+      enemy_player = player
+      break
       
     my_tile_position = self.player.get_tile_position()
-    another_player_tile_position = random_another_player.get_tile_position()
+    another_player_tile_position = enemy_player.get_tile_position()
 
     dx = another_player_tile_position[0] - my_tile_position[0]
     dy = another_player_tile_position[1] - my_tile_position[1]
@@ -2549,8 +2562,13 @@ class AI(object):
       
     return count
     
-  def enemy_is_near(self):
+  ## Returns a tuple in format: (nearby_enemies, nearby allies).
+    
+  def players_nearby(self):
     current_position = self.player.get_tile_position()
+    
+    allies = 0
+    enemies = 0
     
     for player in self.game_map.get_players():
       if player.is_dead() or player == self.player:
@@ -2559,9 +2577,12 @@ class AI(object):
       player_position = player.get_tile_position()
       
       if abs(current_position[0] - player_position[0]) <= 1 and abs(current_position[1] - player_position[1]) <= 1:
-        return True
+        if player.is_enemy(self.player):
+          enemies += 1
+        else:
+          allies += 1
       
-    return False
+    return (enemies,allies)
     
   ## Decides what moves to make and returns a list of event in the same
   #  format as PlayerKeyMaps.get_current_actions().
@@ -2670,7 +2691,9 @@ class AI(object):
       
       chance_to_put_bomb = 100    # one in how many
       
-      if self.enemy_is_near():
+      players_near = self.players_nearby()
+      
+      if players_near[0] > 0 and players_near[1] == 0:  # enemy nearby and no ally nearby
         chance_to_put_bomb = 5
       else:
         block_tile_ratio = self.game_map.get_number_of_block_tiles() / float(Map.MAP_WIDTH * Map.MAP_HEIGHT)
@@ -2777,7 +2800,12 @@ class Game(object):
     
     self.game_map = Map(MAP1,play_setup)
 
-    self.test_ais = [AI(self.game_map.get_players_by_numbers()[i],self.game_map) for i in range(10)]
+    self.ais = []
+    player_slots = play_setup.get_slots()
+    
+    for i in range(len(player_slots)):
+      if player_slots[i] != None and player_slots[i][0] < 0:  # indicates AI
+        self.ais.append(AI(self.game_map.get_players_by_numbers()[i],self.game_map))
 
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
@@ -2808,8 +2836,8 @@ class Game(object):
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
     
-    for i in range(10):
-      actions_being_performed = actions_being_performed + self.test_ais[i].play()
+    for i in range(len(self.ais)):
+      actions_being_performed = actions_being_performed + self.ais[i].play()
     
     players = self.game_map.get_players()
 
