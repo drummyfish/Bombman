@@ -217,6 +217,17 @@ class Player(Positionable):
     self.teleporting_to = (0,0)
     self.wait_for_tile_transition = False ##< used to stop the destination teleport from teleporting the player back immediatelly
     self.invincible = False               ##< can be used to make the player immortal
+    self.info_board_update_needed = True
+    
+    self.items[Map.ITEM_BOMB] = 1
+    self.items[Map.ITEM_FLAME] = 1
+    
+  def info_board_needs_update(self):
+    if self.info_board_update_needed:
+      self.info_board_update_needed = False
+      return True
+    
+    return False
     
   def is_boxing(self):
     return self.boxing
@@ -230,6 +241,8 @@ class Player(Positionable):
   def kill(self, game_map):
     if self.invincible:
       return
+    
+    self.info_board_update_needed = True
     
     self.state = Player.STATE_DEAD
     game_map.add_sound_event(SoundPlayer.SOUND_EVENT_DEATH)
@@ -343,6 +356,12 @@ class Player(Positionable):
   def can_throw(self):
     return self.has_throwing_glove
 
+  def get_item_count(self, item):
+    if not item in self.items:
+      return 0
+    
+    return self.items[item]
+
   ## Gives player an item with given code (see Map class constants). game_map
   #  is needed so that sounds can be made on item pickup - if no map is provided,
   #  no sounds will be generated.
@@ -352,6 +371,8 @@ class Player(Positionable):
       self.items[item] = 1
     else:
       self.items[item] += 1
+      
+    self.info_board_update_needed = True
       
     if item == Map.ITEM_RANDOM:
       item = random.choice((
@@ -617,6 +638,8 @@ class Player(Positionable):
         
         if not self.wait_for_special_release:       
           while len(self.detonator_bombs) != 0:   # find a bomb to ddetonate (some may have exploded by themselves already)
+            self.info_board_update_needed = True
+            
             bomb_to_check = self.detonator_bombs.pop()
           
             if bomb_to_check.has_detonator() and not bomb_to_check.has_exploded and bomb_to_check.movement != Bomb.BOMB_FLYING:
@@ -764,6 +787,7 @@ class Player(Positionable):
       
       if self.disease_time_left == 0:
         self.disease = Player.DISEASE_NONE
+        self.info_board_update_needed = True
     
     if old_state == self.state:
       self.state_time += dt
@@ -1549,7 +1573,13 @@ class PlaySetup(object):
     self.player_slots[1] = (-1,1)
     self.player_slots[2] = (-1,2)
     self.player_slots[3] = (-1,3)
-
+    
+    self.player_slots[4] = (-1,4)
+    self.player_slots[5] = (-1,5)
+    self.player_slots[6] = (-1,6)
+    self.player_slots[7] = (-1,7)
+    self.player_slots[8] = (-1,8)
+    self.player_slots[9] = (-1,9)
 
   def get_slots(self):
     return self.player_slots
@@ -1969,6 +1999,21 @@ class Renderer(object):
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease2.png")))    
      
+    # load icon images
+    
+    self.icon_images = {}
+    self.icon_images[Map.ITEM_BOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_bomb.png"))
+    self.icon_images[Map.ITEM_FLAME] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_flame.png"))
+    self.icon_images[Map.ITEM_SPEEDUP] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_speedup.png"))
+    self.icon_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_kicking_shoe.png"))
+    self.icon_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_boxing_glove.png"))
+    self.icon_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_throwing_glove.png"))
+    self.icon_images[Map.ITEM_SPRING] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_spring.png"))
+    self.icon_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_multibomb.png"))
+    self.icon_images[Map.ITEM_DISEASE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_disease.png"))
+    self.icon_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_detonator.png"))
+    self.icon_images["etc"] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_etc.png"))
+    
     # load animations:
     
     self.animations = {}
@@ -2023,10 +2068,74 @@ class Renderer(object):
         
         update_needed = True
       
+      if players[i].info_board_needs_update():
+        update_needed = True
+      
       if not update_needed:
         continue
       
       # rerendering needed here
+      
+      print("updating info board " + str(i))
+      
+      player = players[i] 
+      board_image = self.player_info_board_images[i]
+      
+      board_image.blit(self.gui_images["info board"],(0,0))
+      
+      x = 5
+      y = 20
+      
+      for i in range(player.get_item_count(Map.ITEM_BOMB)):
+        board_image.blit(self.icon_images[Map.ITEM_BOMB],(x,y))
+        x += self.icon_images[Map.ITEM_BOMB].get_size()[0]
+        
+      x = 5
+      y = 32
+      
+      flame_count = player.get_item_count(Map.ITEM_FLAME) if player.get_item_count(Map.ITEM_SUPERFLAME) < 1 else 20
+      
+      for i in range(flame_count):
+        board_image.blit(self.icon_images[Map.ITEM_FLAME],(x,y))
+        x += self.icon_images[Map.ITEM_FLAME].get_size()[0] + 1
+
+      x = 5
+      y = 44
+      
+      for i in range(player.get_item_count(Map.ITEM_SPEEDUP)):
+        board_image.blit(self.icon_images[Map.ITEM_SPEEDUP],(x,y))
+        x += self.icon_images[Map.ITEM_SPEEDUP].get_size()[0] - 1
+
+      x = 5
+      y = 56
+      
+      if player.has_kicking_shoe():
+        board_image.blit(self.icon_images[Map.ITEM_SHOE],(x,y))
+        x += self.icon_images[Map.ITEM_SHOE].get_size()[0] + 1
+        
+      if player.can_box():
+        board_image.blit(self.icon_images[Map.ITEM_BOXING_GLOVE],(x,y))
+        x += self.icon_images[Map.ITEM_BOXING_GLOVE].get_size()[0] + 1
+        
+      if player.can_throw():
+        board_image.blit(self.icon_images[Map.ITEM_THROWING_GLOVE],(x,y))
+        x += self.icon_images[Map.ITEM_THROWING_GLOVE].get_size()[0] + 1
+        
+      if player.get_item_count(Map.ITEM_SPRING) > 0:
+        board_image.blit(self.icon_images[Map.ITEM_SPRING],(x,y))
+        x += self.icon_images[Map.ITEM_SPRING].get_size()[0] + 1
+        
+      if player.get_item_count(Map.ITEM_MULTIBOMB) > 0:
+        board_image.blit(self.icon_images[Map.ITEM_MULTIBOMB],(x,y))
+        x += self.icon_images[Map.ITEM_MULTIBOMB].get_size()[0] + 1
+        
+      if player.detonator_is_active():
+        board_image.blit(self.icon_images[Map.ITEM_DETONATOR],(x,y))
+        x += self.icon_images[Map.ITEM_DETONATOR].get_size()[0] + 1
+        
+      if player.get_disease() != Player.DISEASE_NONE:
+        board_image.blit(self.icon_images[Map.ITEM_DISEASE],(x,y))
+        x += self.icon_images[Map.ITEM_DISEASE].get_size()[0] + 1
 
   def process_animation_events(self, animation_event_list):
     for animation_event in animation_event_list:
@@ -2254,8 +2363,8 @@ class Renderer(object):
       
     players_by_numbers = map_to_render.get_players_by_numbers()
       
-    x = self.map_render_location[0]
-    y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 10
+    x = self.map_render_location[0] + 12
+    y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 20
       
     for i in players_by_numbers:
       if players_by_numbers[i] == None:
@@ -2263,7 +2372,7 @@ class Renderer(object):
         
       result.blit(self.player_info_board_images[i],(x,y))
         
-      x += self.gui_images["info board"].get_size()[0] + 3
+      x += self.gui_images["info board"].get_size()[0] - 2
 
     return result    
 
