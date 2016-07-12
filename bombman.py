@@ -2549,11 +2549,25 @@ class AI(object):
       
     return count
     
+  def enemy_is_near(self):
+    current_position = self.player.get_tile_position()
+    
+    for player in self.game_map.get_players():
+      if player.is_dead() or player == self.player:
+        continue
+      
+      player_position = player.get_tile_position()
+      
+      if abs(current_position[0] - player_position[0]) <= 1 and abs(current_position[1] - player_position[1]) <= 1:
+        return True
+      
+    return False
+    
   ## Decides what moves to make and returns a list of event in the same
   #  format as PlayerKeyMaps.get_current_actions().
     
   def play(self):
-    if self.do_nothing:
+    if self.do_nothing or self.player.is_dead():
       return []
     
     current_time = pygame.time.get_ticks()
@@ -2654,14 +2668,17 @@ class AI(object):
     elif self.player.get_bombs_left() > 0 and (self.player.can_throw() or self.game_map.get_danger_value(current_tile) > 2000 and max(escape_direction_ratings) > 0):
       # Should I lay bomb?
       
-      block_tile_ratio = self.game_map.get_number_of_block_tiles() / float(Map.MAP_WIDTH * Map.MAP_HEIGHT)
-
       chance_to_put_bomb = 100    # one in how many
       
-      if block_tile_ratio < 0.4:  # if there is not many tiles left, put bombs more often
-        chance_to_put_bomb = 80
-      elif block_tile_ratio < 0.2:
-        chance_to_put_bomb = 20
+      if self.enemy_is_near():
+        chance_to_put_bomb = 5
+      else:
+        block_tile_ratio = self.game_map.get_number_of_block_tiles() / float(Map.MAP_WIDTH * Map.MAP_HEIGHT)
+
+        if block_tile_ratio < 0.4:  # if there is not many tiles left, put bombs more often
+          chance_to_put_bomb = 80
+        elif block_tile_ratio < 0.2:
+          chance_to_put_bomb = 20
       
       number_of_block_neighbours = self.number_of_blocks_next_to_tile(current_tile)
      
