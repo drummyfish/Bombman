@@ -37,7 +37,6 @@
 #                     x - boxing glove
 #                     e - detonator
 #                     t - throwing glove
-#                     TODO
 # <map items>     - Set of items that will be hidden in block on the map. This is a string of the
 #                   same format as in <player items>. If there is more items specified than there is
 #                   block tiles, then some items will be left out.
@@ -58,7 +57,6 @@
 #                     D - arrow down, under block tile
 #                     L - arrow left, under block tile
 #                     <0-9> - starting position of the player specified by the number
-#                     TODO
 
 import sys
 import pygame
@@ -69,7 +67,7 @@ import random
 import time
 
 MAP1 = ("env1;"
-        "kxb;"
+        "kxbe;"
         "bbbbbfffffffFkkksssssspppddddmrxxxxettt;"
         "x T d x x x x x . x x . . x x"
         ". 0 . . . l x B 9 . x x . 3 x"
@@ -191,10 +189,10 @@ class Player(Positionable):
 
   def __init__(self):
     super(Player,self).__init__()
-    self.number = 0                       ##< players number and also color index
-    self.team_number = 0
+    self.number = 0                       ##< players number
+    self.team_number = 0                  ##< team number, determines player's color
     self.state = Player.STATE_IDLE_DOWN
-    self.state_time = 0                   ##< how much time (in ms) has been spent in current time
+    self.state_time = 0                   ##< how much time (in ms) has been spent in current state
     self.speed = Player.INITIAL_SPEED     ##< speed in tiles per second
     self.bombs_left = 1                   ##< how many more bombs the player can put at the time
     self.flame_length = 1                 ##< how long the flame is in tiles
@@ -207,7 +205,7 @@ class Player(Positionable):
     self.has_boxing_glove = False
     self.has_throwing_glove = False
     self.boxing = False
-    self.detonator_boms_left = 0          ##< what number of following bombs will have detonators
+    self.detonator_bombs_left = 0          ##< what number of following bombs will have detonators
     self.detonator_bombs = []             ##< references to bombs to be detonated
     self.wait_for_special_release = False ##< helper used to wait for special key release
     self.wait_for_bomb_release = False
@@ -401,7 +399,7 @@ class Player(Positionable):
     if item == Map.ITEM_MULTIBOMB:
       self.has_multibomb = True
     elif item == Map.ITEM_DETONATOR:
-      self.detonator_boms_left = 3      
+      self.detonator_bombs_left = 3      
     elif item == Map.ITEM_SPRING:
       self.has_spring = True
       sound_to_make = SoundPlayer.SOUND_EVENT_SPRING
@@ -464,10 +462,10 @@ class Player(Positionable):
     elif self.disease == Player.DISEASE_FAST_BOMB:
       new_bomb.explodes_in = 800 
       
-    if self.detonator_boms_left > 0:
+    if self.detonator_bombs_left > 0:
       new_bomb.detonator_time = Bomb.DETONATOR_EXPIRATION_TIME
       self.detonator_bombs.append(new_bomb)
-      self.detonator_boms_left -= 1
+      self.detonator_bombs_left -= 1
     
   def get_bombs_left(self):
     return self.bombs_left
