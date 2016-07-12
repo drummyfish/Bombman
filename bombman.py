@@ -1703,7 +1703,7 @@ class PlayerKeyMaps(object):
     # check mouse control:
 
     if self.allow_mouse_control:
-      screen_center = (Renderer.SCREEN_WIDTH / 2,Renderer.SCREEN_HEIGHT / 2)
+      screen_center = (Renderer.get_screen_size()[0] / 2,Renderer.get_screen_size()[1] / 2)
       mouse_position = pygame.mouse.get_pos(screen_center)
       pressed = pygame.mouse.get_pressed()
       
@@ -1896,8 +1896,6 @@ class Renderer(object):
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
   MAP_TILE_HALF_WIDTH = MAP_TILE_WIDTH / 2
   MAP_TILE_HALF_HEIGHT = MAP_TILE_HEIGHT / 2
-  SCREEN_WIDTH = 1366
-  SCREEN_HEIGHT = 768
 
   PLAYER_SPRITE_CENTER = (30,80)   ##< player's feet (not geometrical) center of the sprite in pixels
   BOMB_SPRITE_CENTER = (22,33)
@@ -1910,7 +1908,7 @@ class Renderer(object):
   ANIMATION_EVENT_SKELETION = 2
 
   def __init__(self):
-    self.screen_resolution = (Renderer.SCREEN_WIDTH,Renderer.SCREEN_HEIGHT)
+    self.screen_resolution = Renderer.get_screen_size()
 
     self.environment_images = {}
 
@@ -2050,9 +2048,14 @@ class Renderer(object):
   def tile_position_to_pixel_position(self, tile_position,center=(0,0)):
     return (int(float(tile_position[0]) * Renderer.MAP_TILE_WIDTH) - center[0],int(float(tile_position[1]) * Renderer.MAP_TILE_HEIGHT) - center[1])
 
+  @staticmethod
+  def get_screen_size():
+    return pygame.display.get_surface().get_size()
+
   @staticmethod  
-  def get_map_render_position():  
-    return ((Renderer.SCREEN_WIDTH - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_WIDTH * Map.MAP_WIDTH) / 2,(Renderer.SCREEN_HEIGHT - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT - 50) / 2)  
+  def get_map_render_position(): 
+    screen_size = Renderer.get_screen_size()
+    return ((screen_size[0] - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_WIDTH * Map.MAP_WIDTH) / 2,(screen_size[1] - Renderer.MAP_BORDER_WIDTH * 2 - Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT - 50) / 2)  
     
   @staticmethod
   def map_position_to_pixel_position(map_position, offset = (0,0)):
@@ -2781,7 +2784,7 @@ class Game(object):
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
-    self.screen = pygame.display.set_mode((Renderer.SCREEN_WIDTH,Renderer.SCREEN_HEIGHT))
+    self.screen = pygame.display.set_mode((1366,768))
     self.player_key_maps = PlayerKeyMaps()
     
     self.player_key_maps.allow_control_by_mouse()
