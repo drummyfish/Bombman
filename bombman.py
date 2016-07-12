@@ -69,7 +69,7 @@ import random
 import time
 
 MAP1 = ("env2;"
-        "kxbf;"
+        "kxb;"
         "bbbbbfffffffFkkksssssspppddddmrxxxxettt;"
         "x T d x x x x x . x x . . x x"
         ". 0 . . . l x B 9 . x x . 3 x"
@@ -246,8 +246,6 @@ class Player(Positionable):
     
     self.state = Player.STATE_DEAD
     game_map.add_sound_event(SoundPlayer.SOUND_EVENT_DEATH)
-    
-    print(Renderer.map_position_to_pixel_position(self.position))
     
     random_animation = random.choice((
       Renderer.ANIMATION_EVENT_EXPLOSION,
@@ -2085,25 +2083,52 @@ class Renderer(object):
       
       x = 5
       y = 20
+      limit = 5
       
       for i in range(player.get_item_count(Map.ITEM_BOMB)):
-        board_image.blit(self.icon_images[Map.ITEM_BOMB],(x,y))
+        if i > limit:
+          break
+        
+        image_to_draw = self.icon_images[Map.ITEM_BOMB]
+        
+        if i == limit and player.get_item_count(Map.ITEM_BOMB) > limit + 1:
+          image_to_draw = self.icon_images["etc"]
+        
+        board_image.blit(image_to_draw,(x,y))
         x += self.icon_images[Map.ITEM_BOMB].get_size()[0]
         
       x = 5
       y = 32
+      limit = 5
       
       flame_count = player.get_item_count(Map.ITEM_FLAME) if player.get_item_count(Map.ITEM_SUPERFLAME) < 1 else 20
       
-      for i in range(flame_count):
-        board_image.blit(self.icon_images[Map.ITEM_FLAME],(x,y))
+      for i in range(flame_count):  
+        if i > limit:
+          break
+        
+        image_to_draw = self.icon_images[Map.ITEM_FLAME]
+        
+        if i == limit and flame_count > limit + 1:
+          image_to_draw = self.icon_images["etc"]
+        
+        board_image.blit(image_to_draw,(x,y))
         x += self.icon_images[Map.ITEM_FLAME].get_size()[0] + 1
 
       x = 5
       y = 44
+      limit = 9
       
       for i in range(player.get_item_count(Map.ITEM_SPEEDUP)):
-        board_image.blit(self.icon_images[Map.ITEM_SPEEDUP],(x,y))
+        if i > limit:
+          break
+        
+        image_to_draw = self.icon_images[Map.ITEM_SPEEDUP]
+        
+        if i == limit and player.get_item_count(Map.ITEM_SPEEDUP) > limit + 1:
+          image_to_draw = self.icon_images["etc"]
+        
+        board_image.blit(image_to_draw,(x,y))
         x += self.icon_images[Map.ITEM_SPEEDUP].get_size()[0] - 1
 
       x = 5
@@ -2735,10 +2760,7 @@ class Game(object):
     
     self.game_map = Map(MAP1,play_setup)
 
-    self.test_ai = AI(self.game_map.get_players_by_numbers()[3],self.game_map)
-    self.test_ai2 = AI(self.game_map.get_players_by_numbers()[2],self.game_map)
-    self.test_ai3 = AI(self.game_map.get_players_by_numbers()[1],self.game_map)
-    self.test_ai4 = AI(self.game_map.get_players_by_numbers()[0],self.game_map)
+    self.test_ais = [AI(self.game_map.get_players_by_numbers()[i],self.game_map) for i in range(10)]
 
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
@@ -2769,10 +2791,8 @@ class Game(object):
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
     
-  #  actions_being_performed = actions_being_performed + self.test_ai.play()
-  #  actions_being_performed = actions_being_performed + self.test_ai2.play()
-  #  actions_being_performed = actions_being_performed + self.test_ai3.play()
-  #  actions_being_performed = actions_being_performed + self.test_ai4.play()
+    for i in range(10):
+      actions_being_performed = actions_being_performed + self.test_ais[i].play()
     
     players = self.game_map.get_players()
 
