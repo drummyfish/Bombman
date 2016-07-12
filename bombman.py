@@ -1204,7 +1204,7 @@ class Map(object):
     for player in self.players:
       player_tile_position = player.get_tile_position()
 
-      if not player.is_in_air() and player_tile_position[0] == tile_coordinates[0] and player_tile_position[1] == tile_coordinates[1]:
+      if not player.is_dead() and not player.is_in_air() and player_tile_position[0] == tile_coordinates[0] and player_tile_position[1] == tile_coordinates[1]:
         result.append(player)
     
     return result
@@ -1386,19 +1386,19 @@ class Map(object):
           
             redirected = False
           
-            if object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_UP:
+            if object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_UP and bomb.movement != Bomb.BOMB_ROLLING_UP:
               bomb.movement = Bomb.BOMB_ROLLING_UP
               bomb.set_position((bomb_tile[0] + 0.5,bomb_tile[1]))  # aline with x axis
               redirected = True
-            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_RIGHT:
+            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_RIGHT and bomb.movement != Bomb.BOMB_ROLLING_RIGHT:
               bomb.movement = Bomb.BOMB_ROLLING_RIGHT
               bomb.set_position((bomb_position[0],bomb_tile[1] + 0.5))
               redirected = True
-            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_DOWN:
+            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_DOWN and bomb.movement != Bomb.BOMB_ROLLING_DOWN:
               bomb.movement = Bomb.BOMB_ROLLING_DOWN
               bomb.set_position((bomb_tile[0] + 0.5,bomb_position[1]))
               redirected = True
-            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_LEFT:
+            elif object_at_tile == MapTile.SPECIAL_OBJECT_ARROW_LEFT and bomb.movement != Bomb.BOMB_ROLLING_LEFT:
               bomb.movement = Bomb.BOMB_ROLLING_LEFT
               bomb.set_position((bomb_position[0],bomb_tile[1] + 0.5))
               redirected = True
