@@ -1988,7 +1988,9 @@ class Renderer(object):
     self.gui_images = {}
     self.gui_images["info board"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_info_board.png"))   
     self.player_info_board_images = [None for i in range(10)]  # up to date infoboard image for each player
-      
+
+    self.gui_images["out"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_out.png"))   
+     
     # load other images:
     
     self.other_images = {}
@@ -2090,6 +2092,10 @@ class Renderer(object):
       board_image = self.player_info_board_images[i]
       
       board_image.blit(self.gui_images["info board"],(0,0))
+      
+      if player.is_dead():
+        board_image.blit(self.gui_images["out"],(15,34))
+        continue
       
       x = 5
       y = 20
@@ -2270,7 +2276,7 @@ class Renderer(object):
           animation_frame = (object_to_render.get_state_time() / 100) % 4
           
           if object_to_render.is_in_air():
-            image_to_render = self.player_images[object_to_render.get_number()]["down"]
+            image_to_render = self.player_images[object_to_render.get_team_number()]["down"]
             draw_shadow = False
           
             if object_to_render.get_state_time() < Player.JUMP_DURATION / 2:
@@ -2399,14 +2405,18 @@ class Renderer(object):
     players_by_numbers = map_to_render.get_players_by_numbers()
       
     x = self.map_render_location[0] + 12
+    y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 20
       
     for i in players_by_numbers:
       if players_by_numbers[i] == None:
         continue
         
-      y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 20 + int(4 * math.sin(pygame.time.get_ticks() / 128.0 - i))
+      if players_by_numbers[i].is_dead():
+        movement_offset = (0,0)
+      else:
+        movement_offset = (int(math.sin(pygame.time.get_ticks() / 64.0 + i) * 2),int(4 * math.sin(pygame.time.get_ticks() / 128.0 - i)))
         
-      result.blit(self.player_info_board_images[i],(x + int(math.sin(pygame.time.get_ticks() / 64.0 + i) * 2),y))
+      result.blit(self.player_info_board_images[i],(x + movement_offset[0],y + movement_offset[1]))
         
       x += self.gui_images["info board"].get_size()[0] - 2
 
