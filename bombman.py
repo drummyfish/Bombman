@@ -1576,14 +1576,14 @@ class PlaySetup(object):
     # default setup, player 0 vs 3 AI players:
     self.player_slots[0] = (-1,0)
     self.player_slots[1] = (-1,1)
-#    self.player_slots[2] = (-1,2)
-#    self.player_slots[3] = (-1,0)   
-#    self.player_slots[4] = (-1,1)
-#    self.player_slots[5] = (-1,2)
-#    self.player_slots[6] = (-1,0)
-#    self.player_slots[7] = (-1,1)
-#    self.player_slots[8] = (-1,2)
-#    self.player_slots[9] = (-1,0)
+    self.player_slots[2] = (-1,2)
+    self.player_slots[3] = (-1,0)   
+    self.player_slots[4] = (-1,1)
+    self.player_slots[5] = (-1,2)
+    self.player_slots[6] = (-1,0)
+    self.player_slots[7] = (-1,1)
+    self.player_slots[8] = (-1,2)
+    self.player_slots[9] = (-1,0)
 
   def get_slots(self):
     return self.player_slots
@@ -2399,13 +2399,14 @@ class Renderer(object):
     players_by_numbers = map_to_render.get_players_by_numbers()
       
     x = self.map_render_location[0] + 12
-    y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 20
       
     for i in players_by_numbers:
       if players_by_numbers[i] == None:
         continue
         
-      result.blit(self.player_info_board_images[i],(x,y))
+      y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 20 + int(4 * math.sin(pygame.time.get_ticks() / 128.0 - i))
+        
+      result.blit(self.player_info_board_images[i],(x + int(math.sin(pygame.time.get_ticks() / 64.0 + i) * 2),y))
         
       x += self.gui_images["info board"].get_size()[0] - 2
 
