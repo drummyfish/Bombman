@@ -1,15 +1,9 @@
-# bombman
+![screens](https://github.com/drummyfish/bombman/blob/master/resources/logo.png?raw=true)
 
-Bomberman clone, GPL.
+Open-source Bomberman clone under GPL!
 
-early AI video:
+![screenshot](http://i.imgur.com/3xbgAPM.png)
+
+Early developmnet Video:
 
 [![preview](http://img.youtube.com/vi/N1pGgX_rFOQ/0.jpg)](http://www.youtube.com/watch?v=N1pGgX_rFOQ "preview")
-
-early video:
-
-[![preview](http://img.youtube.com/vi/rGfC74JDG74/0.jpg)](http://www.youtube.com/watch?v=rGfC74JDG74 "preview")
-
-early screenshots:
-
-![screens](http://i.imgur.com/ucf8wa7.png)
