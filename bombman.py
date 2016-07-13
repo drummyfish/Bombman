@@ -106,6 +106,19 @@ COLOR_RGB_VALUES = [
   (209,117,206)            # purple
   ]
 
+COLOR_NAMES = [
+  "white",
+  "black",
+  "red",
+  "blue",
+  "green",
+  "cyan",
+  "yellow",
+  "orange",
+  "brown",
+  "purple"
+  ]
+
 RESOURCE_PATH = "resources"
 
 ## Something that has a float position on the map.
@@ -1961,6 +1974,8 @@ class Renderer(object):
 
     self.environment_images = {}
 
+    self.font_small = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),12)
+
     environment_names = ["env1","env2","env3","env4","env5"]
 
     for environment_name in environment_names:
@@ -2116,6 +2131,12 @@ class Renderer(object):
   def set_resolution(self, new_resolution):
     self.screen_resolution = new_resolution
 
+  def darken_color(self, color, by_how_may):
+    r = max(color[0] - by_how_may,0)
+    g = max(color[1] - by_how_may,0)
+    b = max(color[2] - by_how_may,0)
+    return (r,g,b)
+
   ## Updates info board images in self.player_info_board_images. This should be called each frame, as
   #  rerendering is done only when needed.
 
@@ -2143,6 +2164,8 @@ class Renderer(object):
       board_image = self.player_info_board_images[i]
       
       board_image.blit(self.gui_images["info board"],(0,0))
+      
+      board_image.blit(self.font_small.render(COLOR_NAMES[i],True,self.darken_color(COLOR_RGB_VALUES[i],100)),(4,2))
       
       if player.is_dead():
         board_image.blit(self.gui_images["out"],(15,34))
@@ -2844,6 +2867,7 @@ class Game(object):
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
+    pygame.font.init()
     self.screen = pygame.display.set_mode((1366,768))
     self.player_key_maps = PlayerKeyMaps()
     
