@@ -67,7 +67,7 @@ import random
 import time
 
 MAP1 = ("env1;"
-        "kxbe;"
+        "kxb;"
         "bbbbbfffffffFkkksssssspppddddmrxxxxettt;"
         "x T d x x x x x . x x . . x x"
         ". 0 . . . l x B 9 . x x . 3 x"
@@ -251,6 +251,7 @@ class Player(Positionable):
       Renderer.ANIMATION_EVENT_SKELETION))
     
     game_map.add_animation_event(random_animation,Renderer.map_position_to_pixel_position(self.position,(0,-15)))
+    game_map.give_away_items(self.get_items())
 
   def is_enemy(self, another_player):
     return self.team_number != another_player.get_team_number()
@@ -302,6 +303,15 @@ class Player(Positionable):
     self.state = Player.STATE_TELEPORTING
     self.state_time = 0
     self.wait_for_tile_transition = True
+
+  def get_items(self):
+    result = []
+    
+    for item in self.items:
+      for i in range(self.items[item]):
+        result.append(item)
+        
+    return result
 
   def send_to_air(self, game_map):
     if self.state == Player.STATE_IN_AIR:
@@ -934,6 +944,8 @@ class Map(object):
   
   SAFE_DANGER_VALUE = 5000     ##< time in ms, used in danger map to indicate safe tile
   
+  GIVE_AWAY_DELAY = 3000       ##< after how many ms the items of dead players will be given away
+  
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
   def __init__(self, map_data, play_setup):
@@ -1063,6 +1075,8 @@ class Map(object):
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
     self.animation_events = []     ##< list of animation events, tuples in format (animation_event, coordinates)
 
+    self.items_to_give_away = []   ##< list of tuples in format (time_of_giveaway, list_of_items)
+
   def get_number_of_block_tiles(self):
     return self.number_of_blocks
 
@@ -1084,6 +1098,12 @@ class Map(object):
       return False
     
     return self.tiles[tile_coordinates[1]][tile_coordinates[0]].special_object == MapTile.SPECIAL_OBJECT_LAVA
+  
+  ## Gives away a set of given items (typically after a player dies). The items
+  #  are spread randomly on the map floor tiles after a while.
+  
+  def give_away_items(self, items):
+    self.items_to_give_away.append((pygame.time.get_ticks() + Map.GIVE_AWAY_DELAY,items))
   
   def update_danger_map(self):
     for j in range(Map.MAP_HEIGHT):  # reset
@@ -1342,6 +1362,25 @@ class Map(object):
     if bomb in self.bombs:
       self.bombs.remove(bomb)
 
+  def spread_items(self, items):
+    possible_tiles = []
+    
+    for y in range(Map.MAP_HEIGHT):
+      for x in range(Map.MAP_WIDTH):
+        tile = self.tiles[y][x]
+        
+        if tile.kind == MapTile.TILE_FLOOR and tile.special_object == None and tile.item == None and not self.tile_has_player((x,y)):
+          possible_tiles.append(tile)
+          
+    for item in items:
+      if len(possible_tiles) == 0:
+        break                        # no more tiles to place items on => end
+      
+      tile = random.choice(possible_tiles)
+      tile.item = item
+      
+      possible_tiles.remove(tile)
+
   ## Updates some things on the map that change with time.
 
   def update(self, dt):
@@ -1349,7 +1388,19 @@ class Map(object):
     
     i = 0
     
-    while i <= len(self.bombs) - 1:    # update all bombs
+    while i < len(self.items_to_give_away):    # giving away items of dead players
+      item = self.items_to_give_away[i]
+      
+      if pygame.time.get_ticks() >= item[0]:
+        self.spread_items(item[1])
+        self.items_to_give_away.remove(item)
+        print("giving away items")
+      
+      i += 1
+    
+    i = 0
+    
+    while i < len(self.bombs):    # update all bombs
       bomb = self.bombs[i]
       
       if bomb.has_exploded:            # just in case
