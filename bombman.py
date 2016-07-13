@@ -1952,7 +1952,46 @@ class Animation(object):
       surface.blit(self.frame_images[frame],playing_instance[0])
       
       i += 1
+
+## Abstract class representing a game menu. Menu item strings can contain special characters: TODO
     
+class Menu(object):
+  def __init__(self):
+    self.tile = ""
+    self.text = ""
+    pass
+
+  def set_title(self, title):
+    self.title = title
+    
+  def get_title(self):
+    return self.title
+  
+  def set_text(self, text):
+    self.text = text
+    
+  def get_text(self):
+    return self.text
+  
+  ## Returns menu items in format: ( ("column 1 text", "column 2 text", ...), ("column 1 text", "column 2 text", ...) ).
+  
+  def get_items(self):
+    return []
+  
+  ## Checks if menu items changed since the last call
+  #  of this function.
+  
+  def items_changed(self):
+    return False
+  
+  ## Returns a selected menu item in format (row, column).
+  
+  def get_selected_item(self):
+    return (0,0)
+  
+  def process_inputs(self, input_list):
+    pass
+  
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
