@@ -563,7 +563,7 @@ class Player(Positionable):
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
   def react_to_inputs(self, input_actions, dt, game_map):
-    if self.state == Player.STATE_DEAD:
+    if self.state == Player.STATE_DEAD or game_map.get_state() == Map.STATE_WAITING_TO_PLAY:
       return
     
     if self.state == Player.STATE_IN_AIR:
@@ -959,6 +959,11 @@ class Map(object):
   
   GIVE_AWAY_DELAY = 3000       ##< after how many ms the items of dead players will be given away
   
+  STATE_WAITING_TO_PLAY = 0    ##< players can't do anything yet
+  STATE_PLAYING = 1            ##< game is being played
+  STATE_FINISHING = 2          ##< game is over but the map is still being updated for a while after
+  STATE_GAME_OVER = 3          ##< the game is definitely over and should no longer be updated
+  
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
   def __init__(self, map_data, play_setup):
@@ -972,6 +977,10 @@ class Map(object):
     string_split = map_data.split(";")
 
     self.environment_name = string_split[0]
+
+    self.end_game_at = -1                                    ##< time at which the map should go to STATE_GAME_OVER state
+    self.start_game_at = pygame.time.get_ticks() + 2500
+    self.state = Map.STATE_WAITING_TO_PLAY
 
     block_tiles = []
 
@@ -1562,10 +1571,18 @@ class Map(object):
       
           i += 1
     
+    winning_color = -1
+    game_is_over = True
+    
     for player in self.players:
       if player.is_dead():
         continue
       
+      if winning_color == -1:
+        winning_color = player.get_team_number()
+      elif winning_color != player.get_team_number():
+        game_is_over = False
+        
       player_tile_position = player.get_tile_position()
       player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
       
@@ -1593,6 +1610,19 @@ class Map(object):
         for player_at_tile in players_at_tile:
           player_at_tile.set_disease(player.get_disease(),player.get_disease_time())
       
+    if self.state == Map.STATE_WAITING_TO_PLAY:
+      if pygame.time.get_ticks() >= self.start_game_at:
+        self.state = Map.STATE_PLAYING
+    if self.state == Map.STATE_FINISHING:
+      if pygame.time.get_ticks() >= self.end_game_at:
+        self.state = Map.STATE_GAME_OVER
+    elif self.state != Map.STATE_GAME_OVER and game_is_over:
+      self.end_game_at = pygame.time.get_ticks() + 5000
+      self.state = Map.STATE_FINISHING
+    
+  def get_state(self):
+    return self.state
+    
   def add_bomb(self, bomb):
     self.bombs.append(bomb)
 
@@ -2388,8 +2418,10 @@ class Renderer(object):
           
           animation_frame = (object_to_render.get_state_time() / 100) % 4
           
+          color_index = object_to_render.get_number() if map_to_render.get_state() == Map.STATE_WAITING_TO_PLAY else object_to_render.get_team_number()
+          
           if object_to_render.is_in_air():
-            image_to_render = self.player_images[object_to_render.get_team_number()]["down"]
+            image_to_render = self.player_images[color_index]["down"]
             draw_shadow = False
           
             if object_to_render.get_state_time() < Player.JUMP_DURATION / 2:
@@ -2401,13 +2433,13 @@ class Renderer(object):
           elif object_to_render.is_teleporting():
             
             if animation_frame == 0:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["up"]  
+              image_to_render = self.player_images[color_index]["up"]  
             elif animation_frame == 1:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["right"]  
+              image_to_render = self.player_images[color_index]["right"]  
             elif animation_frame == 2:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["down"]  
+              image_to_render = self.player_images[color_index]["down"]  
             else:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["left"]  
+              image_to_render = self.player_images[color_index]["left"]  
             
           elif object_to_render.is_boxing() or object_to_render.is_throwing():
             if not object_to_render.is_throwing() and animation_frame == 0:
@@ -2416,30 +2448,30 @@ class Renderer(object):
               helper_string = "box "
             
             if object_to_render.get_state() == Player.STATE_IDLE_UP or object_to_render.get_state() == Player.STATE_WALKING_UP:
-              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "up"]
+              image_to_render = self.player_images[color_index][helper_string + "up"]
             elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT or object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
-              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "right"]
+              image_to_render = self.player_images[color_index][helper_string + "right"]
             elif object_to_render.get_state() == Player.STATE_IDLE_DOWN or object_to_render.get_state() == Player.STATE_WALKING_DOWN:
-              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "down"]
+              image_to_render = self.player_images[color_index][helper_string + "down"]
             else:      # left
-              image_to_render = self.player_images[object_to_render.get_team_number()][helper_string + "left"]
+              image_to_render = self.player_images[color_index][helper_string + "left"]
           else:
             if object_to_render.get_state() == Player.STATE_IDLE_UP:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["up"]
+              image_to_render = self.player_images[color_index]["up"]
             elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["right"]
+              image_to_render = self.player_images[color_index]["right"]
             elif object_to_render.get_state() == Player.STATE_IDLE_DOWN:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["down"]
+              image_to_render = self.player_images[color_index]["down"]
             elif object_to_render.get_state() == Player.STATE_IDLE_LEFT:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["left"]
+              image_to_render = self.player_images[color_index]["left"]
             elif object_to_render.get_state() == Player.STATE_WALKING_UP:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["walk up"][animation_frame]
+              image_to_render = self.player_images[color_index]["walk up"][animation_frame]
             elif object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["walk right"][animation_frame]
+              image_to_render = self.player_images[color_index]["walk right"][animation_frame]
             elif object_to_render.get_state() == Player.STATE_WALKING_DOWN:
-              image_to_render = self.player_images[object_to_render.get_team_number()]["walk down"][animation_frame]
+              image_to_render = self.player_images[color_index]["walk down"][animation_frame]
             else: # Player.STATE_WALKING_LEFT
-              image_to_render = self.player_images[object_to_render.get_team_number()]["walk left"][animation_frame]
+              image_to_render = self.player_images[color_index]["walk left"][animation_frame]
         
           if object_to_render.get_disease() != Player.DISEASE_NONE:
             overlay_images.append(self.other_images["disease"][animation_frame % 2])          
@@ -2971,6 +3003,9 @@ class Game(object):
       player.react_to_inputs(actions_being_performed,dt,self.game_map)
       
     self.game_map.update(dt)
+    
+    if self.game_map.get_state() == Map.STATE_GAME_OVER:
+      print("OVER")
 
 # main:
 
