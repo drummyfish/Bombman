@@ -981,6 +981,7 @@ class Map(object):
     self.end_game_at = -1                                    ##< time at which the map should go to STATE_GAME_OVER state
     self.start_game_at = pygame.time.get_ticks() + 2500
     self.state = Map.STATE_WAITING_TO_PLAY
+    self.winner_team = -1                          ##< if map state is Map.STATE_GAME_OVER, this holds the winning team (-1 = draw)
 
     block_tiles = []
 
@@ -1610,7 +1611,7 @@ class Map(object):
         for player_at_tile in players_at_tile:
           player_at_tile.set_disease(player.get_disease(),player.get_disease_time())
       
-    if self.state == Map.STATE_WAITING_TO_PLAY:
+    if self.state == Map.STATE_WAITING_TO_PLAY:  
       if pygame.time.get_ticks() >= self.start_game_at:
         self.state = Map.STATE_PLAYING
     if self.state == Map.STATE_FINISHING:
@@ -1619,6 +1620,11 @@ class Map(object):
     elif self.state != Map.STATE_GAME_OVER and game_is_over:
       self.end_game_at = pygame.time.get_ticks() + 5000
       self.state = Map.STATE_FINISHING
+      self.winner_team = winning_color
+      self.add_sound_event(SoundPlayer.SOUND_EVENT_WIN_0 + self.winner_team)
+    
+  def get_winner_team(self):
+    return self.winner_team
     
   def get_state(self):
     return self.state
@@ -1668,7 +1674,7 @@ class PlaySetup(object):
     self.player_slots = [None for i in range(10)]    ##< player slots: (player_number, team_color), negative player_number = AI, slot index ~ player color index
 
     # default setup, player 0 vs 3 AI players:
-    self.player_slots[0] = (-1,0)
+    self.player_slots[0] = (0,0)
     self.player_slots[1] = (-1,1)
     self.player_slots[2] = (-1,2)
     self.player_slots[3] = (-1,0)   
@@ -1881,6 +1887,17 @@ class SoundPlayer(object):
   SOUND_EVENT_TELEPORT = 11
   SOUND_EVENT_DEATH = 12
   
+  SOUND_EVENT_WIN_0 = 13
+  SOUND_EVENT_WIN_1 = 14
+  SOUND_EVENT_WIN_2 = 15
+  SOUND_EVENT_WIN_3 = 16
+  SOUND_EVENT_WIN_4 = 17
+  SOUND_EVENT_WIN_5 = 18
+  SOUND_EVENT_WIN_6 = 19
+  SOUND_EVENT_WIN_7 = 20
+  SOUND_EVENT_WIN_8 = 21
+  SOUND_EVENT_WIN_9 = 22
+  
   def __init__(self):
     pygame.mixer.init()
     
@@ -1901,14 +1918,18 @@ class SoundPlayer(object):
     
     self.playing_walk = False
     self.kick_last_played_time = 0
-    
+     
+  def play_once(self, filename):    
+    sound = pygame.mixer.Sound(filename)
+    sound.play()
+   
   ## Processes a list of sound events (see class constants) by playing
   #  appropriate sounds.
     
   def process_events(self, sound_event_list): 
     stop_playing_walk = True
     
-    for sound_event in sound_event_list:
+    for sound_event in sound_event_list: 
       if sound_event in (          # simple sound play
         SoundPlayer.SOUND_EVENT_EXPLOSION,
         SoundPlayer.SOUND_EVENT_CLICK,
@@ -1936,6 +1957,8 @@ class SoundPlayer(object):
         if time_now > self.kick_last_played_time + 200: # wait 200 ms before playing kick sound again        
           self.sound[SoundPlayer.SOUND_EVENT_KICK].play()
           self.kick_last_played_time = time_now
+      elif SoundPlayer.SOUND_EVENT_WIN_0 <= sound_event <= SoundPlayer.SOUND_EVENT_WIN_9:
+        self.play_once(os.path.join(RESOURCE_PATH,"win" + str(sound_event - SoundPlayer.SOUND_EVENT_WIN_0) + ".wav"))
       
     if self.playing_walk and stop_playing_walk:
       self.sound[SoundPlayer.SOUND_EVENT_WALK].stop()
@@ -3003,9 +3026,6 @@ class Game(object):
       player.react_to_inputs(actions_being_performed,dt,self.game_map)
       
     self.game_map.update(dt)
-    
-    if self.game_map.get_state() == Map.STATE_GAME_OVER:
-      print("OVER")
 
 # main:
 
