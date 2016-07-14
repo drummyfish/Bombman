@@ -68,7 +68,7 @@ import time
 
 MAP1 = ("env1;"
         "kxb;"
-        "bbbbbfffffffFkkksssssspppddddmrxxxxettt;"
+        "dddddddbbbbbfffffffFkkksssssspppddddmrxxxxettt;"
         "x T d x x x x x . x x . . x x"
         ". 0 . . . l x B 9 . x x . 3 x"
         "V . . A T x x x . x x . x x x"
@@ -980,6 +980,8 @@ class Map(object):
 
     self.end_game_at = -1                                    ##< time at which the map should go to STATE_GAME_OVER state
     self.start_game_at = pygame.time.get_ticks() + 2500
+    self.win_announced = False
+    self.announce_win_at = -1
     self.state = Map.STATE_WAITING_TO_PLAY
     self.winner_team = -1                          ##< if map state is Map.STATE_GAME_OVER, this holds the winning team (-1 = draw)
 
@@ -1608,20 +1610,32 @@ class Map(object):
       elif player.get_disease() != Player.DISEASE_NONE:
         players_at_tile = self.get_players_at_tile(player_tile_position)
 
+        transmitted = False
+
         for player_at_tile in players_at_tile:
-          player_at_tile.set_disease(player.get_disease(),player.get_disease_time())
-      
+          if player_at_tile.get_disease() == Player.DISEASE_NONE:
+            transmitted = True
+            player_at_tile.set_disease(player.get_disease(),player.get_disease_time())  # transmit disease
+          
+        if transmitted and random.randint(0,2) == 0:
+          self.add_sound_event(SoundPlayer.SOUND_EVENT_GO_AWAY)
+          
     if self.state == Map.STATE_WAITING_TO_PLAY:  
       if pygame.time.get_ticks() >= self.start_game_at:
         self.state = Map.STATE_PLAYING
+        self.add_sound_event(SoundPlayer.SOUND_EVENT_GO)
     if self.state == Map.STATE_FINISHING:
       if pygame.time.get_ticks() >= self.end_game_at:
         self.state = Map.STATE_GAME_OVER
+      elif not self.win_announced:
+        if pygame.time.get_ticks() >= self.announce_win_at:
+          self.add_sound_event(SoundPlayer.SOUND_EVENT_WIN_0 + self.winner_team)
+          self.win_announced = True
     elif self.state != Map.STATE_GAME_OVER and game_is_over:
       self.end_game_at = pygame.time.get_ticks() + 5000
       self.state = Map.STATE_FINISHING
       self.winner_team = winning_color
-      self.add_sound_event(SoundPlayer.SOUND_EVENT_WIN_0 + self.winner_team)
+      self.announce_win_at = pygame.time.get_ticks() + 2000
     
   def get_winner_team(self):
     return self.winner_team
@@ -1674,7 +1688,7 @@ class PlaySetup(object):
     self.player_slots = [None for i in range(10)]    ##< player slots: (player_number, team_color), negative player_number = AI, slot index ~ player color index
 
     # default setup, player 0 vs 3 AI players:
-    self.player_slots[0] = (0,0)
+    self.player_slots[0] = (-1,0)
     self.player_slots[1] = (-1,1)
     self.player_slots[2] = (-1,2)
     self.player_slots[3] = (-1,0)   
@@ -1886,7 +1900,6 @@ class SoundPlayer(object):
   SOUND_EVENT_TRAMPOLINE = 10
   SOUND_EVENT_TELEPORT = 11
   SOUND_EVENT_DEATH = 12
-  
   SOUND_EVENT_WIN_0 = 13
   SOUND_EVENT_WIN_1 = 14
   SOUND_EVENT_WIN_2 = 15
@@ -1897,6 +1910,8 @@ class SoundPlayer(object):
   SOUND_EVENT_WIN_7 = 20
   SOUND_EVENT_WIN_8 = 21
   SOUND_EVENT_WIN_9 = 22
+  SOUND_EVENT_GO_AWAY = 23
+  SOUND_EVENT_GO = 24
   
   def __init__(self):
     pygame.mixer.init()
@@ -1915,6 +1930,8 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"trampoline.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_TELEPORT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"teleport.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_DEATH] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"death.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go_away.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go.wav"))
     
     self.playing_walk = False
     self.kick_last_played_time = 0
@@ -1941,7 +1958,9 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_THROW,
         SoundPlayer.SOUND_EVENT_TRAMPOLINE,
         SoundPlayer.SOUND_EVENT_TELEPORT,
-        SoundPlayer.SOUND_EVENT_DEATH
+        SoundPlayer.SOUND_EVENT_DEATH,
+        SoundPlayer.SOUND_EVENT_GO_AWAY,
+        SoundPlayer.SOUND_EVENT_GO
         ):
         self.sound[sound_event].play()
     
