@@ -1691,13 +1691,13 @@ class PlaySetup(object):
     self.player_slots[0] = (-1,0)
     self.player_slots[1] = (-1,1)
     self.player_slots[2] = (-1,2)
-    self.player_slots[3] = (-1,0)   
-    self.player_slots[4] = (-1,1)
-    self.player_slots[5] = (-1,2)
-    self.player_slots[6] = (-1,0)
-    self.player_slots[7] = (-1,1)
-    self.player_slots[8] = (-1,2)
-    self.player_slots[9] = (-1,0)
+    self.player_slots[3] = (-1,3)   
+#    self.player_slots[4] = (-1,1)
+#    self.player_slots[5] = (-1,2)
+#    self.player_slots[6] = (-1,0)
+#    self.player_slots[7] = (-1,1)
+#    self.player_slots[8] = (-1,2)
+#    self.player_slots[9] = (-1,0)
 
   def get_slots(self):
     return self.player_slots
@@ -2061,6 +2061,8 @@ class Menu(object):
   def __init__(self):
     self.tile = ""
     self.text = ""
+    self.selected_item = (0,0)
+    self.items = []
     pass
 
   def set_title(self, title):
@@ -2075,24 +2077,28 @@ class Menu(object):
   def get_text(self):
     return self.text
   
-  ## Returns menu items in format: ( ("column 1 text", "column 2 text", ...), ("column 1 text", "column 2 text", ...) ).
+  ## Returns menu items in format: ( (column 1 row 1 text), (column 1 row 2 text), ...), ((column 2 row 1 text), ...) ).
   
   def get_items(self):
-    return []
-  
-  ## Checks if menu items changed since the last call
-  #  of this function.
-  
-  def items_changed(self):
-    return False
+    return self.items
   
   ## Returns a selected menu item in format (row, column).
   
   def get_selected_item(self):
-    return (0,0)
+    return self.selected_item
   
   def process_inputs(self, input_list):
     pass
+  
+class MainMenu(Menu):
+  def __init__(self):
+    super(MainMenu,self).__init__()
+    
+    self.items = [(
+      "let's play!",
+      "tweak some stuff",
+      "what's this about",
+      "run away!")]
   
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
@@ -2109,13 +2115,19 @@ class Renderer(object):
   ANIMATION_EVENT_EXPLOSION = 0
   ANIMATION_EVENT_RIP = 1
   ANIMATION_EVENT_SKELETION = 2
+  
+  FONT_SMALL_SIZE = 12
+  FONT_NORMAL_SIZE = 20
+  MENU_FONT_COLOR = (255,255,255)
 
   def __init__(self):
     self.screen_resolution = Renderer.get_screen_size()
+    self.screen_center = (self.screen_resolution[0] / 2,self.screen_resolution[1] / 2)
 
     self.environment_images = {}
 
-    self.font_small = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),12)
+    self.font_small = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_SMALL_SIZE)
+    self.font_normal = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_NORMAL_SIZE)
 
     environment_names = ["env1","env2","env3","env4","env5"]
 
@@ -2198,6 +2210,9 @@ class Renderer(object):
 
     self.gui_images["out"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_out.png"))   
      
+    self.menu_background_image = None  ##< only loaded when in menu
+    self.menu_item_images = None       ##< images of menu items, only loaded when in menu
+ 
     # load other images:
     
     self.other_images = {}
@@ -2209,7 +2224,7 @@ class Renderer(object):
     self.other_images["disease"] = []
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
     self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease2.png")))    
-     
+          
     # load icon images
     
     self.icon_images = {}
@@ -2397,8 +2412,81 @@ class Renderer(object):
     for animation_event in animation_event_list:
       self.animations[animation_event[0]].play(animation_event[1])
 
+  ## Updates images in self.menu_item_images (only if needed).
+
+  def update_menu_item_images(self, menu):
+    if self.menu_item_images == None:
+      self.menu_item_images = {}     # format: (row, column) : (item text, image)
+    
+    items = menu.get_items()
+    
+    for j in range(len(items)):
+      for i in range(len(items[j])):
+        update_needed = False
+        
+        menu_coordinates = (j,i)
+        
+        if not (menu_coordinates in self.menu_item_images):
+          update_needed = True
+          item_text = ""
+        else:
+          item_text = items[j][i]
+
+        if not update_needed and item_text != self.menu_item_images[menu_coordinates][0]:
+          update_needed = True          
+          
+        if update_needed:
+          print("updating menu item " + str(menu_coordinates))
+          
+          # first create the text border in roder to be visible on the background
+          new_image = self.font_normal.render(item_text,True,(0,0,0))
+          new_image.blit(new_image,(0,2))
+          new_image.blit(new_image,(1,0))
+          new_image.blit(new_image,(-1,0))
+          
+          # text itself
+          new_image.blit(self.font_normal.render(item_text,True,Renderer.MENU_FONT_COLOR),(0,1))
+          
+          self.menu_item_images[menu_coordinates] = (item_text,new_image)
+    
+  def render_menu(self, menu_to_render):
+    result = pygame.Surface(self.screen_resolution)
+    
+    if self.menu_background_image == None:
+      self.menu_background_image = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_menu_background.png"))
+      
+    result.blit(self.menu_background_image,(self.screen_center[0] - self.menu_background_image.get_size()[0] / 2,self.screen_center[1] - self.menu_background_image.get_size()[1] / 2))
+    
+    self.update_menu_item_images(menu_to_render)
+    
+    menu_items = menu_to_render.get_items()
+    
+    columns = len(menu_items)  # how many columns there are
+    
+    column_x_space = 50
+    
+    y = self.screen_center[1]
+    
+    if columns % 2 == 0:
+      xs = [] # even number of columns
+    else:
+      xs = [self.screen_center[0] + (i - columns / 2) * column_x_space for i in range(columns)]
+    
+    for j in range(len(menu_items)):
+      for i in range(len(menu_items[j])):
+        item_image = self.menu_item_images[(j,i)][1]
+        
+        result.blit(item_image,(xs[j] - item_image.get_size()[0] / 2,y))
+        
+        y += Renderer.FONT_NORMAL_SIZE + 20
+    
+    return result
+
   def render_map(self, map_to_render):
     result = pygame.Surface(self.screen_resolution)
+    
+    self.menu_background_image = None  # unload unneccessarry images
+    self.menu_item_images = None
     
     self.update_info_boards(map_to_render.get_players())
 
@@ -3022,6 +3110,8 @@ class Game(object):
 
     self.renderer = Renderer()
     self.sound_player = SoundPlayer()
+    
+    self.menu_main = MainMenu()
 
   def run(self):
     time_before = pygame.time.get_ticks()
@@ -3049,7 +3139,8 @@ class Game(object):
       for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
 
-      self.screen.blit(self.renderer.render_map(self.game_map),(0,0))
+      self.screen.blit(self.renderer.render_menu(self.menu_main),(0,0))      
+  #    self.screen.blit(self.renderer.render_map(self.game_map),(0,0))
       pygame.display.flip()
       
       self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
@@ -3057,7 +3148,7 @@ class Game(object):
 
       pygame_clock.tick()
 
-      self.simulation_step(dt)
+  #    self.simulation_step(dt)
 
       if show_fps_in <= 0:
         print("fps: " + str(pygame_clock.get_fps()))
