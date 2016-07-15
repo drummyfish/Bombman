@@ -1933,12 +1933,42 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go_away.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go.wav"))
     
+    self.music_filenames = [
+      "music_broke_for_free_caught_in_the_beat_remix.wav",
+      "music_broke_for_free_covered_in_oil_remix.wav",
+      "music_jason_shaw_extasy_x_remix.wav",
+      "music_jason_shaw_icecold_remix.wav",
+      "music_jason_shaw_night_rave.wav",
+      "music_wake_68_glytch_funk_remix.wav"]
+    
+    self.current_music_index = -1
+    
     self.playing_walk = False
     self.kick_last_played_time = 0
      
-  def play_once(self, filename):    
+  def play_once(self, filename):
     sound = pygame.mixer.Sound(filename)
     sound.play()
+   
+  def change_music(self):
+    while True:
+      new_music_index = random.randint(0,len(self.music_filenames) - 1)
+      
+      if new_music_index == self.current_music_index:
+        continue
+      
+      break
+    
+    self.current_music_index = new_music_index
+    
+    music_name = self.music_filenames[self.current_music_index]
+    
+    print("changing music to \"" + music_name + "\"")
+    
+    pygame.mixer.music.stop()
+    pygame.mixer.music.load(os.path.join(RESOURCE_PATH,music_name))
+    pygame.mixer.music.set_volume(0.2)
+    pygame.mixer.music.play(-1)
    
   ## Processes a list of sound events (see class constants) by playing
   #  appropriate sounds.
@@ -3006,6 +3036,8 @@ class Game(object):
     for i in range(len(player_slots)):
       if player_slots[i] != None and player_slots[i][0] < 0:  # indicates AI
         self.ais.append(AI(self.game_map.get_players_by_numbers()[i],self.game_map))
+
+    self.sound_player.change_music()
 
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
