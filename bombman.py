@@ -2061,8 +2061,9 @@ class Menu(object):
   def __init__(self):
     self.tile = ""
     self.text = ""
-    self.selected_item = (0,0)
+    self.selected_item = (0,0)      ## row, column
     self.items = []
+    self.action_keys_previous_state = {}  # to detect single key presses
     pass
 
   def set_title(self, title):
@@ -2088,8 +2089,37 @@ class Menu(object):
     return self.selected_item
   
   def process_inputs(self, input_list):
-    pass
+    actions_processed = []
+    
+    for action in input_list:
+      action_code = action[1]
+      
+      if not (action_code in self.action_keys_previous_state) or not self.action_keys_previous_state[action_code]:
+        self.action_pressed(action_code)
+    
+      actions_processed.append(action_code)
+    
+    for action_code in self.action_keys_previous_state:
+      self.action_keys_previous_state[action_code] = False
+      
+    for action_code in actions_processed:
+      self.action_keys_previous_state[action_code] = True
+      
+  ## Is called once for every action key press (not each frame, which is
+  #  not good for menus). This can be overridden.
   
+  def action_pressed(self, action):
+    if action == PlayerKeyMaps.ACTION_UP:
+      self.selected_item = (max(0,self.selected_item[0] - 1),self.selected_item[1])
+    elif action == PlayerKeyMaps.ACTION_DOWN:
+      self.selected_item = (min(len(self.items[self.selected_item[1]]) - 1,self.selected_item[0] + 1),self.selected_item[1])
+    elif action == PlayerKeyMaps.ACTION_LEFT:
+      new_column = max(0,self.selected_item[1] - 1)
+      self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
+    elif action == PlayerKeyMaps.ACTION_RIGHT:
+      new_column = min(len(self.items) - 1,self.selected_item[1] + 1)
+      self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
+    
 class MainMenu(Menu):
   def __init__(self):
     super(MainMenu,self).__init__()
@@ -2463,20 +2493,27 @@ class Renderer(object):
     
     columns = len(menu_items)  # how many columns there are
     
-    column_x_space = 50
-    
-    y = self.screen_center[1]
+    column_x_space = 150
     
     if columns % 2 == 0:
-      xs = [] # even number of columns
+      xs = [self.screen_center[0] + i * column_x_space - ((columns - 1) * column_x_space / 2) for i in range(columns)] # even number of columns
     else:
       xs = [self.screen_center[0] + (i - columns / 2) * column_x_space for i in range(columns)]
     
+    selected_coordinates = menu_to_render.get_selected_item()
+    
     for j in range(len(menu_items)):
+      y = self.screen_center[1]
+      
       for i in range(len(menu_items[j])):
         item_image = self.menu_item_images[(j,i)][1]
         
-        result.blit(item_image,(xs[j] - item_image.get_size()[0] / 2,y))
+        x = xs[j] - item_image.get_size()[0] / 2
+        
+        if (i,j) == selected_coordinates:
+          pygame.draw.rect(result,(255,0,0),pygame.Rect(x - 4,y - 2,item_image.get_size()[0] + 8,item_image.get_size()[1] + 4))
+        
+        result.blit(item_image,(x,y))
         
         y += Renderer.FONT_NORMAL_SIZE + 20
     
@@ -3139,6 +3176,7 @@ class Game(object):
       for event in pygame.event.get():
         if event.type == pygame.QUIT: sys.exit()
 
+      self.menu_main.process_inputs(self.player_key_maps.get_current_actions())
       self.screen.blit(self.renderer.render_menu(self.menu_main),(0,0))      
   #    self.screen.blit(self.renderer.render_map(self.game_map),(0,0))
       pygame.display.flip()
