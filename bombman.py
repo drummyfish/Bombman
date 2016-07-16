@@ -2190,6 +2190,12 @@ class AboutMenu(Menu):
                  "resources were used under CC attribution license. Software used to make this game\n"
                  "includes Python 2.7, Pygame, GIMP, Kate, Audacity and Ubuntu Linux.")
     self.items = [["ok, nice, back"]]
+
+class PlaySetupMenu(Menu):
+  def __init__(self, play_setup):
+    super(PlaySetupMenu,self).__init__()
+    self.play_setup = play_setup
+    self.items = [["back"]]
   
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
@@ -2513,7 +2519,7 @@ class Renderer(object):
     height = 0 
     width = 0
     
-    first = True
+    first_line = True
     
     for text_line in text_lines:
       line = text_line.lstrip().rstrip()
@@ -2572,7 +2578,7 @@ class Renderer(object):
         
       rendered_lines.append(new_rendered_line)
 
-      if first:
+      if first_line:
         first = False
       else:
         height += Renderer.MENU_LINE_SPACING
@@ -3319,9 +3325,12 @@ class Game(object):
     self.renderer = Renderer()
     self.sound_player = SoundPlayer()
     
+    self.play_setup = PlaySetup()
+    
     self.menu_main = MainMenu()
     self.menu_settings = SettingsMenu()
     self.menu_about = AboutMenu()
+    self.menu_play_setup = PlaySetupMenu(self.play_setup)
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
@@ -3363,12 +3372,10 @@ class Game(object):
   def run(self):
     time_before = pygame.time.get_ticks()
 
-    play_setup = PlaySetup()
-    
-    self.game_map = Map(MAP1,play_setup)
+    self.game_map = Map(MAP1,self.play_setup)
 
     self.ais = []
-    player_slots = play_setup.get_slots()
+    player_slots = self.play_setup.get_slots()
     
     for i in range(len(player_slots)):
       if player_slots[i] != None and player_slots[i][0] < 0:  # indicates AI
