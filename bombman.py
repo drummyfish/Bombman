@@ -2057,7 +2057,9 @@ class Animation(object):
       
       i += 1
 
-## Abstract class representing a game menu. Menu item strings can contain special characters: TODO
+## Abstract class representing a game menu. Menu item strings can contain formatting characters:
+#
+#  ^htmlcolorcode - sets the text color (HTML #rrggbb format,e.g. ^#2E44BF) from here to end of line or another formatting character
     
 class Menu(object):
   MENU_STATE_SELECTING = 0     ##< still selecting an item
@@ -2170,13 +2172,16 @@ class SettingsMenu(Menu):
       "sounds volume: 100 %",
       "music volume: 100 %",
       "screen resolution: 640 x 480",
+      "allow control by mouse: on",
+      "configure controls",
+      "complete reset",
       "back"
       )]
 
 class AboutMenu(Menu):
   def __init__(self):
     super(AboutMenu,self).__init__() 
-    self.text = ("Bombman - an open-source Atomic Bomberman clone, version " + VERSION_STR + ".\n"
+    self.text = ("^#2E44BFBombman^#FFFFFF - an open-source Atomic Bomberman clone, ^#4EF259version " + VERSION_STR + ".\n"
                  "copyright Miloslav \"tastyfish\" Ciz, 2016\n\n"
                  "This software is published under GPL license version 3. It's goal is to recreate\n"
                  "a wonderful experience of Atomic Bomberman, a game that is due to its age no\n"
@@ -2511,11 +2516,60 @@ class Renderer(object):
     first = True
     
     for text_line in text_lines:
-      new_rendered_line = font.render(text_line,True,border_color) # create text with borders
-      new_rendered_line.blit(new_rendered_line,(0,2))
-      new_rendered_line.blit(new_rendered_line,(1,0))
-      new_rendered_line.blit(new_rendered_line,(-1,0))
-      new_rendered_line.blit(font.render(text_line,True,color),(0,1))      
+      line = text_line.lstrip().rstrip()
+      
+      if len(line) == 0:
+        continue
+      
+      line_split = line.split("^")
+      
+      line_without_format = line
+      
+      i = 0
+      c = 0
+      while i < len(line_without_format):
+        c += 1
+        
+        if c > 100:
+          break
+        
+        if line_without_format[i] == "^":
+          line_without_format = line_without_format[:i] + line_without_format[i + 8:]
+        else:
+          i += 1
+      
+      new_rendered_line = pygame.Surface(font.size(line_without_format),flags=pygame.SRCALPHA)
+      
+      x = 0
+      first = True
+      starts_with_format = line[0] == "^"
+ 
+      for subline in line_split:
+        if len(subline) == 0:
+          continue
+        
+        if first:
+          has_format = starts_with_format
+          first = False
+        else:
+          has_format = True
+        
+        text_color = color
+        
+        if has_format:
+          text_color = pygame.Color(subline[:7])
+          subline = subline[7:]
+        
+        new_rendered_subline = font.render(subline,True,border_color) # create text with borders
+        new_rendered_subline.blit(new_rendered_subline,(0,2))
+        new_rendered_subline.blit(new_rendered_subline,(1,0))
+        new_rendered_subline.blit(new_rendered_subline,(-1,0))
+        new_rendered_subline.blit(font.render(subline,True,text_color),(0,1))      
+        
+        new_rendered_line.blit(new_rendered_subline,(x,0))
+        
+        x += new_rendered_subline.get_size()[0]
+        
       rendered_lines.append(new_rendered_line)
 
       if first:
