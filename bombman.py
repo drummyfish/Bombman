@@ -2058,16 +2058,31 @@ class Animation(object):
 ## Abstract class representing a game menu. Menu item strings can contain special characters: TODO
     
 class Menu(object):
+  MENU_STATE_SELECTING = 0     ##< still selecting an item
+  MENU_STATE_CONFIRM = 1       ##< menu has been confirmed
+  MENU_STATE_CANCEL = 2        ##< menu has been cancelled
+  
   def __init__(self):
     self.tile = ""
     self.text = ""
     self.selected_item = (0,0)      ## row, column
     self.items = []
-    self.action_keys_previous_state = {}  # to detect single key presses
+    self.menu_left = False
+    self.action_keys_previous_state = {
+      PlayerKeyMaps.ACTION_UP : True,
+      PlayerKeyMaps.ACTION_RIGHT : True,
+      PlayerKeyMaps.ACTION_DOWN : True,
+      PlayerKeyMaps.ACTION_LEFT : True,
+      PlayerKeyMaps.ACTION_BOMB : True,
+      PlayerKeyMaps.ACTION_SPECIAL : True}  # to detect single key presses, the values have to be True in order not to rect immediatelly upon entering the menu
+    self.state = Menu.MENU_STATE_SELECTING
     pass
 
   def set_title(self, title):
     self.title = title
+
+  def get_state(self):
+    return self.state
     
   def get_title(self):
     return self.title
@@ -2089,13 +2104,23 @@ class Menu(object):
     return self.selected_item
   
   def process_inputs(self, input_list):
+    if self.menu_left:
+      self.menu_left = False
+      self.state = Menu.MENU_STATE_SELECTING
+      
+      for action_code in self.action_keys_previous_state:
+        self.action_keys_previous_state[action_code] = True
+        
+      return
+    
     actions_processed = []
+    actions_pressed = []
     
     for action in input_list:
       action_code = action[1]
       
-      if not (action_code in self.action_keys_previous_state) or not self.action_keys_previous_state[action_code]:
-        self.action_pressed(action_code)
+      if not self.action_keys_previous_state[action_code]:
+        actions_pressed.append(action_code)
     
       actions_processed.append(action_code)
     
@@ -2104,11 +2129,19 @@ class Menu(object):
       
     for action_code in actions_processed:
       self.action_keys_previous_state[action_code] = True
-      
+
+    for action in actions_pressed:
+      self.action_pressed(action_code)
+     
+  ## Should be called when the menu is being left.
+     
+  def leaving(self):
+    self.menu_left = True
+     
   ## Is called once for every action key press (not each frame, which is
   #  not good for menus). This can be overridden.
   
-  def action_pressed(self, action):
+  def action_pressed(self, action):    
     if action == PlayerKeyMaps.ACTION_UP:
       self.selected_item = (max(0,self.selected_item[0] - 1),self.selected_item[1])
     elif action == PlayerKeyMaps.ACTION_DOWN:
@@ -2119,6 +2152,10 @@ class Menu(object):
     elif action == PlayerKeyMaps.ACTION_RIGHT:
       new_column = min(len(self.items) - 1,self.selected_item[1] + 1)
       self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
+    elif action == PlayerKeyMaps.ACTION_BOMB:
+      self.state = Menu.MENU_STATE_CONFIRM
+    elif action == PlayerKeyMaps.ACTION_SPECIAL:
+      self.state = Menu.MENU_STATE_CANCEL
     
 class MainMenu(Menu):
   def __init__(self):
@@ -2129,6 +2166,23 @@ class MainMenu(Menu):
       "tweak some stuff",
       "what's this about",
       "run away!")]
+  
+class SettingsMenu(Menu):
+  def __init__(self):
+    super(SettingsMenu,self).__init__()
+  
+    self.items = [(
+      "sounds volume: 100 %",
+      "music volume: 100 %",
+      "screen resolution: 640 x 480",
+      "back"
+      )]
+
+class AboutMenu(Menu):
+  def __init__(self):
+    super(AboutMenu,self).__init__() 
+    self.text = "Bombman, an open-source Atomic Bomberman clone."
+    self.items = [["ok, nice, back"]]
   
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
@@ -2449,7 +2503,7 @@ class Renderer(object):
       self.menu_item_images = {}     # format: (row, column) : (item text, image)
     
     items = menu.get_items()
-    
+
     for j in range(len(items)):
       for i in range(len(items[j])):
         update_needed = False
@@ -2458,16 +2512,15 @@ class Renderer(object):
         
         if not (menu_coordinates in self.menu_item_images):
           update_needed = True
-          item_text = ""
-        else:
-          item_text = items[j][i]
+        
+        item_text = items[j][i]
 
         if not update_needed and item_text != self.menu_item_images[menu_coordinates][0]:
           update_needed = True          
           
         if update_needed:
           print("updating menu item " + str(menu_coordinates))
-          
+
           # first create the text border in roder to be visible on the background
           new_image = self.font_normal.render(item_text,True,(0,0,0))
           new_image.blit(new_image,(0,2))
@@ -3132,6 +3185,12 @@ class AI(object):
     return False
        
 class Game(object):
+  GAME_STATE_PLAYING = 0
+  GAME_STATE_EXIT = 1
+  GAME_STATE_MENU_MAIN = 2
+  GAME_STATE_MENU_SETTINGS = 3
+  GAME_STATE_MENU_ABOUT = 4
+  
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
@@ -3139,7 +3198,7 @@ class Game(object):
     self.screen = pygame.display.set_mode((1366,768))
     self.player_key_maps = PlayerKeyMaps()
     
-    self.player_key_maps.allow_control_by_mouse()
+    self.player_key_maps.allow_control_by_mouse(False)
 
     self.player_key_maps.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
     self.player_key_maps.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
@@ -3149,6 +3208,45 @@ class Game(object):
     self.sound_player = SoundPlayer()
     
     self.menu_main = MainMenu()
+    self.menu_settings = SettingsMenu()
+    self.menu_about = AboutMenu()
+    
+    self.state = Game.GAME_STATE_MENU_MAIN
+
+  ## Manages the menu actions and sets self.active_menu.
+
+  def manage_menus(self):
+    new_state = self.state
+    
+    if self.state == Game.GAME_STATE_MENU_MAIN: 
+      self.active_menu = self.menu_main
+      
+      if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
+        new_state = Game.GAME_STATE_EXIT
+      elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
+        if self.active_menu.get_selected_item() == (1,0):
+          new_state = Game.GAME_STATE_MENU_SETTINGS
+        elif self.active_menu.get_selected_item() == (2,0):
+          new_state = Game.GAME_STATE_MENU_ABOUT
+        elif self.active_menu.get_selected_item() == (3,0):
+          new_state = Game.GAME_STATE_EXIT
+    elif self.state == Game.GAME_STATE_MENU_SETTINGS: 
+      self.active_menu = self.menu_settings
+      
+      if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
+        new_state = Game.GAME_STATE_MENU_MAIN
+        self.active_menu.leaving()
+    elif self.state == Game.GAME_STATE_MENU_ABOUT: 
+      self.active_menu = self.menu_about
+      
+      if self.active_menu.get_state() in (Menu.MENU_STATE_CONFIRM,Menu.MENU_STATE_CANCEL):
+        new_state = Game.GAME_STATE_MENU_MAIN
+    
+    if new_state != self.state:  # going to new state
+      self.state = new_state
+      self.active_menu.leaving()
+      
+    self.active_menu.process_inputs(self.player_key_maps.get_current_actions())
 
   def run(self):
     time_before = pygame.time.get_ticks()
@@ -3174,10 +3272,17 @@ class Game(object):
       time_before = pygame.time.get_ticks()
 
       for event in pygame.event.get():
-        if event.type == pygame.QUIT: sys.exit()
+        if event.type == pygame.QUIT:
+          sys.exit()
 
-      self.menu_main.process_inputs(self.player_key_maps.get_current_actions())
-      self.screen.blit(self.renderer.render_menu(self.menu_main),(0,0))      
+      if self.state == Game.GAME_STATE_PLAYING:
+        pass  # TODO: add code here
+      elif self.state == Game.GAME_STATE_EXIT:
+        sys.exit()
+      else:   # in menu
+        self.manage_menus()
+        self.screen.blit(self.renderer.render_menu(self.active_menu),(0,0))  
+            
   #    self.screen.blit(self.renderer.render_map(self.game_map),(0,0))
       pygame.display.flip()
       
