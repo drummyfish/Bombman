@@ -1690,8 +1690,8 @@ class PlaySetup(object):
     self.player_slots = [None for i in range(10)]    ##< player slots: (player_number, team_color), negative player_number = AI, slot index ~ player color index
 
     # default setup, player 0 vs 3 AI players:
-    self.player_slots[0] = (-1,0)
-    self.player_slots[1] = (-1,1)
+    self.player_slots[0] = (0,0)
+    self.player_slots[1] = (1,1)
     self.player_slots[2] = (-1,2)
     self.player_slots[3] = (-1,3)   
 #    self.player_slots[4] = (-1,1)
@@ -1877,6 +1877,7 @@ class PlayerKeyMaps(object):
             result.append((player_number,PlayerKeyMaps.ACTION_BOMB_DOUBLE))
           
           self.bomb_key_last_pressed_time[player_number] = pygame.time.get_ticks()
+          
           self.bomb_key_previous_state[player_number] = True
           reset_bomb_key_previous_state[player_number] = False
 
@@ -2077,7 +2078,8 @@ class Menu(object):
       PlayerKeyMaps.ACTION_DOWN : True,
       PlayerKeyMaps.ACTION_LEFT : True,
       PlayerKeyMaps.ACTION_BOMB : True,
-      PlayerKeyMaps.ACTION_SPECIAL : True}  # to detect single key presses, the values have to be True in order not to rect immediatelly upon entering the menu
+      PlayerKeyMaps.ACTION_SPECIAL : True,
+      PlayerKeyMaps.ACTION_BOMB_DOUBLE: True}     # to detect single key presses, the values have to be True in order not to rect immediatelly upon entering the menu
     self.state = Menu.MENU_STATE_SELECTING
     pass
 
@@ -2117,7 +2119,11 @@ class Menu(object):
       action_code = action[1]
       
       if not self.action_keys_previous_state[action_code]:
-        actions_pressed.append(action_code)
+        # the following condition disallows ACTION_BOMB and ACTION_BOMB_DOUBLE to be in the list at the same time => causes trouble
+        if (not (action_code in actions_pressed) and not(
+          (action_code == PlayerKeyMaps.ACTION_BOMB and PlayerKeyMaps.ACTION_BOMB_DOUBLE in actions_pressed) or
+          (action_code == PlayerKeyMaps.ACTION_BOMB_DOUBLE and PlayerKeyMaps.ACTION_BOMB in actions_pressed) )):
+          actions_pressed.append(action_code)
     
       actions_processed.append(action_code)
     
@@ -2126,7 +2132,7 @@ class Menu(object):
       
     for action_code in actions_processed:
       self.action_keys_previous_state[action_code] = True
-
+    
     for action in actions_pressed:
       self.action_pressed(action_code)
      
@@ -2138,7 +2144,7 @@ class Menu(object):
   ## Is called once for every action key press (not each frame, which is
   #  not good for menus). This can be overridden.
   
-  def action_pressed(self, action):    
+  def action_pressed(self, action):     
     if action == PlayerKeyMaps.ACTION_UP:
       self.selected_item = (max(0,self.selected_item[0] - 1),self.selected_item[1])
     elif action == PlayerKeyMaps.ACTION_DOWN:
@@ -2149,7 +2155,7 @@ class Menu(object):
     elif action == PlayerKeyMaps.ACTION_RIGHT:
       new_column = min(len(self.items) - 1,self.selected_item[1] + 1)
       self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
-    elif action == PlayerKeyMaps.ACTION_BOMB:
+    elif action == PlayerKeyMaps.ACTION_BOMB or action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:
       self.state = Menu.MENU_STATE_CONFIRM
     elif action == PlayerKeyMaps.ACTION_SPECIAL:
       self.state = Menu.MENU_STATE_CANCEL
@@ -2195,8 +2201,54 @@ class PlaySetupMenu(Menu):
   def __init__(self, play_setup):
     super(PlaySetupMenu,self).__init__()
     self.play_setup = play_setup
-    self.items = [["back"]]
-  
+    self.update_items()
+    
+  def update_items(self):
+    self.items = [[],[]]
+    
+    dark_grey = (50,50,50)
+      
+    for i in range(10):
+      slot_color = COLOR_RGB_VALUES[i] if i != COLOR_BLACK else dark_grey  # black with black border not visible, use dark grey
+      
+      self.items[0].append("^" + Renderer.rgb_to_html_notation(slot_color) + str(i) + "^#FFFFFF: ")
+      
+      slot = self.play_setup.get_slots()[i]
+      
+      if slot == None:
+        self.items[0][-1] += "-"
+        self.items[1].append("-")
+      else:
+        team_color = COLOR_RGB_VALUES[slot[1]] if slot[1] != COLOR_BLACK else dark_grey
+        self.items[0][-1] += ("player " + str(slot[0] + 1)) if slot[0] >= 0 else "AI"
+        self.items[1].append("^" + Renderer.rgb_to_html_notation(team_color) + str(slot[1] + 1))    # team number
+   
+  def action_pressed(self, action):
+    super(PlaySetupMenu,self).action_pressed(action)
+    
+    if self.state == Menu.MENU_STATE_CONFIRM:  # override behaviour for confirm button
+      slots = self.play_setup.get_slots()
+      slot = slots[self.selected_item[0]]
+      
+      if self.selected_item[1] == 0:
+        # changing players
+        
+        if slot == None:
+          new_value = 0
+        else:
+          new_value = slot[0] + 1
+          
+        slots[self.selected_item[0]] = (new_value,slot[1] if slot != None else self.selected_item[0]) if new_value <= 3 else None  
+      else:
+        # changing teams
+        
+        if slot != None:
+          slots[self.selected_item[0]] = (slot[0],(slot[1] + 1) % 10)
+      
+      self.state = Menu.MENU_STATE_SELECTING
+      
+      self.update_items()
+   
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
@@ -2346,6 +2398,12 @@ class Renderer(object):
     self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
     
     self.map_render_location = Renderer.get_map_render_position()
+
+  ## Converts (r,g,b) tuple to html #rrggbb notation.
+
+  @staticmethod
+  def rgb_to_html_notation(rgb_color):
+    return "#" + hex(rgb_color[0])[2:].zfill(2) + hex(rgb_color[1])[2:].zfill(2) + hex(rgb_color[2])[2:].zfill(2)
      
   ## Returns colored image from another image (replaces red color with given color). This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
@@ -3308,6 +3366,7 @@ class Game(object):
   GAME_STATE_MENU_MAIN = 2
   GAME_STATE_MENU_SETTINGS = 3
   GAME_STATE_MENU_ABOUT = 4
+  GAME_STATE_MENU_PLAY_SETUP = 5
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -3345,7 +3404,9 @@ class Game(object):
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_EXIT
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
-        if self.active_menu.get_selected_item() == (1,0):
+        if self.active_menu.get_selected_item() == (0,0):
+          new_state = Game.GAME_STATE_MENU_PLAY_SETUP
+        elif self.active_menu.get_selected_item() == (1,0):
           new_state = Game.GAME_STATE_MENU_SETTINGS
         elif self.active_menu.get_selected_item() == (2,0):
           new_state = Game.GAME_STATE_MENU_ABOUT
@@ -3361,6 +3422,11 @@ class Game(object):
       self.active_menu = self.menu_about
       
       if self.active_menu.get_state() in (Menu.MENU_STATE_CONFIRM,Menu.MENU_STATE_CANCEL):
+        new_state = Game.GAME_STATE_MENU_MAIN
+    elif self.state == Game.GAME_STATE_MENU_PLAY_SETUP: 
+      self.active_menu = self.menu_play_setup
+      
+      if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_MAIN
     
     if new_state != self.state:  # going to new state
