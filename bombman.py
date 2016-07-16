@@ -2053,11 +2053,14 @@ class Menu(object):
   MENU_STATE_CONFIRM = 1       ##< menu has been confirmed
   MENU_STATE_CANCEL = 2        ##< menu has been cancelled
   
+  MENU_MAX_ITEMS_VISIBLE = 11
+  
   def __init__(self):
     self.text = ""
-    self.selected_item = (0,0)      ## row, column
+    self.selected_item = (0,0)      ##< row, column
     self.items = []
     self.menu_left = False
+    self.scroll_position = 0        ##< index of the first visible row
     self.action_keys_previous_state = {
       PlayerKeyMaps.ACTION_UP : True,
       PlayerKeyMaps.ACTION_RIGHT : True,
@@ -2069,8 +2072,8 @@ class Menu(object):
     self.state = Menu.MENU_STATE_SELECTING
     pass
 
-  def set_title(self, title):
-    self.title = title
+  def get_scroll_position(self):
+    return self.scroll_position
 
   def get_state(self):
     return self.state
@@ -2145,6 +2148,11 @@ class Menu(object):
       self.state = Menu.MENU_STATE_CONFIRM
     elif action == PlayerKeyMaps.ACTION_SPECIAL:
       self.state = Menu.MENU_STATE_CANCEL
+      
+    if self.selected_item[0] >= self.scroll_position + Menu.MENU_MAX_ITEMS_VISIBLE:
+      self.scroll_position += 1
+    elif self.selected_item[0] < self.scroll_position:
+      self.scroll_position -= 1
     
 class MainMenu(Menu):
   def __init__(self):
@@ -2200,6 +2208,7 @@ class MapSelectMenu(Menu):
 class PlaySetupMenu(Menu):
   def __init__(self, play_setup):
     super(PlaySetupMenu,self).__init__()
+    self.selected_item = (0,1)
     self.play_setup = play_setup
     self.update_items()
     
@@ -2208,6 +2217,9 @@ class PlaySetupMenu(Menu):
     
     dark_grey = (50,50,50)
       
+    self.items[0].append("back")
+    self.items[1].append("next")
+         
     for i in range(10):
       slot_color = COLOR_RGB_VALUES[i] if i != COLOR_BLACK else dark_grey  # black with black border not visible, use dark grey
       
@@ -2223,15 +2235,12 @@ class PlaySetupMenu(Menu):
         self.items[0][-1] += ("player " + str(slot[0] + 1)) if slot[0] >= 0 else "AI"
         self.items[1].append("^" + Renderer.rgb_to_html_notation(team_color) + str(slot[1] + 1))    # team number
   
-    self.items[0].append("back")
-    self.items[1].append("next")
-  
   def action_pressed(self, action):
     super(PlaySetupMenu,self).action_pressed(action)
     
-    if self.state == Menu.MENU_STATE_CONFIRM and self.selected_item[0] <= 9:  # override behaviour for confirm button
+    if self.state == Menu.MENU_STATE_CONFIRM and self.selected_item[0] > 0:  # override behaviour for confirm button
       slots = self.play_setup.get_slots()
-      slot = slots[self.selected_item[0]]
+      slot = slots[self.selected_item[0] - 1]
       
       if self.selected_item[1] == 0:
         # changing players
@@ -2241,12 +2250,12 @@ class PlaySetupMenu(Menu):
         else:
           new_value = slot[0] + 1
           
-        slots[self.selected_item[0]] = (new_value,slot[1] if slot != None else self.selected_item[0]) if new_value <= 3 else None  
+        slots[self.selected_item[0] - 1] = (new_value,slot[1] if slot != None else self.selected_item[0] - 1) if new_value <= 3 else None  
       else:
         # changing teams
         
         if slot != None:
-          slots[self.selected_item[0]] = (slot[0],(slot[1] + 1) % 10)
+          slots[self.selected_item[0] - 1] = (slot[0],(slot[1] + 1) % 10)
       
       self.state = Menu.MENU_STATE_SELECTING
       
@@ -2359,6 +2368,10 @@ class Renderer(object):
     # load gui images:
     self.gui_images = {}
     self.gui_images["info board"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_info_board.png"))   
+    self.gui_images["arrow up"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_up.png"))   
+    self.gui_images["arrow down"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_down.png"))   
+    self.gui_images["seeker"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_seeker.png"))   
+    
     self.player_info_board_images = [None for i in range(10)]  # up to date infoboard image for each player
 
     self.gui_images["out"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_out.png"))   
@@ -2732,15 +2745,30 @@ class Renderer(object):
     
     items_y = y
     
+    # render scrollbar if needed:
+    rows = 0
+    
+    for column in menu_items:
+      rows = max(rows,len(column))
+
+    if rows > Menu.MENU_MAX_ITEMS_VISIBLE:
+      x = xs[0] - 100
+      
+      result.blit(self.gui_images["arrow up"],(x,self.screen_center[1] - 30))
+      result.blit(self.gui_images["arrow down"],(x,self.screen_center[1] + 270))
+      
+      scrollbar_position = (self.screen_center[1] - 10 + selected_coordinates[0] / float(rows) * 270)
+      result.blit(self.gui_images["seeker"],(x,scrollbar_position))
+    
     for j in range(len(menu_items)):
       y = items_y
       
-      for i in range(len(menu_items[j])):
-        item_image = self.menu_item_images[(j,i)][1]
+      for i in range(min(Menu.MENU_MAX_ITEMS_VISIBLE,len(menu_items[j]) - menu_to_render.get_scroll_position())):
+        item_image = self.menu_item_images[(j,i + menu_to_render.get_scroll_position())][1]
         
         x = xs[j] - item_image.get_size()[0] / 2
         
-        if (i,j) == selected_coordinates:
+        if (i + menu_to_render.get_scroll_position(),j) == selected_coordinates:
           pygame.draw.rect(result,(255,0,0),pygame.Rect(x - 4,y - 2,item_image.get_size()[0] + 8,item_image.get_size()[1] + 4))
         
         result.blit(item_image,(x,y))
@@ -3432,8 +3460,10 @@ class Game(object):
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_MAIN
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
-        if self.active_menu.get_selected_item() == (10,1):
+        if self.active_menu.get_selected_item() == (0,1):
           new_state = Game.GAME_STATE_MENU_MAP_SELECT
+        elif self.active_menu.get_selected_item() == (0,0):
+          new_state = Game.GAME_STATE_MENU_MAIN
     elif self.state == Game.GAME_STATE_MENU_MAP_SELECT:
       self.active_menu = self.menu_map_select
       
@@ -3483,8 +3513,7 @@ class Game(object):
       else:   # in menu
         self.manage_menus()
         self.screen.blit(self.renderer.render_menu(self.active_menu),(0,0))  
-            
-  #    self.screen.blit(self.renderer.render_map(self.game_map),(0,0))
+
       pygame.display.flip()
       
       self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
