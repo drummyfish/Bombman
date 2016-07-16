@@ -66,21 +66,6 @@ import copy
 import random
 import time
 
-MAP1 = ("env1;"
-        "kxb;"
-        "dddddddbbbbbfffffffFkkksssssspppddddmrxxxxettt;"
-        "x T d x x x x x . x x . . x x"
-        ". 0 . . . l x B 9 . x x . 3 x"
-        "V . . A T x x x . x x . x x x"
-        "x u r . 4 . x D x x A 5 x x x"
-        "x x x L T x V x x R x . x x x"
-        "# x x x x x V x # # x x x x #"
-        "x x x x . x x x x x x T x x x"
-        "x x x x 7 . x U x x . 6 . x x"
-        "x . x x . x x . x x x . x . x"
-        ". 2 . x x x . 8 B x x x . 1 ."
-        "x . x x x x x . x x x x x . x")
-
 # colors used for players and teams
 COLOR_WHITE = 0
 COLOR_BLACK = 1
@@ -122,6 +107,7 @@ COLOR_NAMES = [
   ]
 
 RESOURCE_PATH = "resources"
+MAP_PATH = "maps"
 
 ## Something that has a float position on the map.
 
@@ -204,7 +190,7 @@ class Player(Positionable):
 
   def __init__(self):
     super(Player,self).__init__()
-    self.number = 0                       ##< players number
+    self.number = 0                       ##< player's number
     self.team_number = 0                  ##< team number, determines player's color
     self.state = Player.STATE_IDLE_DOWN
     self.state_time = 0                   ##< how much time (in ms) has been spent in current state
@@ -220,7 +206,7 @@ class Player(Positionable):
     self.has_boxing_glove = False
     self.has_throwing_glove = False
     self.boxing = False
-    self.detonator_bombs_left = 0          ##< what number of following bombs will have detonators
+    self.detonator_bombs_left = 0         ##< what number of following bombs will have detonators
     self.detonator_bombs = []             ##< references to bombs to be detonated
     self.wait_for_special_release = False ##< helper used to wait for special key release
     self.wait_for_bomb_release = False
@@ -2197,6 +2183,20 @@ class AboutMenu(Menu):
                  "includes Python 2.7, Pygame, GIMP, Kate, Audacity and Ubuntu Linux.")
     self.items = [["ok, nice, back"]]
 
+class MapSelectMenu(Menu):
+  def __init__(self):
+    super(MapSelectMenu,self).__init__()
+    self.text = "Now select a map."
+    self.update_items()
+    
+  def update_items(self):
+    map_filenames = [filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))]
+
+    self.items = [[]]
+
+    for filename in map_filenames:
+      self.items[0].append(filename)
+
 class PlaySetupMenu(Menu):
   def __init__(self, play_setup):
     super(PlaySetupMenu,self).__init__()
@@ -2222,11 +2222,14 @@ class PlaySetupMenu(Menu):
         team_color = COLOR_RGB_VALUES[slot[1]] if slot[1] != COLOR_BLACK else dark_grey
         self.items[0][-1] += ("player " + str(slot[0] + 1)) if slot[0] >= 0 else "AI"
         self.items[1].append("^" + Renderer.rgb_to_html_notation(team_color) + str(slot[1] + 1))    # team number
-   
+  
+    self.items[0].append("back")
+    self.items[1].append("next")
+  
   def action_pressed(self, action):
     super(PlaySetupMenu,self).action_pressed(action)
     
-    if self.state == Menu.MENU_STATE_CONFIRM:  # override behaviour for confirm button
+    if self.state == Menu.MENU_STATE_CONFIRM and self.selected_item[0] <= 9:  # override behaviour for confirm button
       slots = self.play_setup.get_slots()
       slot = slots[self.selected_item[0]]
       
@@ -2708,13 +2711,11 @@ class Renderer(object):
     
     # render menu description text
     
-    y = self.screen_center[1] - 100
+    y = self.screen_center[1] - 80
     
     if len(menu_to_render.get_text()) != 0:
       result.blit(self.menu_item_images[0][1],(self.screen_center[0] - self.menu_item_images[0][1].get_size()[0] / 2,y))    # menu description text image is at index 0      
       y += self.menu_item_images[0][1].get_size()[1] + Renderer.MENU_LINE_SPACING * 2
-    
-    y = max(y,self.screen_center[1])
     
     menu_items = menu_to_render.get_items()
     
@@ -3367,6 +3368,7 @@ class Game(object):
   GAME_STATE_MENU_SETTINGS = 3
   GAME_STATE_MENU_ABOUT = 4
   GAME_STATE_MENU_PLAY_SETUP = 5
+  GAME_STATE_MENU_MAP_SELECT = 6
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -3390,6 +3392,7 @@ class Game(object):
     self.menu_settings = SettingsMenu()
     self.menu_about = AboutMenu()
     self.menu_play_setup = PlaySetupMenu(self.play_setup)
+    self.menu_map_select = MapSelectMenu()
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
@@ -3428,6 +3431,14 @@ class Game(object):
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_MAIN
+      elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
+        if self.active_menu.get_selected_item() == (10,1):
+          new_state = Game.GAME_STATE_MENU_MAP_SELECT
+    elif self.state == Game.GAME_STATE_MENU_MAP_SELECT:
+      self.active_menu = self.menu_map_select
+      
+      if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
+        new_state = Game.GAME_STATE_MENU_PLAY_SETUP
     
     if new_state != self.state:  # going to new state
       self.state = new_state
@@ -3438,7 +3449,12 @@ class Game(object):
   def run(self):
     time_before = pygame.time.get_ticks()
 
-    self.game_map = Map(MAP1,self.play_setup)
+    # TEMP CODE
+    with open("maps/classic") as myfile:
+      data=myfile.read().replace('\n', '')
+
+    self.game_map = Map(data,self.play_setup)
+    # END OF TEMP CODE
 
     self.ais = []
     player_slots = self.play_setup.get_slots()
