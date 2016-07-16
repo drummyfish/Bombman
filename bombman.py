@@ -106,6 +106,8 @@ COLOR_RGB_VALUES = [
   (209,117,206)            # purple
   ]
 
+VERSION_STR = "0.1"
+
 COLOR_NAMES = [
   "white",
   "black",
@@ -2063,7 +2065,6 @@ class Menu(object):
   MENU_STATE_CANCEL = 2        ##< menu has been cancelled
   
   def __init__(self):
-    self.tile = ""
     self.text = ""
     self.selected_item = (0,0)      ## row, column
     self.items = []
@@ -2083,12 +2084,6 @@ class Menu(object):
 
   def get_state(self):
     return self.state
-    
-  def get_title(self):
-    return self.title
-  
-  def set_text(self, text):
-    self.text = text
     
   def get_text(self):
     return self.text
@@ -2181,7 +2176,14 @@ class SettingsMenu(Menu):
 class AboutMenu(Menu):
   def __init__(self):
     super(AboutMenu,self).__init__() 
-    self.text = "Bombman, an open-source Atomic Bomberman clone."
+    self.text = ("Bombman - an open-source Atomic Bomberman clone, version " + VERSION_STR + ".\n"
+                 "copyright Miloslav \"tastyfish\" Ciz, 2016\n\n"
+                 "This software is published under GPL license version 3. It's goal is to recreate\n"
+                 "a wonderful experience of Atomic Bomberman, a game that is due to its age no\n"
+                 "longer easily playable. This project aims to only provide fun and intends to make\n"
+                 "no money. All graphics was made by the autor using free software only. Sound\n"
+                 "resources were used under CC attribution license. Software used to make this game\n"
+                 "includes Python 2.7, Pygame, GIMP, Kate, Audacity and Ubuntu Linux.")
     self.items = [["ok, nice, back"]]
   
 class Renderer(object):
@@ -2202,6 +2204,7 @@ class Renderer(object):
   
   FONT_SMALL_SIZE = 12
   FONT_NORMAL_SIZE = 20
+  MENU_LINE_SPACING = 10
   MENU_FONT_COLOR = (255,255,255)
 
   def __init__(self):
@@ -2496,6 +2499,42 @@ class Renderer(object):
     for animation_event in animation_event_list:
       self.animations[animation_event[0]].play(animation_event[1])
 
+  ## Renders text with borders, line breaks, formatting, etc.
+
+  def render_text(self, font, text_to_render, color, border_color = (0,0,0), center = False):
+    text_lines = text_to_render.split("\n")
+    rendered_lines = []
+    
+    height = 0 
+    width = 0
+    
+    first = True
+    
+    for text_line in text_lines:
+      new_rendered_line = font.render(text_line,True,border_color) # create text with borders
+      new_rendered_line.blit(new_rendered_line,(0,2))
+      new_rendered_line.blit(new_rendered_line,(1,0))
+      new_rendered_line.blit(new_rendered_line,(-1,0))
+      new_rendered_line.blit(font.render(text_line,True,color),(0,1))      
+      rendered_lines.append(new_rendered_line)
+
+      if first:
+        first = False
+      else:
+        height += Renderer.MENU_LINE_SPACING
+      
+      height += rendered_lines[-1].get_size()[1]
+      width = max(width,rendered_lines[-1].get_size()[0])
+    
+    result = pygame.Surface((width,height),flags=pygame.SRCALPHA)
+    
+    y_step = font.get_height() + Renderer.MENU_LINE_SPACING
+    
+    for i in range(len(rendered_lines)):
+      result.blit(rendered_lines[i],(0 if not center else (width - rendered_lines[i].get_size()[0]) / 2,i * y_step))
+    
+    return result
+
   ## Updates images in self.menu_item_images (only if needed).
 
   def update_menu_item_images(self, menu):
@@ -2504,33 +2543,40 @@ class Renderer(object):
     
     items = menu.get_items()
 
+    item_coordinates = []
+    
     for j in range(len(items)):
       for i in range(len(items[j])):
-        update_needed = False
-        
-        menu_coordinates = (j,i)
-        
-        if not (menu_coordinates in self.menu_item_images):
-          update_needed = True
-        
-        item_text = items[j][i]
+        item_coordinates.append((j,i))
+    
+    if len(menu.get_text()) != 0:
+      item_coordinates.append(0)       # this is the menu description text
 
-        if not update_needed and item_text != self.menu_item_images[menu_coordinates][0]:
-          update_needed = True          
+    for menu_coordinates in item_coordinates:
+      update_needed = False
+        
+      if not (menu_coordinates in self.menu_item_images):
+        update_needed = True
+    
+      if menu_coordinates == 0:
+        item_text = menu.get_text()
+        center_text = True
+      else:
+        item_text = items[menu_coordinates[0]][menu_coordinates[1]]
+        center_text = False
+      
+      if not update_needed and item_text != self.menu_item_images[menu_coordinates][0]:
+        update_needed = True        
           
-        if update_needed:
-          print("updating menu item " + str(menu_coordinates))
-
-          # first create the text border in roder to be visible on the background
-          new_image = self.font_normal.render(item_text,True,(0,0,0))
-          new_image.blit(new_image,(0,2))
-          new_image.blit(new_image,(1,0))
-          new_image.blit(new_image,(-1,0))
+      if update_needed:
+        print("updating menu item " + str(menu_coordinates))
           
-          # text itself
-          new_image.blit(self.font_normal.render(item_text,True,Renderer.MENU_FONT_COLOR),(0,1))
+        new_image = self.render_text(self.font_normal,item_text,Renderer.MENU_FONT_COLOR,center = center_text)
           
-          self.menu_item_images[menu_coordinates] = (item_text,new_image)
+        # text itself
+        new_image.blit(new_image,(0,1))
+          
+        self.menu_item_images[menu_coordinates] = (item_text,new_image)
     
   def render_menu(self, menu_to_render):
     result = pygame.Surface(self.screen_resolution)
@@ -2541,6 +2587,16 @@ class Renderer(object):
     result.blit(self.menu_background_image,(self.screen_center[0] - self.menu_background_image.get_size()[0] / 2,self.screen_center[1] - self.menu_background_image.get_size()[1] / 2))
     
     self.update_menu_item_images(menu_to_render)
+    
+    # render menu description text
+    
+    y = self.screen_center[1] - 100
+    
+    if len(menu_to_render.get_text()) != 0:
+      result.blit(self.menu_item_images[0][1],(self.screen_center[0] - self.menu_item_images[0][1].get_size()[0] / 2,y))    # menu description text image is at index 0      
+      y += self.menu_item_images[0][1].get_size()[1] + Renderer.MENU_LINE_SPACING * 2
+    
+    y = max(y,self.screen_center[1])
     
     menu_items = menu_to_render.get_items()
     
@@ -2555,8 +2611,10 @@ class Renderer(object):
     
     selected_coordinates = menu_to_render.get_selected_item()
     
+    items_y = y
+    
     for j in range(len(menu_items)):
-      y = self.screen_center[1]
+      y = items_y
       
       for i in range(len(menu_items[j])):
         item_image = self.menu_item_images[(j,i)][1]
@@ -2568,7 +2626,7 @@ class Renderer(object):
         
         result.blit(item_image,(x,y))
         
-        y += Renderer.FONT_NORMAL_SIZE + 20
+        y += Renderer.FONT_NORMAL_SIZE + Renderer.MENU_LINE_SPACING
     
     return result
 
