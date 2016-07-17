@@ -1785,11 +1785,34 @@ class PlayerKeyMaps(object):
     self.key_maps[key_bomb]    = (player_number,PlayerKeyMaps.ACTION_BOMB)
     self.key_maps[key_special] = (player_number,PlayerKeyMaps.ACTION_SPECIAL)
 
+  ## Gets a dict that says how keys are mapped for a specific player. Format: {action_code : key_code, ...}, the
+  #  dict will contain all actions and possibly None values for unmapped actions.
+
+  def get_players_key_mapping(self, player_number):
+    result = {action : None for action in (
+      PlayerKeyMaps.ACTION_UP,
+      PlayerKeyMaps.ACTION_RIGHT,
+      PlayerKeyMaps.ACTION_DOWN,
+      PlayerKeyMaps.ACTION_LEFT,
+      PlayerKeyMaps.ACTION_BOMB,
+      PlayerKeyMaps.ACTION_SPECIAL)}
+    
+    for key in self.key_maps:
+      if self.key_maps[key][0] == player_number:
+        result[self.key_maps[key][1]] = key
+    
+    return result
+
   def allow_control_by_mouse(self, allow=True):
    self.allow_mouse_control = allow
 
   def set_special_key_map(self, key_menu):
-    self.key_maps[key_menu]      = (-1,PlayerKeyMaps.ACTION_MENU)
+    self.key_maps[key_menu] = (-1,PlayerKeyMaps.ACTION_MENU)
+
+  def get_menu_key_map(self):
+    for key in self.key_maps:
+      if self.key_maps[key][0] == -1:
+        return self.key_maps[key][1]
 
   ## From currently pressed keys makes a list of actions being currently performed and returns it, format: (player_number, action).
 
@@ -2165,18 +2188,110 @@ class MainMenu(Menu):
       "run away!")]
   
 class SettingsMenu(Menu):
-  def __init__(self):
-    super(SettingsMenu,self).__init__()
+  COLOR_ON = "^#1DF53A"
+  COLOR_OFF = "^#F51111"
   
+  def __init__(self, settings):
+    super(SettingsMenu,self).__init__()
+    self.settings = settings    
+    self.update_items()
+    
+  def bool_to_str(self, bool_value):
+    return SettingsMenu.COLOR_ON + "on" if bool_value else SettingsMenu.COLOR_OFF + "off"
+    
+  def update_items(self):
     self.items = [(
-      "sounds volume: 100 %",
-      "music volume: 100 %",
-      "screen resolution: 640 x 480",
-      "allow control by mouse: on",
+      "sound volume: " + (SettingsMenu.COLOR_ON if self.settings.sound_is_on() else SettingsMenu.COLOR_OFF) + str(int(self.settings.sound_volume * 100)) + " %",
+      "music volume: " + (SettingsMenu.COLOR_ON if self.settings.music_is_on() > 0.0 else SettingsMenu.COLOR_OFF) + str(int(self.settings.music_volume * 100)) + " %",
+      "screen resolution: " + str(self.settings.screen_resolution[0]) + " x " + str(self.settings.screen_resolution[1]),
+      "fullscreen: " + self.bool_to_str(self.settings.fullscreen),
+      "allow control by mouse: " + self.bool_to_str(self.settings.control_by_mouse),
       "configure controls",
       "complete reset",
       "back"
-      )]
+      )]    
+    
+  def action_pressed(self, action):
+    super(SettingsMenu,self).action_pressed(action)
+    
+    if action == PlayerKeyMaps.ACTION_RIGHT:
+      if self.selected_item == (0,0):
+        self.settings.sound_volume = min(1.0,self.settings.sound_volume + 0.1)
+      elif self.selected_item == (1,0):
+        self.settings.music_volume = min(1.0,self.settings.music_volume + 0.1)
+      elif self.selected_item == (2,0):
+        self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() + 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]      
+      elif self.selected_item == (3,0):
+        self.settings.fullscreen = not self.settings.fullscreen
+      elif self.selected_item == (4,0):
+        self.settings.control_by_mouse = not self.settings.control_by_mouse
+    elif action == PlayerKeyMaps.ACTION_LEFT:
+      if self.selected_item == (0,0):
+        self.settings.sound_volume = max(0.0,self.settings.sound_volume - 0.1)
+      elif self.selected_item == (1,0):
+        self.settings.music_volume = max(0.0,self.settings.music_volume - 0.1)
+      elif self.selected_item == (2,0):
+        self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() - 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]
+      elif self.selected_item == (3,0):
+        self.settings.fullscreen = not self.settings.fullscreen
+      elif self.selected_item == (4,0):
+        self.settings.control_by_mouse = not self.settings.control_by_mouse
+
+    self.update_items()
+
+class ControlsMenu(Menu):
+  def __init__(self, player_key_maps):
+    super(ControlsMenu,self).__init__()
+    self.player_key_maps = player_key_maps
+    self.update_items()
+    
+  def key_to_string(self, key):
+    if key == None:
+      return "^#E83535none"
+    
+    if key == PlayerKeyMaps.MOUSE_CONTROL_UP:
+      result = "m up"
+    elif key == PlayerKeyMaps.MOUSE_CONTROL_RIGHT:
+      result = "m right"
+    elif key == PlayerKeyMaps.MOUSE_CONTROL_DOWN:
+      result = "m down"
+    elif key == PlayerKeyMaps.MOUSE_CONTROL_LEFT:
+      result = "m left"
+    elif key == PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L:
+      result = "m L"
+    elif key == PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M:
+      result = "m M"
+    elif key == PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R:
+      result = "m R"
+    else:
+      result = pygame.key.name(key)
+    
+      if result == "unknown key":
+        result = str(key)
+    
+    return "^#38A8F2" + result
+    
+  def update_items(self):
+    self.items = [[]]
+    
+    for i in range(4):  # 4 possible players
+      player_string = "p " + str(i + 1)
+      
+      player_maps = self.player_key_maps.get_players_key_mapping(i)
+      
+      self.items[0] += [
+        player_string + " up: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_UP]),
+        player_string + " right: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_RIGHT]),
+        player_string + " down: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_DOWN]),
+        player_string + " left: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_LEFT]),
+        player_string + " bomb: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_BOMB]),
+        player_string + " special: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_SPECIAL])
+        ]
+    
+    self.items[0] += [
+      "open menu: " + self.key_to_string(self.player_key_maps.get_menu_key_map()),
+      "back"
+      ]
 
 class AboutMenu(Menu):
   def __init__(self):
@@ -3388,7 +3503,35 @@ class AI(object):
         return True
       
     return False
-       
+      
+class Settings(object):
+  POSSIBLE_SCREEN_RESOLUTIONS = (
+    (800,600),
+    (1024,768),
+    (1366,768)
+    )
+  
+  SOUND_VOLUME_THRESHOLD = 0.01
+  
+  def __init__(self):
+    self.reset()
+     
+  def reset(self):
+    self.sound_volume = 0.8
+    self.music_volume = 0.8
+    self.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[0]
+    self.fullscreen = False
+    self.control_by_mouse = False
+     
+  def sound_is_on(self):
+    return self.sound_volume > Settings.SOUND_VOLUME_THRESHOLD
+  
+  def music_is_on(self):
+    return self.music_volume > Settings.SOUND_VOLUME_THRESHOLD
+   
+  def current_resolution_index(self):
+    return next((i for i in range(len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)) if self.screen_resolution == Settings.POSSIBLE_SCREEN_RESOLUTIONS[i]),0)
+   
 class Game(object):
   GAME_STATE_PLAYING = 0
   GAME_STATE_EXIT = 1
@@ -3397,6 +3540,7 @@ class Game(object):
   GAME_STATE_MENU_ABOUT = 4
   GAME_STATE_MENU_PLAY_SETUP = 5
   GAME_STATE_MENU_MAP_SELECT = 6
+  GAME_STATE_MENU_CONTROL_SETTINGS = 7
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -3413,14 +3557,16 @@ class Game(object):
 
     self.renderer = Renderer()
     self.sound_player = SoundPlayer()
+    self.settings = Settings()
     
     self.play_setup = PlaySetup()
     
     self.menu_main = MainMenu()
-    self.menu_settings = SettingsMenu()
+    self.menu_settings = SettingsMenu(self.settings)
     self.menu_about = AboutMenu()
     self.menu_play_setup = PlaySetupMenu(self.play_setup)
     self.menu_map_select = MapSelectMenu()
+    self.menu_controls = ControlsMenu(self.player_key_maps)
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
@@ -3448,7 +3594,16 @@ class Game(object):
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_MAIN
-        self.active_menu.leaving()
+      elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
+        if self.active_menu.get_selected_item() == (5,0):
+          new_state = Game.GAME_STATE_MENU_CONTROL_SETTINGS
+
+    elif self.state == Game.GAME_STATE_MENU_CONTROL_SETTINGS:
+      self.active_menu = self.menu_controls
+      
+      if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
+        new_state = Game.GAME_STATE_MENU_SETTINGS
+
     elif self.state == Game.GAME_STATE_MENU_ABOUT: 
       self.active_menu = self.menu_about
       
