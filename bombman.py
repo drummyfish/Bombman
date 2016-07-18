@@ -1677,15 +1677,9 @@ class PlaySetup(object):
 
     # default setup, player 0 vs 3 AI players:
     self.player_slots[0] = (0,0)
-    self.player_slots[1] = (1,1)
+    self.player_slots[1] = (-1,1)
     self.player_slots[2] = (-1,2)
-    self.player_slots[3] = (-1,3)   
-#    self.player_slots[4] = (-1,1)
-#    self.player_slots[5] = (-1,2)
-#    self.player_slots[6] = (-1,0)
-#    self.player_slots[7] = (-1,1)
-#    self.player_slots[8] = (-1,2)
-#    self.player_slots[9] = (-1,0)
+    self.player_slots[3] = (-1,3)
 
   def get_slots(self):
     return self.player_slots
@@ -2310,15 +2304,19 @@ class MapSelectMenu(Menu):
   def __init__(self):
     super(MapSelectMenu,self).__init__()
     self.text = "Now select a map."
+    self.map_filenames = []
     self.update_items()
     
   def update_items(self):
-    map_filenames = [filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))]
+    self.map_filenames = [filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))]
 
     self.items = [[]]
 
-    for filename in map_filenames:
+    for filename in self.map_filenames:
       self.items[0].append(filename)
+      
+  def get_selected_map_name(self):
+    return self.map_filenames[self.selected_item[0]]
 
 class PlaySetupMenu(Menu):
   def __init__(self, play_setup):
@@ -2361,7 +2359,7 @@ class PlaySetupMenu(Menu):
         # changing players
         
         if slot == None:
-          new_value = 0
+          new_value = -1
         else:
           new_value = slot[0] + 1
           
@@ -3541,6 +3539,7 @@ class Game(object):
   GAME_STATE_MENU_PLAY_SETUP = 5
   GAME_STATE_MENU_MAP_SELECT = 6
   GAME_STATE_MENU_CONTROL_SETTINGS = 7
+  GAME_STATE_GAME_STARTED = 8
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -3559,6 +3558,9 @@ class Game(object):
     self.sound_player = SoundPlayer()
     self.settings = Settings()
     
+    self.map_name = ""
+    self.game_map = None
+    
     self.play_setup = PlaySetup()
     
     self.menu_main = MainMenu()
@@ -3567,6 +3569,8 @@ class Game(object):
     self.menu_play_setup = PlaySetupMenu(self.play_setup)
     self.menu_map_select = MapSelectMenu()
     self.menu_controls = ControlsMenu(self.player_key_maps)
+    
+    self.ais = []
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
@@ -3624,6 +3628,9 @@ class Game(object):
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_PLAY_SETUP
+      elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
+        self.map_name = self.active_menu.get_selected_map_name()
+        new_state = Game.GAME_STATE_GAME_STARTED
     
     if new_state != self.state:  # going to new state
       self.state = new_state
@@ -3633,20 +3640,6 @@ class Game(object):
 
   def run(self):
     time_before = pygame.time.get_ticks()
-
-    # TEMP CODE
-    with open("maps/classic") as myfile:
-      data=myfile.read().replace('\n', '')
-
-    self.game_map = Map(data,self.play_setup)
-    # END OF TEMP CODE
-
-    self.ais = []
-    player_slots = self.play_setup.get_slots()
-    
-    for i in range(len(player_slots)):
-      if player_slots[i] != None and player_slots[i][0] < 0:  # indicates AI
-        self.ais.append(AI(self.game_map.get_players_by_numbers()[i],self.game_map))
 
     self.sound_player.change_music()
 
@@ -3662,21 +3655,33 @@ class Game(object):
           sys.exit()
 
       if self.state == Game.GAME_STATE_PLAYING:
-        pass  # TODO: add code here
+        self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
+        self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
+        self.screen.blit(self.renderer.render_map(self.game_map),(0,0)) 
+        self.simulation_step(dt)
+        
       elif self.state == Game.GAME_STATE_EXIT:
         sys.exit()
+      elif self.state == Game.GAME_STATE_GAME_STARTED:
+        print("game start confirmed")
+        with open(os.path.join(MAP_PATH,self.map_name)) as map_file:
+          map_data = map_file.read()
+          self.game_map = Map(map_data,self.play_setup)
+          
+        player_slots = self.play_setup.get_slots()
+        
+        for i in range(len(player_slots)):
+          if player_slots[i] != None and player_slots[i][0] < 0:  # indicates AI
+            self.ais.append(AI(self.game_map.get_players_by_numbers()[i],self.game_map))
+        
+        self.sound_player.change_music()
+        self.state = Game.GAME_STATE_PLAYING
       else:   # in menu
         self.manage_menus()
         self.screen.blit(self.renderer.render_menu(self.active_menu),(0,0))  
 
       pygame.display.flip()
-      
-      self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
-      self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
-
       pygame_clock.tick()
-
-  #    self.simulation_step(dt)
 
       if show_fps_in <= 0:
         print("fps: " + str(pygame_clock.get_fps()))
