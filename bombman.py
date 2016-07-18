@@ -1027,7 +1027,7 @@ class Map(object):
         elif tile_character == "B":
           tile.special_object = MapTile.SPECIAL_OBJECT_TELEPORT_A
           
-          if teleport_a_tile == None:
+          if teleport_b_tile == None:
             teleport_b_tile = tile
           else:
             tile.destination_teleport = teleport_b_tile.coordinates
