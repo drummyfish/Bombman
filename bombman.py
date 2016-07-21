@@ -438,8 +438,6 @@ class Player(Positionable):
         (Player.DISEASE_EARTHQUAKE,SoundPlayer.SOUND_EVENT_EARTHQUAKE)
         ])
       
-      chosen_disease = (Player.DISEASE_EARTHQUAKE,SoundPlayer.SOUND_EVENT_EARTHQUAKE)
-      
       if chosen_disease[0] == Player.DISEASE_SWITCH_PLAYERS:
         if game_map != None:
           players = game_map.get_players()
@@ -961,7 +959,7 @@ class Map(object):
   STATE_FINISHING = 2          ##< game is over but the map is still being updated for a while after
   STATE_GAME_OVER = 3          ##< the game is definitely over and should no longer be updated
   
-  EARTHQUAKE_TIME = 7000
+  EARTHQUAKE_DURATION = 10000
   
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
@@ -1104,7 +1102,7 @@ class Map(object):
     self.items_to_give_away = []   ##< list of tuples in format (time_of_giveaway, list_of_items)
 
   def start_earthquake(self):
-    self.earthquake_time_left = Map.EARTHQUAKE_TIME
+    self.earthquake_time_left = Map.EARTHQUAKE_DURATION
 
   def earthquake_is_active(self):
     return self.earthquake_time_left > 0
@@ -2408,7 +2406,8 @@ class AboutMenu(Menu):
                  "longer easily playable. This project aims to only provide fun and intends to make\n"
                  "no money. All graphics was made by the autor using free software only. Sound\n"
                  "resources were used under CC attribution license. Software used to make this game\n"
-                 "includes Python 2.7, Pygame, GIMP, Kate, Audacity and Ubuntu Linux.")
+                 "includes Python 2.7, Pygame, GIMP, Kate, Audacity and Ubuntu Linux. Special thanks\n"
+                 "goes to freesound.org and freemusicarchive.org for providing free audio resources.")
     self.items = [["ok, nice, back"]]
 
 class MapSelectMenu(Menu):
@@ -2419,7 +2418,7 @@ class MapSelectMenu(Menu):
     self.update_items()
     
   def update_items(self):
-    self.map_filenames = [filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))]
+    self.map_filenames = sorted([filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))])
 
     self.items = [[]]
 
@@ -3100,15 +3099,21 @@ class Renderer(object):
           color_index = object_to_render.get_number() if map_to_render.get_state() == Map.STATE_WAITING_TO_PLAY else object_to_render.get_team_number()
           
           if object_to_render.is_in_air():
-            image_to_render = self.player_images[color_index]["down"]
-            draw_shadow = False
+            # player is in air
           
             if object_to_render.get_state_time() < Player.JUMP_DURATION / 2:
               quotient = abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
             else:
               quotient = 2.0 - abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
               
-            relative_offset[1] = -1 * int(quotient * Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT)
+            scale = (1 + 0.5 * quotient)
+              
+            player_image = self.player_images[color_index]["down"]
+            image_to_render = pygame.transform.scale(player_image,(int(scale * player_image.get_size()[0]),int(scale * player_image.get_size()[1])))
+            draw_shadow = False
+              
+            relative_offset[0] = -1 * (image_to_render.get_size()[0] / 2 - Renderer.PLAYER_SPRITE_CENTER[0])              # offset cause by scale  
+            relative_offset[1] = -1 * int(math.sin(quotient * math.pi / 2.0) * Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT) # height offset
           elif object_to_render.is_teleporting():
             
             if animation_frame == 0:
