@@ -110,6 +110,7 @@ NUMBER_OF_CONTROLLED_PLAYERS = 4    ##< maximum number of non-AI players
 
 RESOURCE_PATH = "resources"
 MAP_PATH = "maps"
+SETTINGS_FILE_PATH = "settings.txt"
 
 ## Something that has a float position on the map.
 
@@ -1693,7 +1694,7 @@ class StringSerializable(object):
     return ""
   
   def load_from_string(self, input_string):
-    pass
+    return
   
   def save_to_file(self, filename):
     text_file = open(filename,"w")
@@ -1787,7 +1788,7 @@ class PlayerKeyMaps(StringSerializable):
   def reset(self):
     self.allow_control_by_mouse(False)
     self.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
-    self.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
+    self.set_player_key_map(1,pygame.K_UP,pygame.K_RIGHT,pygame.K_DOWN,pygame.K_LEFT,pygame.K_RETURN,pygame.K_RSHIFT)
     self.set_player_key_map(2,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
 
   ##< Gets a direction of given action (0 - up, 1 - right, 2 - down, 3 - left).
@@ -1833,15 +1834,19 @@ class PlayerKeyMaps(StringSerializable):
     
     return result   
 
+  def set_one_key_map(self, key, player_number, action):
+    if key != None:
+      self.key_maps[key] = (player_number,action)
+
   ## Sets a key mapping for a player of specified (non-negative) number.
 
   def set_player_key_map(self, player_number, key_up, key_right, key_down, key_left, key_bomb, key_special):
-    self.key_maps[key_up]      = (player_number,PlayerKeyMaps.ACTION_UP)
-    self.key_maps[key_right]   = (player_number,PlayerKeyMaps.ACTION_RIGHT)
-    self.key_maps[key_down]    = (player_number,PlayerKeyMaps.ACTION_DOWN)
-    self.key_maps[key_left]    = (player_number,PlayerKeyMaps.ACTION_LEFT)
-    self.key_maps[key_bomb]    = (player_number,PlayerKeyMaps.ACTION_BOMB)
-    self.key_maps[key_special] = (player_number,PlayerKeyMaps.ACTION_SPECIAL)
+    self.set_one_key_map(key_up,player_number,PlayerKeyMaps.ACTION_UP)
+    self.set_one_key_map(key_right,player_number,PlayerKeyMaps.ACTION_RIGHT)
+    self.set_one_key_map(key_down,player_number,PlayerKeyMaps.ACTION_DOWN)
+    self.set_one_key_map(key_left,player_number,PlayerKeyMaps.ACTION_LEFT)
+    self.set_one_key_map(key_bomb,player_number,PlayerKeyMaps.ACTION_BOMB)
+    self.set_one_key_map(key_special,player_number,PlayerKeyMaps.ACTION_SPECIAL)
 
   ## Gets a dict that says how keys are mapped for a specific player. Format: {action_code : key_code, ...}, the
   #  dict will contain all actions and possibly None values for unmapped actions.
@@ -1865,7 +1870,7 @@ class PlayerKeyMaps(StringSerializable):
    self.allow_mouse_control = allow
 
   def set_special_key_map(self, key_menu):
-    self.key_maps[key_menu] = (-1,PlayerKeyMaps.ACTION_MENU)
+    self.set_one_key_map(key_menu,-1,PlayerKeyMaps.ACTION_MENU)
 
   ## Makes a human-readable string that represents the current key-mapping.
 
@@ -1898,7 +1903,7 @@ class PlayerKeyMaps(StringSerializable):
         key = None
       
       if line.find(PlayerKeyMaps.ACTION_NAMES[PlayerKeyMaps.ACTION_MENU]) == 0:
-        self.key_maps[action] = (-1,key)    
+        self.set_one_key_map(key,-1,action) 
       else:
         player_number = int(line[0]) - 1
         action_name = line[2:line.find(":")]
@@ -1910,7 +1915,7 @@ class PlayerKeyMaps(StringSerializable):
             action = helper_action
             break
       
-        self.key_maps[key] = (player_number,action)
+        self.set_one_key_map(key,player_number,action)
     
   def get_menu_key_map(self):
     for key in self.key_maps:
@@ -1976,7 +1981,10 @@ class PlayerKeyMaps(StringSerializable):
       pygame.mouse.set_pos(screen_center)
 
     for key_code in self.key_maps:
-      key_is_active = self.mouse_control_states[key_code] if key_code < 0 else keys_pressed[key_code]
+      try:
+        key_is_active = self.mouse_control_states[key_code] if key_code < 0 else keys_pressed[key_code]
+      except IndexError as e:
+        key_is_active = False
       
       if key_is_active:
         action_tuple = self.key_maps[key_code]  
@@ -3634,7 +3642,7 @@ class Settings(StringSerializable):
       print("loading control mapping")
       settings_string = input_string[helper_position1:helper_position2].lstrip().rstrip()
       self.player_key_maps.load_from_string(settings_string)
-      
+
       input_string = input_string[:helper_position] + input_string[helper_position2 + len(Settings.CONTROL_MAPPING_DELIMITER):]
     
     lines = input_string.split("\n")
@@ -3690,7 +3698,13 @@ class Game(object):
     self.renderer = Renderer()
     self.sound_player = SoundPlayer()
     self.settings = Settings(self.player_key_maps)
+        
+    if os.path.isfile(SETTINGS_FILE_PATH):
+      print("loading settings from file " + SETTINGS_FILE_PATH)
+      self.settings.load_from_file(SETTINGS_FILE_PATH)
     
+    self.settings.save_to_file(SETTINGS_FILE_PATH)   # reformats the file or creates a new one if there is none
+      
     self.map_name = ""
     self.game_map = None
     
@@ -3768,7 +3782,7 @@ class Game(object):
     if new_state != self.state:  # going to new state
       self.state = new_state
       self.active_menu.leaving()
-      
+    
     self.active_menu.process_inputs(self.player_key_maps.get_current_actions())
 
   def run(self):
