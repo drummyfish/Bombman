@@ -1686,10 +1686,28 @@ class PlaySetup(object):
   def get_slots(self):
     return self.player_slots
 
+## Something that can be saved/loaded to/from string.
+  
+class StringSerializable(object):
+  def save_to_string(self):
+    return ""
+  
+  def load_from_string(self, input_string):
+    pass
+  
+  def save_to_file(self, filename):
+    text_file = open(filename,"w")
+    text_file.write(self.save_to_string())
+    text_file.close()
+  
+  def load_from_file(self, filename):
+    with open(filename,"r") as text_file:
+      self.load_from_string(text_file.read())
+    
 ## Handles conversion of keyboard events to actions of players, plus general
 #  actions (such as menu, ...).
 
-class PlayerKeyMaps(object):
+class PlayerKeyMaps(StringSerializable):
   ACTION_UP = 0
   ACTION_RIGHT = 1
   ACTION_DOWN = 2
@@ -1763,6 +1781,14 @@ class PlayerKeyMaps(object):
     for item in mouse_control_constants:
       self.mouse_control_states[item] = False
       self.mouse_control_keep_until[item] = 0
+      
+    self.reset()
+
+  def reset(self):
+    self.allow_control_by_mouse(False)
+    self.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
+    self.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
+    self.set_player_key_map(2,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
 
   ##< Gets a direction of given action (0 - up, 1 - right, 2 - down, 3 - left).
 
@@ -2271,8 +2297,8 @@ class SettingsMenu(Menu):
   def __init__(self, settings):
     super(SettingsMenu,self).__init__()
     self.settings = settings    
-    self.update_items()
-    
+    self.update_items()  
+   
   def bool_to_str(self, bool_value):
     return SettingsMenu.COLOR_ON + "on" if bool_value else SettingsMenu.COLOR_OFF + "off"
     
@@ -3557,8 +3583,8 @@ class AI(object):
         return True
       
     return False
-      
-class Settings(object):
+     
+class Settings(StringSerializable):
   POSSIBLE_SCREEN_RESOLUTIONS = (
     (800,600),
     (1024,768),
@@ -3566,17 +3592,74 @@ class Settings(object):
     )
   
   SOUND_VOLUME_THRESHOLD = 0.01
+  CONTROL_MAPPING_DELIMITER = "CONTROL MAPPING"
   
-  def __init__(self):
+  def __init__(self, player_key_maps):
+    self.player_key_maps = player_key_maps
     self.reset()
-     
+         
   def reset(self):
     self.sound_volume = 0.8
     self.music_volume = 0.8
     self.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[0]
     self.fullscreen = False
     self.control_by_mouse = False
-     
+    self.player_key_maps.reset()
+
+  def save_to_string(self):
+    result = ""
+    
+    result += "sound volume: " + str(self.sound_volume) + "\n"
+    result += "music volume: " + str(self.music_volume) + "\n"
+    result += "screen resolution: " + str(self.screen_resolution[0]) + "x" + str(self.screen_resolution[1]) + "\n"
+    result += "fullscreen: " + str(self.fullscreen) + "\n"
+    result += "control by mouse: " + str(self.control_by_mouse) + "\n"
+    result += Settings.CONTROL_MAPPING_DELIMITER + "\n"
+    
+    result += self.player_key_maps.save_to_string() + "\n"
+
+    result += Settings.CONTROL_MAPPING_DELIMITER + "\n"
+    
+    return result
+    
+  def load_from_string(self, input_string):
+    self.reset()
+    
+    helper_position = input_string.find(Settings.CONTROL_MAPPING_DELIMITER)
+    
+    if helper_position >= 0:
+      helper_position1 = helper_position + len(Settings.CONTROL_MAPPING_DELIMITER)
+      helper_position2 = input_string.find(Settings.CONTROL_MAPPING_DELIMITER,helper_position1)
+
+      print("loading control mapping")
+      settings_string = input_string[helper_position1:helper_position2].lstrip().rstrip()
+      self.player_key_maps.load_from_string(settings_string)
+      
+      input_string = input_string[:helper_position] + input_string[helper_position2 + len(Settings.CONTROL_MAPPING_DELIMITER):]
+    
+    lines = input_string.split("\n")
+    
+    for line in lines:
+      helper_position = line.find(":")
+      
+      if helper_position < 0:
+        continue
+      
+      key_string = line[:helper_position]
+      value_string = line[helper_position + 1:].lstrip().rstrip()
+      
+      if key_string == "sound volume":
+        self.sound_volume = float(value_string)
+      elif key_string == "music volume":
+        self.music_volume = float(value_string)
+      elif key_string == "screen resolution":
+        helper_tuple = value_string.split("x")
+        self.screen_resolution = (int(helper_tuple[0]),int(helper_tuple[1]))
+      elif key_string == "fullscreen":
+        self.fullscreen = True if value_string == "True" else False     
+      elif key_string == "control by mouse":
+        self.control_by_mouse = True if value_string == "True" else False
+    
   def sound_is_on(self):
     return self.sound_volume > Settings.SOUND_VOLUME_THRESHOLD
   
@@ -3585,7 +3668,7 @@ class Settings(object):
    
   def current_resolution_index(self):
     return next((i for i in range(len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)) if self.screen_resolution == Settings.POSSIBLE_SCREEN_RESOLUTIONS[i]),0)
-   
+
 class Game(object):
   GAME_STATE_PLAYING = 0
   GAME_STATE_EXIT = 1
@@ -3604,15 +3687,9 @@ class Game(object):
     self.screen = pygame.display.set_mode((1366,768))
     self.player_key_maps = PlayerKeyMaps()
     
-    self.player_key_maps.allow_control_by_mouse(False)
-
-    self.player_key_maps.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
-    self.player_key_maps.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
-    self.player_key_maps.set_player_key_map(2,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
-
     self.renderer = Renderer()
     self.sound_player = SoundPlayer()
-    self.settings = Settings()
+    self.settings = Settings(self.player_key_maps)
     
     self.map_name = ""
     self.game_map = None
@@ -3761,16 +3838,4 @@ class Game(object):
 # main:
 
 game = Game()
-
-p = PlayerKeyMaps()
-p.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
-p.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
-p.set_player_key_map(2,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
-s = p.save_to_string()
-print(s)
-print("----")
-p.load_from_string(s)
-print(p.save_to_string())
-quit()
-
 game.run()
