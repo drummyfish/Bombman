@@ -181,6 +181,7 @@ class Player(Positionable):
   DISEASE_SWITCH_PLAYERS = 5
   DISEASE_FAST_BOMB = 6
   DISEASE_NO_BOMB = 7
+  DISEASE_EARTHQUAKE = 8
 
   INITIAL_SPEED = 3
   SLOW_SPEED = 1.5
@@ -433,8 +434,11 @@ class Player(Positionable):
         (Player.DISEASE_FAST_BOMB,SoundPlayer.SOUND_EVENT_DISEASE),
         (Player.DISEASE_REVERSE_CONTROLS,SoundPlayer.SOUND_EVENT_DISEASE),
         (Player.DISEASE_SWITCH_PLAYERS,SoundPlayer.SOUND_EVENT_DISEASE),
-        (Player.DISEASE_NO_BOMB,SoundPlayer.SOUND_EVENT_DISEASE)
+        (Player.DISEASE_NO_BOMB,SoundPlayer.SOUND_EVENT_DISEASE),
+        (Player.DISEASE_EARTHQUAKE,SoundPlayer.SOUND_EVENT_EARTHQUAKE)
         ])
+      
+      chosen_disease = (Player.DISEASE_EARTHQUAKE,SoundPlayer.SOUND_EVENT_EARTHQUAKE)
       
       if chosen_disease[0] == Player.DISEASE_SWITCH_PLAYERS:
         if game_map != None:
@@ -451,6 +455,8 @@ class Player(Positionable):
           my_position = self.get_position()
           self.set_position(player_to_switch.get_position())
           player_to_switch.set_position(my_position)
+      elif chosen_disease[0] == Player.DISEASE_EARTHQUAKE:
+        game_map.start_earthquake()
       else:
         self.disease = chosen_disease[0]
         self.disease_time_left = Player.DISEASE_TIME
@@ -955,6 +961,8 @@ class Map(object):
   STATE_FINISHING = 2          ##< game is over but the map is still being updated for a while after
   STATE_GAME_OVER = 3          ##< the game is definitely over and should no longer be updated
   
+  EARTHQUAKE_TIME = 7000
+  
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
   def __init__(self, map_data, play_setup):
@@ -975,6 +983,8 @@ class Map(object):
     self.announce_win_at = -1
     self.state = Map.STATE_WAITING_TO_PLAY
     self.winner_team = -1                          ##< if map state is Map.STATE_GAME_OVER, this holds the winning team (-1 = draw)
+
+    self.earthquake_time_left = 0
 
     block_tiles = []
 
@@ -1092,6 +1102,12 @@ class Map(object):
     self.animation_events = []     ##< list of animation events, tuples in format (animation_event, coordinates)
 
     self.items_to_give_away = []   ##< list of tuples in format (time_of_giveaway, list_of_items)
+
+  def start_earthquake(self):
+    self.earthquake_time_left = Map.EARTHQUAKE_TIME
+
+  def earthquake_is_active(self):
+    return self.earthquake_time_left > 0
 
   def get_number_of_block_tiles(self):
     return self.number_of_blocks
@@ -1403,6 +1419,8 @@ class Map(object):
     self.danger_map_is_up_to_date = False   # reset this each frame
     
     i = 0
+    
+    self.earthquake_time_left = max(0,self.earthquake_time_left - dt)
     
     while i < len(self.items_to_give_away):    # giving away items of dead players
       item = self.items_to_give_away[i]
@@ -2035,6 +2053,7 @@ class SoundPlayer(object):
   SOUND_EVENT_WIN_9 = 22
   SOUND_EVENT_GO_AWAY = 23
   SOUND_EVENT_GO = 24
+  SOUND_EVENT_EARTHQUAKE = 25
   
   def __init__(self):
     pygame.mixer.init()
@@ -2055,6 +2074,7 @@ class SoundPlayer(object):
     self.sound[SoundPlayer.SOUND_EVENT_DEATH] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"death.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go_away.wav"))
     self.sound[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go.wav"))
+    self.sound[SoundPlayer.SOUND_EVENT_EARTHQUAKE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"earthquake.wav"))
     
     self.music_filenames = [
       "music_broke_for_free_caught_in_the_beat_remix.wav",
@@ -2113,7 +2133,8 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_TELEPORT,
         SoundPlayer.SOUND_EVENT_DEATH,
         SoundPlayer.SOUND_EVENT_GO_AWAY,
-        SoundPlayer.SOUND_EVENT_GO
+        SoundPlayer.SOUND_EVENT_GO,
+        SoundPlayer.SOUND_EVENT_EARTHQUAKE
         ):
         self.sound[sound_event].play()
     
@@ -2987,7 +3008,7 @@ class Renderer(object):
     self.menu_item_images = None
     
     self.update_info_boards(map_to_render.get_players())
-
+  
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
       print("prerendering map...")
 
@@ -3223,6 +3244,10 @@ class Renderer(object):
         
       x += self.gui_images["info board"].get_size()[0] - 2
 
+    if map_to_render.earthquake_is_active(): # shakinf effect
+      random_scale = random.uniform(0.99,1.01)
+      result = pygame.transform.rotate(result,random.uniform(-4,4))
+   
     return result    
 
 class AI(object):
