@@ -106,6 +106,8 @@ COLOR_NAMES = [
   "purple"
   ]
 
+NUMBER_OF_CONTROLLED_PLAYERS = 4    ##< maximum number of non-AI players
+
 RESOURCE_PATH = "resources"
 MAP_PATH = "maps"
 
@@ -1694,7 +1696,7 @@ class PlayerKeyMaps(object):
   ACTION_LEFT = 3
   ACTION_BOMB = 4
   ACTION_SPECIAL = 5
-  ACTION_MENU = 6       ##< brings up the main menu 
+  ACTION_MENU = 6                ##< brings up the main menu 
   ACTION_BOMB_DOUBLE = 7
   
   MOUSE_CONTROL_UP = -1
@@ -1704,6 +1706,27 @@ class PlayerKeyMaps(object):
   MOUSE_CONTROL_BUTTON_L = -5
   MOUSE_CONTROL_BUTTON_M = -6
   MOUSE_CONTROL_BUTTON_R = -7
+  
+  ACTION_NAMES = {
+    ACTION_UP : "up",
+    ACTION_RIGHT : "right",
+    ACTION_DOWN : "down",
+    ACTION_LEFT : "left",
+    ACTION_BOMB : "bomb",
+    ACTION_SPECIAL : "special",
+    ACTION_MENU : "menu",
+    ACTION_BOMB_DOUBLE : "bomb double" 
+    }
+  
+  MOUSE_ACTION_NAMES = {
+    MOUSE_CONTROL_UP : "m up",
+    MOUSE_CONTROL_RIGHT : "m right",
+    MOUSE_CONTROL_DOWN : "m down",
+    MOUSE_CONTROL_LEFT : "m left",
+    MOUSE_CONTROL_BUTTON_L : "m L",
+    MOUSE_CONTROL_BUTTON_M : "m M",
+    MOUSE_CONTROL_BUTTON_R : "m R"
+    }
   
   MOUSE_CONTROL_SMOOTH_OUT_TIME = 350
 
@@ -1769,6 +1792,21 @@ class PlayerKeyMaps(object):
     
     return action
 
+  @staticmethod
+  def key_to_string(key):
+    if key == None:
+      return "none"
+    
+    if key in PlayerKeyMaps.MOUSE_ACTION_NAMES:
+      result = PlayerKeyMaps.MOUSE_ACTION_NAMES[key]
+    else:
+      result = pygame.key.name(key)
+    
+      if result == "unknown key":
+        result = str(key)
+    
+    return result   
+
   ## Sets a key mapping for a player of specified (non-negative) number.
 
   def set_player_key_map(self, player_number, key_up, key_right, key_down, key_left, key_bomb, key_special):
@@ -1803,6 +1841,51 @@ class PlayerKeyMaps(object):
   def set_special_key_map(self, key_menu):
     self.key_maps[key_menu] = (-1,PlayerKeyMaps.ACTION_MENU)
 
+  ## Makes a human-readable string that represents the current key-mapping.
+
+  def save_to_string(self):
+    result = ""
+
+    for i in range(NUMBER_OF_CONTROLLED_PLAYERS): # 4 players
+      mapping = self.get_players_key_mapping(i)
+      
+      for action in mapping:
+        result += str(i + 1) + " " + PlayerKeyMaps.ACTION_NAMES[action] + ": " + str(mapping[action]) + "\n"
+
+    result += "menu: " + str(PlayerKeyMaps.ACTION_MENU)
+    
+    return result
+    
+  ## Loads the mapping from string produced by save_to_string(...).
+    
+  def load_from_string(self, input_string):
+    self.key_maps = {}
+    
+    lines = input_string.split("\n")
+    
+    for line in lines:
+      line = line.lstrip().rstrip()
+      
+      try:
+        key = int(line[line.find(":") + 1:])
+      except Exception as e:
+        key = None
+      
+      if line.find(PlayerKeyMaps.ACTION_NAMES[PlayerKeyMaps.ACTION_MENU]) == 0:
+        self.key_maps[action] = (-1,key)    
+      else:
+        player_number = int(line[0]) - 1
+        action_name = line[2:line.find(":")]
+        
+        action = None
+        
+        for helper_action in PlayerKeyMaps.ACTION_NAMES:
+          if PlayerKeyMaps.ACTION_NAMES[helper_action] == action_name:
+            action = helper_action
+            break
+      
+        self.key_maps[key] = (player_number,action)
+    
   def get_menu_key_map(self):
     for key in self.key_maps:
       if self.key_maps[key][0] == -1:
@@ -2239,51 +2322,24 @@ class ControlsMenu(Menu):
     self.player_key_maps = player_key_maps
     self.update_items()
     
-  def key_to_string(self, key):
-    if key == None:
-      return "^#E83535none"
+  def color_key_string(self, key_string):
+    if key_string == "none":
+      return "^#E83535" + key_string
     
-    if key == PlayerKeyMaps.MOUSE_CONTROL_UP:
-      result = "m up"
-    elif key == PlayerKeyMaps.MOUSE_CONTROL_RIGHT:
-      result = "m right"
-    elif key == PlayerKeyMaps.MOUSE_CONTROL_DOWN:
-      result = "m down"
-    elif key == PlayerKeyMaps.MOUSE_CONTROL_LEFT:
-      result = "m left"
-    elif key == PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L:
-      result = "m L"
-    elif key == PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M:
-      result = "m M"
-    elif key == PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R:
-      result = "m R"
-    else:
-      result = pygame.key.name(key)
-    
-      if result == "unknown key":
-        result = str(key)
-    
-    return "^#38A8F2" + result
+    return "^#38A8F2" + key_string
     
   def update_items(self):
     self.items = [[]]
     
-    for i in range(4):  # 4 possible players
+    for i in range(NUMBER_OF_CONTROLLED_PLAYERS):
       player_string = "p " + str(i + 1)
       
       player_maps = self.player_key_maps.get_players_key_mapping(i)
       
-      self.items[0] += [
-        player_string + " up: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_UP]),
-        player_string + " right: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_RIGHT]),
-        player_string + " down: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_DOWN]),
-        player_string + " left: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_LEFT]),
-        player_string + " bomb: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_BOMB]),
-        player_string + " special: " + self.key_to_string(player_maps[PlayerKeyMaps.ACTION_SPECIAL])
-        ]
+      self.items[0] += [(player_string + " " + PlayerKeyMaps.ACTION_NAMES[action] + ": " + self.color_key_string(PlayerKeyMaps.key_to_string(player_maps[action]))) for action in player_maps]
     
     self.items[0] += [
-      "open menu: " + self.key_to_string(self.player_key_maps.get_menu_key_map()),
+      "open menu: " + self.color_key_string(PlayerKeyMaps.key_to_string(self.player_key_maps.get_menu_key_map())),
       "back"
       ]
 
@@ -3705,4 +3761,16 @@ class Game(object):
 # main:
 
 game = Game()
+
+p = PlayerKeyMaps()
+p.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
+p.set_player_key_map(1,pygame.K_i,pygame.K_l,pygame.K_k,pygame.K_j,pygame.K_o,pygame.K_p)
+p.set_player_key_map(2,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
+s = p.save_to_string()
+print(s)
+print("----")
+p.load_from_string(s)
+print(p.save_to_string())
+quit()
+
 game.run()
