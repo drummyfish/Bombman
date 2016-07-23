@@ -2054,25 +2054,26 @@ class SoundPlayer(object):
   SOUND_EVENT_EARTHQUAKE = 25
   
   def __init__(self):
-    pygame.mixer.init()
+    self.sound_volume = 0.5
+    self.music_volume = 0.5
     
-    self.sound = {}
-    self.sound[SoundPlayer.SOUND_EVENT_EXPLOSION] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"explosion.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_BOMB_PUT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"bomb.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_WALK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"footsteps.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_KICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"kick.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"spring.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"fart.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"slow.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"disease.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"click.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"throw.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"trampoline.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_TELEPORT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"teleport.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_DEATH] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"death.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go_away.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go.wav"))
-    self.sound[SoundPlayer.SOUND_EVENT_EARTHQUAKE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"earthquake.wav"))
+    self.sounds = {}
+    self.sounds[SoundPlayer.SOUND_EVENT_EXPLOSION] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"explosion.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_BOMB_PUT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"bomb.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_WALK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"footsteps.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_KICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"kick.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"spring.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"fart.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"slow.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"disease.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"click.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"throw.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"trampoline.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_TELEPORT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"teleport.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_DEATH] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"death.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go_away.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_EARTHQUAKE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"earthquake.wav"))
     
     self.music_filenames = [
       "music_broke_for_free_caught_in_the_beat_remix.wav",
@@ -2089,7 +2090,29 @@ class SoundPlayer(object):
      
   def play_once(self, filename):
     sound = pygame.mixer.Sound(filename)
+    sound.set_volume(self.sound_volume)
     sound.play()
+   
+  def set_music_volume(self, new_volume):
+    self.music_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
+    
+    print("changing music volume to " + str(self.music_volume))
+    
+    if new_volume > Settings.SOUND_VOLUME_THRESHOLD:
+      if not pygame.mixer.music.get_busy():
+        pygame.mixer.music.play()
+      
+      pygame.mixer.music.set_volume(new_volume)
+    else:
+      pygame.mixer.music.stop()
+      
+  def set_sound_volume(self, new_volume):
+    self.sound_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
+    
+    print("changing sound volume to " + str(self.sound_volume))
+    
+    for sound in self.sounds:
+      self.sounds[sound].set_volume(self.sound_volume)
    
   def change_music(self):
     while True:
@@ -2108,7 +2131,7 @@ class SoundPlayer(object):
     
     pygame.mixer.music.stop()
     pygame.mixer.music.load(os.path.join(RESOURCE_PATH,music_name))
-    pygame.mixer.music.set_volume(0.2)
+    pygame.mixer.music.set_volume(self.music_volume)
     pygame.mixer.music.play(-1)
    
   ## Processes a list of sound events (see class constants) by playing
@@ -2134,11 +2157,11 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_GO,
         SoundPlayer.SOUND_EVENT_EARTHQUAKE
         ):
-        self.sound[sound_event].play()
+        self.sounds[sound_event].play()
     
       elif sound_event == SoundPlayer.SOUND_EVENT_WALK:
         if not self.playing_walk:
-          self.sound[SoundPlayer.SOUND_EVENT_WALK].play(loops=-1)
+          self.sounds[SoundPlayer.SOUND_EVENT_WALK].play(loops=-1)
           self.playing_walk = True
         
         stop_playing_walk = False
@@ -2146,13 +2169,13 @@ class SoundPlayer(object):
         time_now = pygame.time.get_ticks()
         
         if time_now > self.kick_last_played_time + 200: # wait 200 ms before playing kick sound again        
-          self.sound[SoundPlayer.SOUND_EVENT_KICK].play()
+          self.sounds[SoundPlayer.SOUND_EVENT_KICK].play()
           self.kick_last_played_time = time_now
       elif SoundPlayer.SOUND_EVENT_WIN_0 <= sound_event <= SoundPlayer.SOUND_EVENT_WIN_9:
         self.play_once(os.path.join(RESOURCE_PATH,"win" + str(sound_event - SoundPlayer.SOUND_EVENT_WIN_0) + ".wav"))
       
     if self.playing_walk and stop_playing_walk:
-      self.sound[SoundPlayer.SOUND_EVENT_WALK].stop()
+      self.sounds[SoundPlayer.SOUND_EVENT_WALK].stop()
       self.playing_walk = False
     
   #  if not self.playing_walk = False
@@ -2321,9 +2344,10 @@ class SettingsMenu(Menu):
   COLOR_ON = "^#1DF53A"
   COLOR_OFF = "^#F51111"
   
-  def __init__(self, settings):
+  def __init__(self, settings, game):
     super(SettingsMenu,self).__init__()
-    self.settings = settings    
+    self.settings = settings
+    self.game = game
     self.update_items()  
    
   def bool_to_str(self, bool_value):
@@ -2331,8 +2355,8 @@ class SettingsMenu(Menu):
     
   def update_items(self):
     self.items = [(
-      "sound volume: " + (SettingsMenu.COLOR_ON if self.settings.sound_is_on() else SettingsMenu.COLOR_OFF) + str(int(self.settings.sound_volume * 100)) + " %",
-      "music volume: " + (SettingsMenu.COLOR_ON if self.settings.music_is_on() > 0.0 else SettingsMenu.COLOR_OFF) + str(int(self.settings.music_volume * 100)) + " %",
+      "sound volume: " + (SettingsMenu.COLOR_ON if self.settings.sound_is_on() else SettingsMenu.COLOR_OFF) + str(int(self.settings.sound_volume * 10) * 10) + " %",
+      "music volume: " + (SettingsMenu.COLOR_ON if self.settings.music_is_on() > 0.0 else SettingsMenu.COLOR_OFF) + str(int(self.settings.music_volume * 10) * 10) + " %",
       "screen resolution: " + str(self.settings.screen_resolution[0]) + " x " + str(self.settings.screen_resolution[1]),
       "fullscreen: " + self.bool_to_str(self.settings.fullscreen),
       "allow control by mouse: " + self.bool_to_str(self.settings.control_by_mouse),
@@ -2347,25 +2371,43 @@ class SettingsMenu(Menu):
     if action == PlayerKeyMaps.ACTION_RIGHT:
       if self.selected_item == (0,0):
         self.settings.sound_volume = min(1.0,self.settings.sound_volume + 0.1)
+        self.game.apply_sound_settings()
+        self.game.save_settings()
       elif self.selected_item == (1,0):
         self.settings.music_volume = min(1.0,self.settings.music_volume + 0.1)
+        self.game.apply_sound_settings()
+        self.game.save_settings()
       elif self.selected_item == (2,0):
         self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() + 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]      
+        self.game.apply_screen_settings()
+        self.game.save_settings()
       elif self.selected_item == (3,0):
         self.settings.fullscreen = not self.settings.fullscreen
+        self.game.apply_screen_settings()
+        self.game.save_settings()
       elif self.selected_item == (4,0):
         self.settings.control_by_mouse = not self.settings.control_by_mouse
+        self.game.save_settings()
     elif action == PlayerKeyMaps.ACTION_LEFT:
       if self.selected_item == (0,0):
         self.settings.sound_volume = max(0.0,self.settings.sound_volume - 0.1)
+        self.game.apply_sound_settings()
+        self.game.save_settings()
       elif self.selected_item == (1,0):
         self.settings.music_volume = max(0.0,self.settings.music_volume - 0.1)
+        self.game.apply_sound_settings()
+        self.game.save_settings()
       elif self.selected_item == (2,0):
         self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() - 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]
+        self.game.apply_screen_settings()
+        self.game.save_settings()
       elif self.selected_item == (3,0):
         self.settings.fullscreen = not self.settings.fullscreen
+        self.game.apply_screen_settings()
+        self.game.save_settings()
       elif self.selected_item == (4,0):
         self.settings.control_by_mouse = not self.settings.control_by_mouse
+        self.game.save_settings()
 
     self.update_items()
 
@@ -2506,8 +2548,7 @@ class Renderer(object):
   MENU_FONT_COLOR = (255,255,255)
 
   def __init__(self):
-    self.screen_resolution = Renderer.get_screen_size()
-    self.screen_center = (self.screen_resolution[0] / 2,self.screen_resolution[1] / 2)
+    self.update_screen_info()
 
     self.environment_images = {}
 
@@ -2635,9 +2676,12 @@ class Renderer(object):
     self.animations[Renderer.ANIMATION_EVENT_EXPLOSION] = Animation(os.path.join(RESOURCE_PATH,"animation_explosion"),1,10,".png",7)
     self.animations[Renderer.ANIMATION_EVENT_RIP] = Animation(os.path.join(RESOURCE_PATH,"animation_rip"),1,1,".png",0.3)
     self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
-    
-    self.map_render_location = Renderer.get_map_render_position()
 
+  def update_screen_info(self):
+    self.screen_resolution = Renderer.get_screen_size()
+    self.screen_center = (self.screen_resolution[0] / 2,self.screen_resolution[1] / 2)
+    self.map_render_location = Renderer.get_map_render_position()
+  
   ## Converts (r,g,b) tuple to html #rrggbb notation.
 
   @staticmethod
@@ -2667,7 +2711,9 @@ class Renderer(object):
 
   @staticmethod
   def get_screen_size():
-    return pygame.display.get_surface().get_size()
+    display = pygame.display.get_surface()
+    
+    return display.get_size() if display != None else (0,0)
 
   @staticmethod  
   def get_map_render_position(): 
@@ -3628,9 +3674,9 @@ class AI(object):
      
 class Settings(StringSerializable):
   POSSIBLE_SCREEN_RESOLUTIONS = (
-    (800,600),
     (1024,768),
-    (1366,768)
+    (1366,768),
+    (1680,1050)
     )
   
   SOUND_VOLUME_THRESHOLD = 0.01
@@ -3726,6 +3772,7 @@ class Game(object):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
     pygame.font.init()
+    pygame.mixer.init()
     
     self.player_key_maps = PlayerKeyMaps()
     self.settings = Settings(self.player_key_maps)
@@ -3733,13 +3780,17 @@ class Game(object):
     if os.path.isfile(SETTINGS_FILE_PATH):
       print("loading settings from file " + SETTINGS_FILE_PATH)
       self.settings.load_from_file(SETTINGS_FILE_PATH)
-    
-    self.settings.save_to_file(SETTINGS_FILE_PATH)   # reformats the file or creates a new one if there is none
  
-    self.screen = pygame.display.set_mode(self.settings.screen_resolution)
+    self.settings.save_to_file(SETTINGS_FILE_PATH)   # save the reformatted settings file (or create a new one)
+    
+    pygame.display.set_caption("Bombman")
     
     self.renderer = Renderer()
+    self.apply_screen_settings()
+    
     self.sound_player = SoundPlayer()
+    self.sound_player.change_music()
+    self.apply_sound_settings()
              
     self.map_name = ""
     self.game_map = None
@@ -3747,7 +3798,7 @@ class Game(object):
     self.play_setup = PlaySetup()
     
     self.menu_main = MainMenu()
-    self.menu_settings = SettingsMenu(self.settings)
+    self.menu_settings = SettingsMenu(self.settings,self)
     self.menu_about = AboutMenu()
     self.menu_play_setup = PlaySetupMenu(self.play_setup)
     self.menu_map_select = MapSelectMenu()
@@ -3756,6 +3807,22 @@ class Game(object):
     self.ais = []
     
     self.state = Game.GAME_STATE_MENU_MAIN
+
+  def apply_screen_settings(self):
+    display_flags = 0
+    
+    if self.settings.fullscreen:
+      display_flags += pygame.FULLSCREEN
+ 
+    self.screen = pygame.display.set_mode(self.settings.screen_resolution,display_flags)
+    self.renderer.update_screen_info()
+  
+  def apply_sound_settings(self):
+    self.sound_player.set_music_volume(self.settings.music_volume)
+    self.sound_player.set_sound_volume(self.settings.sound_volume)
+  
+  def save_settings(self):
+    self.settings.save_to_file(SETTINGS_FILE_PATH)
 
   ## Manages the menu actions and sets self.active_menu.
 
@@ -3824,8 +3891,6 @@ class Game(object):
   def run(self):
     time_before = pygame.time.get_ticks()
 
-    self.sound_player.change_music()
-
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
 
@@ -3835,7 +3900,7 @@ class Game(object):
 
       for event in pygame.event.get():
         if event.type == pygame.QUIT:
-          sys.exit()
+          self.state = Game.GAME_STATE_EXIT
 
       if self.state == Game.GAME_STATE_PLAYING:
         self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
@@ -3844,7 +3909,7 @@ class Game(object):
         self.simulation_step(dt)
         
       elif self.state == Game.GAME_STATE_EXIT:
-        sys.exit()
+        break
       elif self.state == Game.GAME_STATE_GAME_STARTED:
         print("game start confirmed")
         with open(os.path.join(MAP_PATH,self.map_name)) as map_file:
