@@ -2988,10 +2988,14 @@ class Renderer(object):
       
       for i in range(min(Menu.MENU_MAX_ITEMS_VISIBLE,len(menu_items[j]) - menu_to_render.get_scroll_position())):
         item_image = self.menu_item_images[(j,i + menu_to_render.get_scroll_position())][1]
-        
+
         x = xs[j] - item_image.get_size()[0] / 2
-        
+                
         if (i + menu_to_render.get_scroll_position(),j) == selected_coordinates:
+          # item is selected
+          scale = (8 + math.sin(pygame.time.get_ticks() / 40.0)) / 7.0    # make the pulsating effect
+          item_image = pygame.transform.scale(item_image,(int(scale * item_image.get_size()[0]),int(scale * item_image.get_size()[1])))
+          x = xs[j] - item_image.get_size()[0] / 2
           pygame.draw.rect(result,(255,0,0),pygame.Rect(x - 4,y - 2,item_image.get_size()[0] + 8,item_image.get_size()[1] + 4))
         
         result.blit(item_image,(x,y))
@@ -3722,19 +3726,21 @@ class Game(object):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
     pygame.font.init()
-    self.screen = pygame.display.set_mode((1366,768))
-    self.player_key_maps = PlayerKeyMaps()
     
-    self.renderer = Renderer()
-    self.sound_player = SoundPlayer()
+    self.player_key_maps = PlayerKeyMaps()
     self.settings = Settings(self.player_key_maps)
-        
+    
     if os.path.isfile(SETTINGS_FILE_PATH):
       print("loading settings from file " + SETTINGS_FILE_PATH)
       self.settings.load_from_file(SETTINGS_FILE_PATH)
     
     self.settings.save_to_file(SETTINGS_FILE_PATH)   # reformats the file or creates a new one if there is none
-      
+ 
+    self.screen = pygame.display.set_mode(self.settings.screen_resolution)
+    
+    self.renderer = Renderer()
+    self.sound_player = SoundPlayer()
+             
     self.map_name = ""
     self.game_map = None
     
