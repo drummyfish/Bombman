@@ -1853,6 +1853,15 @@ class PlayerKeyMaps(StringSerializable):
   def set_one_key_map(self, key, player_number, action):
     if key != None:
       self.key_maps[key] = (player_number,action)
+      
+      to_be_deleted = []
+      
+      for item in self.key_maps:   # get rid of possible collissions
+        if item != key and self.key_maps[item] == (player_number,action):
+          to_be_deleted.append(item)
+          
+      for item in to_be_deleted:
+        del self.key_maps[item]
 
   ## Sets a key mapping for a player of specified (non-negative) number.
 
@@ -2415,8 +2424,11 @@ class ControlsMenu(Menu):
   def __init__(self, player_key_maps):
     super(ControlsMenu,self).__init__()
     self.player_key_maps = player_key_maps
+    self.waiting_for_key = None   # if not None, this contains a tuple (player number, action) of action that is currently being remapped
+    self.wait_for_release = False # used to wait for keys release before new key map is captured
+
     self.update_items()
-    
+        
   def color_key_string(self, key_string):
     if key_string == "none":
       return "^#E83535" + key_string
@@ -2424,19 +2436,87 @@ class ControlsMenu(Menu):
     return "^#38A8F2" + key_string
     
   def update_items(self):
-    self.items = [["back, no save","save and back"]]
+    self.items = [["go back"]]
+    
+    prompt_string = "press some key"
     
     for i in range(NUMBER_OF_CONTROLLED_PLAYERS):
       player_string = "p " + str(i + 1)
       
       player_maps = self.player_key_maps.get_players_key_mapping(i)
-      
-      self.items[0] += [(player_string + " " + PlayerKeyMaps.ACTION_NAMES[action] + ": " + self.color_key_string(PlayerKeyMaps.key_to_string(player_maps[action]))) for action in player_maps]
-    
-    self.items[0] += [
-      "open menu: " + self.color_key_string(PlayerKeyMaps.key_to_string(self.player_key_maps.get_menu_key_map())),
-      ]
 
+      for action in player_maps:
+        item_string = player_string + " " + PlayerKeyMaps.ACTION_NAMES[action] + ": "
+        
+        if self.waiting_for_key == (i,action):
+          item_string += prompt_string
+        else:
+          item_string += self.color_key_string(PlayerKeyMaps.key_to_string(player_maps[action]))
+        
+        self.items[0] += [item_string]
+      
+    # add menu item
+    item_string = "open menu: "
+    
+    if self.waiting_for_key != None and self.waiting_for_key[1] == PlayerKeyMaps.ACTION_MENU:
+      item_string += prompt_string
+    else:
+      item_string += self.color_key_string(PlayerKeyMaps.key_to_string(self.player_key_maps.get_menu_key_map()))
+      
+    self.items[0] += [item_string]
+
+  ## This should be called periodically when the menu is cative. It will
+  #  take care of catching pressed keys if waiting for key remap.
+
+  def update(self):
+    if self.waiting_for_key != None:
+      keys_pressed = pygame.key.get_pressed()      
+      
+      key_pressed = None
+      
+      for i in range(len(keys_pressed)):  # find pressed key
+        if not (i in (pygame.K_NUMLOCK,pygame.K_CAPSLOCK,pygame.K_SCROLLOCK,322)) and keys_pressed[i]:
+          key_pressed = i
+          break
+      
+      if self.wait_for_release:
+        if key_pressed == None:
+          self.wait_for_release = False
+      else:
+         if key_pressed != None:
+           print("new key mapping")
+           self.player_key_maps.set_one_key_map(key_pressed,self.waiting_for_key[0],self.waiting_for_key[1])
+           self.waiting_for_key = None
+           self.state = Menu.MENU_STATE_SELECTING
+    
+    self.update_items()
+
+  def action_pressed(self, action):
+    super(ControlsMenu,self).action_pressed(action)
+    
+    if self.waiting_for_key != None:
+      self.waiting_for_key = None
+      self.state = Menu.MENU_STATE_SELECTING
+    elif action == PlayerKeyMaps.ACTION_BOMB and self.selected_item[0] > 0:
+      # new key map will be captured
+      helper_index = self.selected_item[0] - 1
+      
+      if helper_index == NUMBER_OF_CONTROLLED_PLAYERS * 6:   # 6 controls for each player, then menu item follows
+        self.waiting_for_key = (-1,PlayerKeyMaps.ACTION_MENU)
+      else:
+        action_index = helper_index % 6
+        
+        helper_array = (PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT,PlayerKeyMaps.ACTION_BOMB,PlayerKeyMaps.ACTION_SPECIAL)
+        helper_action = helper_array[action_index]
+        
+        self.waiting_for_key = (helper_index / 6,helper_action)
+      
+      self.wait_for_release = True
+      
+      self.state = Menu.MENU_STATE_SELECTING
+      
+    self.update_items()
+    
 class AboutMenu(Menu):
   def __init__(self):
     super(AboutMenu,self).__init__() 
@@ -3859,14 +3939,13 @@ class Game(object):
 
     elif self.state == Game.GAME_STATE_MENU_CONTROL_SETTINGS:
       self.active_menu = self.menu_controls
+      self.active_menu.update()    # needs to be called to scan for pressed keys
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_SETTINGS
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (0,0):
-          new_state = Game.GAME_STATE_MENU_SETTINGS
-        if self.active_menu.get_selected_item() == (1,0):
-          new_state = Game.GAME_STATE_MENU_SETTINGS   
+          new_state = Game.GAME_STATE_MENU_SETTINGS  
         
     elif self.state == Game.GAME_STATE_MENU_ABOUT: 
       self.active_menu = self.menu_about
