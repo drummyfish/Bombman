@@ -2424,7 +2424,7 @@ class ControlsMenu(Menu):
     return "^#38A8F2" + key_string
     
   def update_items(self):
-    self.items = [[]]
+    self.items = [["back, no save","save and back"]]
     
     for i in range(NUMBER_OF_CONTROLLED_PLAYERS):
       player_string = "p " + str(i + 1)
@@ -2435,7 +2435,6 @@ class ControlsMenu(Menu):
     
     self.items[0] += [
       "open menu: " + self.color_key_string(PlayerKeyMaps.key_to_string(self.player_key_maps.get_menu_key_map())),
-      "back"
       ]
 
 class AboutMenu(Menu):
@@ -2546,6 +2545,11 @@ class Renderer(object):
   FONT_NORMAL_SIZE = 20
   MENU_LINE_SPACING = 10
   MENU_FONT_COLOR = (255,255,255)
+  
+  SCROLLBAR_RELATIVE_POSITION = (-200,-50)
+  SCROLLBAR_HEIGHT = 300
+  
+  MENU_DESCRIPTION_Y_OFFSET = -80
 
   def __init__(self):
     self.update_screen_info()
@@ -2922,7 +2926,7 @@ class Renderer(object):
       rendered_lines.append(new_rendered_line)
 
       if first_line:
-        first = False
+        first_line = False
       else:
         height += Renderer.MENU_LINE_SPACING
       
@@ -2993,7 +2997,7 @@ class Renderer(object):
     
     # render menu description text
     
-    y = self.screen_center[1] - 80
+    y = self.screen_center[1] + Renderer.MENU_DESCRIPTION_Y_OFFSET
     
     if len(menu_to_render.get_text()) != 0:
       result.blit(self.menu_item_images[0][1],(self.screen_center[0] - self.menu_item_images[0][1].get_size()[0] / 2,y))    # menu description text image is at index 0      
@@ -3021,14 +3025,15 @@ class Renderer(object):
       rows = max(rows,len(column))
 
     if rows > Menu.MENU_MAX_ITEMS_VISIBLE:
-      x = xs[0] - 100
+      x = xs[0] + Renderer.SCROLLBAR_RELATIVE_POSITION[0]
       
-      result.blit(self.gui_images["arrow up"],(x,self.screen_center[1] - 30))
-      result.blit(self.gui_images["arrow down"],(x,self.screen_center[1] + 270))
+      result.blit(self.gui_images["arrow up"],(x,items_y))
+      result.blit(self.gui_images["arrow down"],(x,items_y + Renderer.SCROLLBAR_HEIGHT))
       
-      scrollbar_position = (self.screen_center[1] - 10 + selected_coordinates[0] / float(rows) * 270)
+      scrollbar_position = int(items_y + selected_coordinates[0] / float(rows) * Renderer.SCROLLBAR_HEIGHT)
       result.blit(self.gui_images["seeker"],(x,scrollbar_position))
     
+    # render items
     for j in range(len(menu_items)):
       y = items_y
       
@@ -3857,7 +3862,12 @@ class Game(object):
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_SETTINGS
-
+      elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
+        if self.active_menu.get_selected_item() == (0,0):
+          new_state = Game.GAME_STATE_MENU_SETTINGS
+        if self.active_menu.get_selected_item() == (1,0):
+          new_state = Game.GAME_STATE_MENU_SETTINGS   
+        
     elif self.state == Game.GAME_STATE_MENU_ABOUT: 
       self.active_menu = self.menu_about
       
