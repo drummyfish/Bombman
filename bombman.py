@@ -2448,16 +2448,19 @@ class SettingsMenu(Menu):
     elif self.state == Menu.MENU_STATE_CONFIRM:
       if action == PlayerKeyMaps.ACTION_BOMB and self.selected_item == (6,0):
         print("resetting settings")
-        # TODO: reset settings here
+        self.settings.reset()
+        self.game.apply_sound_settings()
+        self.game.save_settings()
         self.state = Menu.MENU_STATE_SELECTING
         self.confirm_prompt_result = None
 
     self.update_items()
 
 class ControlsMenu(Menu):
-  def __init__(self, player_key_maps):
+  def __init__(self, player_key_maps, game):
     super(ControlsMenu,self).__init__()
     self.player_key_maps = player_key_maps
+    self.game = game
     self.waiting_for_key = None   # if not None, this contains a tuple (player number, action) of action that is currently being remapped
     self.wait_for_release = False # used to wait for keys release before new key map is captured
 
@@ -2522,6 +2525,7 @@ class ControlsMenu(Menu):
            self.player_key_maps.set_one_key_map(key_pressed,self.waiting_for_key[0],self.waiting_for_key[1])
            self.waiting_for_key = None
            self.state = Menu.MENU_STATE_SELECTING
+           self.game.save_settings()
     
     self.update_items()
 
@@ -3825,8 +3829,8 @@ class Settings(StringSerializable):
     self.reset()
          
   def reset(self):
-    self.sound_volume = 0.8
-    self.music_volume = 0.8
+    self.sound_volume = 0.7
+    self.music_volume = 0.2
     self.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[0]
     self.fullscreen = False
     self.control_by_mouse = False
@@ -3940,7 +3944,7 @@ class Game(object):
     self.menu_about = AboutMenu()
     self.menu_play_setup = PlaySetupMenu(self.play_setup)
     self.menu_map_select = MapSelectMenu()
-    self.menu_controls = ControlsMenu(self.player_key_maps)
+    self.menu_controls = ControlsMenu(self.player_key_maps,self)
     
     self.ais = []
     
@@ -3970,9 +3974,7 @@ class Game(object):
     if self.state == Game.GAME_STATE_MENU_MAIN: 
       self.active_menu = self.menu_main
       
-      if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
-        new_state = Game.GAME_STATE_EXIT
-      elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
+      if self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (0,0):
           new_state = Game.GAME_STATE_MENU_PLAY_SETUP
         elif self.active_menu.get_selected_item() == (1,0):
