@@ -2234,18 +2234,20 @@ class Animation(object):
 #  ^htmlcolorcode - sets the text color (HTML #rrggbb format,e.g. ^#2E44BF) from here to end of line or another formatting character
     
 class Menu(object):
-  MENU_STATE_SELECTING = 0     ##< still selecting an item
-  MENU_STATE_CONFIRM = 1       ##< menu has been confirmed
-  MENU_STATE_CANCEL = 2        ##< menu has been cancelled
+  MENU_STATE_SELECTING = 0          ##< still selecting an item
+  MENU_STATE_CONFIRM = 1            ##< menu has been confirmed
+  MENU_STATE_CANCEL = 2             ##< menu has been cancelled
+  MENU_STATE_CONFIRM_PROMPT = 3     ##< prompting an action
   
   MENU_MAX_ITEMS_VISIBLE = 11
   
   def __init__(self):
     self.text = ""
-    self.selected_item = (0,0)      ##< row, column
+    self.selected_item = (0,0)        ##< row, column
     self.items = []
     self.menu_left = False
-    self.scroll_position = 0        ##< index of the first visible row
+    self.confirm_prompt_result = None ##< True, False or None
+    self.scroll_position = 0          ##< index of the first visible row
     self.action_keys_previous_state = {
       PlayerKeyMaps.ACTION_UP : True,
       PlayerKeyMaps.ACTION_RIGHT : True,
@@ -2262,6 +2264,10 @@ class Menu(object):
 
   def get_state(self):
     return self.state
+    
+  def prompt_action_confirm(self):
+    self.confirm_prompt_result = None
+    self.state = Menu.MENU_STATE_CONFIRM_PROMPT
     
   def get_text(self):
     return self.text
@@ -2314,25 +2320,40 @@ class Menu(object):
      
   def leaving(self):
     self.menu_left = True
+    self.confirm_prompt_result = None
+     
+  ## Prompts confirmation of given menu item if it has been selected.
+     
+  def prompt_if_needed(self, menu_item_coordinates):
+    if self.state == Menu.MENU_STATE_CONFIRM and (self.confirm_prompt_result == None or self.confirm_prompt_result == False) and self.selected_item == menu_item_coordinates:
+      self.prompt_action_confirm()
      
   ## Is called once for every action key press (not each frame, which is
   #  not good for menus). This can be overridden.
   
-  def action_pressed(self, action):     
-    if action == PlayerKeyMaps.ACTION_UP:
-      self.selected_item = (max(0,self.selected_item[0] - 1),self.selected_item[1])
-    elif action == PlayerKeyMaps.ACTION_DOWN:
-      self.selected_item = (min(len(self.items[self.selected_item[1]]) - 1,self.selected_item[0] + 1),self.selected_item[1])
-    elif action == PlayerKeyMaps.ACTION_LEFT:
-      new_column = max(0,self.selected_item[1] - 1)
-      self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
-    elif action == PlayerKeyMaps.ACTION_RIGHT:
-      new_column = min(len(self.items) - 1,self.selected_item[1] + 1)
-      self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
-    elif action == PlayerKeyMaps.ACTION_BOMB or action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:
-      self.state = Menu.MENU_STATE_CONFIRM
-    elif action == PlayerKeyMaps.ACTION_SPECIAL:
-      self.state = Menu.MENU_STATE_CANCEL
+  def action_pressed(self, action):
+    if self.state == Menu.MENU_STATE_CONFIRM_PROMPT:
+      if action == PlayerKeyMaps.ACTION_BOMB:
+        self.confirm_prompt_result = True
+        self.state = Menu.MENU_STATE_CONFIRM
+      else:
+        self.confirm_prompt_result = False
+        self.state = Menu.MENU_STATE_SELECTING
+    else:
+      if action == PlayerKeyMaps.ACTION_UP:
+        self.selected_item = (max(0,self.selected_item[0] - 1),self.selected_item[1])
+      elif action == PlayerKeyMaps.ACTION_DOWN:
+        self.selected_item = (min(len(self.items[self.selected_item[1]]) - 1,self.selected_item[0] + 1),self.selected_item[1])
+      elif action == PlayerKeyMaps.ACTION_LEFT:
+        new_column = max(0,self.selected_item[1] - 1)
+        self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
+      elif action == PlayerKeyMaps.ACTION_RIGHT:
+        new_column = min(len(self.items) - 1,self.selected_item[1] + 1)
+        self.selected_item = (min(len(self.items[new_column]) - 1,self.selected_item[0]),new_column)
+      elif action == PlayerKeyMaps.ACTION_BOMB or action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:
+        self.state = Menu.MENU_STATE_CONFIRM
+      elif action == PlayerKeyMaps.ACTION_SPECIAL:
+        self.state = Menu.MENU_STATE_CANCEL
       
     if self.selected_item[0] >= self.scroll_position + Menu.MENU_MAX_ITEMS_VISIBLE:
       self.scroll_position += 1
@@ -2348,7 +2369,11 @@ class MainMenu(Menu):
       "tweak some stuff",
       "what's this about",
       "run away!")]
-  
+    
+  def action_pressed(self, action):
+    super(MainMenu,self).action_pressed(action)
+    self.prompt_if_needed((3,0))
+      
 class SettingsMenu(Menu):
   COLOR_ON = "^#1DF53A"
   COLOR_OFF = "^#F51111"
@@ -2376,47 +2401,56 @@ class SettingsMenu(Menu):
     
   def action_pressed(self, action):
     super(SettingsMenu,self).action_pressed(action)
+
+    self.prompt_if_needed((6,0))
     
-    if action == PlayerKeyMaps.ACTION_RIGHT:
-      if self.selected_item == (0,0):
-        self.settings.sound_volume = min(1.0,self.settings.sound_volume + 0.1)
-        self.game.apply_sound_settings()
-        self.game.save_settings()
-      elif self.selected_item == (1,0):
-        self.settings.music_volume = min(1.0,self.settings.music_volume + 0.1)
-        self.game.apply_sound_settings()
-        self.game.save_settings()
-      elif self.selected_item == (2,0):
-        self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() + 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]      
-        self.game.apply_screen_settings()
-        self.game.save_settings()
-      elif self.selected_item == (3,0):
-        self.settings.fullscreen = not self.settings.fullscreen
-        self.game.apply_screen_settings()
-        self.game.save_settings()
-      elif self.selected_item == (4,0):
-        self.settings.control_by_mouse = not self.settings.control_by_mouse
-        self.game.save_settings()
-    elif action == PlayerKeyMaps.ACTION_LEFT:
-      if self.selected_item == (0,0):
-        self.settings.sound_volume = max(0.0,self.settings.sound_volume - 0.1)
-        self.game.apply_sound_settings()
-        self.game.save_settings()
-      elif self.selected_item == (1,0):
-        self.settings.music_volume = max(0.0,self.settings.music_volume - 0.1)
-        self.game.apply_sound_settings()
-        self.game.save_settings()
-      elif self.selected_item == (2,0):
-        self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() - 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]
-        self.game.apply_screen_settings()
-        self.game.save_settings()
-      elif self.selected_item == (3,0):
-        self.settings.fullscreen = not self.settings.fullscreen
-        self.game.apply_screen_settings()
-        self.game.save_settings()
-      elif self.selected_item == (4,0):
-        self.settings.control_by_mouse = not self.settings.control_by_mouse
-        self.game.save_settings()
+    if self.state == Menu.MENU_STATE_SELECTING:
+      if action == PlayerKeyMaps.ACTION_RIGHT:
+        if self.selected_item == (0,0):
+          self.settings.sound_volume = min(1.0,self.settings.sound_volume + 0.1)
+          self.game.apply_sound_settings()
+          self.game.save_settings()
+        elif self.selected_item == (1,0):
+          self.settings.music_volume = min(1.0,self.settings.music_volume + 0.1)
+          self.game.apply_sound_settings()
+          self.game.save_settings()
+        elif self.selected_item == (2,0):
+          self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() + 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]      
+          self.game.apply_screen_settings()
+          self.game.save_settings()
+        elif self.selected_item == (3,0):
+          self.settings.fullscreen = not self.settings.fullscreen
+          self.game.apply_screen_settings()
+          self.game.save_settings()
+        elif self.selected_item == (4,0):
+          self.settings.control_by_mouse = not self.settings.control_by_mouse
+          self.game.save_settings()
+      elif action == PlayerKeyMaps.ACTION_LEFT:
+        if self.selected_item == (0,0):
+          self.settings.sound_volume = max(0.0,self.settings.sound_volume - 0.1)
+          self.game.apply_sound_settings()
+          self.game.save_settings()
+        elif self.selected_item == (1,0):
+          self.settings.music_volume = max(0.0,self.settings.music_volume - 0.1)
+          self.game.apply_sound_settings()
+          self.game.save_settings()
+        elif self.selected_item == (2,0):
+          self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() - 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]
+          self.game.apply_screen_settings()
+          self.game.save_settings()
+        elif self.selected_item == (3,0):
+          self.settings.fullscreen = not self.settings.fullscreen
+          self.game.apply_screen_settings()
+          self.game.save_settings()
+        elif self.selected_item == (4,0):
+          self.settings.control_by_mouse = not self.settings.control_by_mouse
+          self.game.save_settings()
+    elif self.state == Menu.MENU_STATE_CONFIRM:
+      if action == PlayerKeyMaps.ACTION_BOMB and self.selected_item == (6,0):
+        print("resetting settings")
+        # TODO: reset settings here
+        self.state = Menu.MENU_STATE_SELECTING
+        self.confirm_prompt_result = None
 
     self.update_items()
 
@@ -2713,12 +2747,13 @@ class Renderer(object):
     self.item_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_detonator.png"))
     self.item_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_throwing_glove.png"))
       
-    # load gui images:
+    # load/make gui images:
     self.gui_images = {}
     self.gui_images["info board"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_info_board.png"))   
     self.gui_images["arrow up"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_up.png"))   
     self.gui_images["arrow down"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_down.png"))   
     self.gui_images["seeker"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_seeker.png"))   
+    self.gui_images["prompt"] = self.render_text(self.font_normal,"You sure?",(255,255,255))
     
     self.player_info_board_images = [None for i in range(10)]  # up to date infoboard image for each player
 
@@ -3132,6 +3167,24 @@ class Renderer(object):
         result.blit(item_image,(x,y))
         
         y += Renderer.FONT_NORMAL_SIZE + Renderer.MENU_LINE_SPACING
+    
+    # render confirm dialog if prompting
+    
+    if menu_to_render.get_state() == Menu.MENU_STATE_CONFIRM_PROMPT:
+      width = 120
+      height = 80
+      x = self.screen_center[0] - width / 2
+      y = self.screen_center[1] - height / 2
+      
+      pygame.draw.rect(result,(0,0,0),pygame.Rect(x,y,width,height))
+      pygame.draw.rect(result,(255,255,255),pygame.Rect(x,y,width,height),1)
+      
+      text_image = pygame.transform.rotate(self.gui_images["prompt"],math.sin(pygame.time.get_ticks() / 100) * 5)
+      
+      x = self.screen_center[0] - text_image.get_size()[0] / 2
+      y = self.screen_center[1] - text_image.get_size()[1] / 2
+      
+      result.blit(text_image,(x,y))
     
     return result
 
@@ -3936,6 +3989,8 @@ class Game(object):
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (5,0):
           new_state = Game.GAME_STATE_MENU_CONTROL_SETTINGS
+        elif self.active_menu.get_selected_item() == (7,0):
+          new_state = Game.GAME_STATE_MENU_MAIN
 
     elif self.state == Game.GAME_STATE_MENU_CONTROL_SETTINGS:
       self.active_menu = self.menu_controls
@@ -3945,7 +4000,7 @@ class Game(object):
         new_state = Game.GAME_STATE_MENU_SETTINGS
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (0,0):
-          new_state = Game.GAME_STATE_MENU_SETTINGS  
+          new_state = Game.GAME_STATE_MENU_SETTINGS
         
     elif self.state == Game.GAME_STATE_MENU_ABOUT: 
       self.active_menu = self.menu_about
