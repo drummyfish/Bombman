@@ -1908,7 +1908,7 @@ class PlayerKeyMaps(StringSerializable):
       for action in mapping:
         result += str(i + 1) + " " + PlayerKeyMaps.ACTION_NAMES[action] + ": " + str(mapping[action]) + "\n"
 
-    result += "menu: " + str(PlayerKeyMaps.ACTION_MENU)
+    result += PlayerKeyMaps.ACTION_NAMES[PlayerKeyMaps.ACTION_MENU] + ": " + str(self.get_menu_key_map())
     
     return result
     
@@ -1928,7 +1928,7 @@ class PlayerKeyMaps(StringSerializable):
         key = None
       
       if line.find(PlayerKeyMaps.ACTION_NAMES[PlayerKeyMaps.ACTION_MENU]) == 0:
-        self.set_one_key_map(key,-1,action) 
+        self.set_one_key_map(key,-1,PlayerKeyMaps.ACTION_MENU)
       else:
         player_number = int(line[0]) - 1
         action_name = line[2:line.find(":")]
@@ -1945,7 +1945,9 @@ class PlayerKeyMaps(StringSerializable):
   def get_menu_key_map(self):
     for key in self.key_maps:
       if self.key_maps[key][0] == -1:
-        return self.key_maps[key][1]
+        return key
+      
+    return None
 
   ## From currently pressed keys makes a list of actions being currently performed and returns it, format: (player_number, action).
 
@@ -2255,7 +2257,8 @@ class Menu(object):
       PlayerKeyMaps.ACTION_LEFT : True,
       PlayerKeyMaps.ACTION_BOMB : True,
       PlayerKeyMaps.ACTION_SPECIAL : True,
-      PlayerKeyMaps.ACTION_BOMB_DOUBLE: True}     # to detect single key presses, the values have to be True in order not to rect immediatelly upon entering the menu
+      PlayerKeyMaps.ACTION_BOMB_DOUBLE: True,
+      PlayerKeyMaps.ACTION_MENU : True}   ##< to detect single key presses, the values have to be True in order not to rect immediatelly upon entering the menu
     self.state = Menu.MENU_STATE_SELECTING
     pass
 
@@ -2373,7 +2376,12 @@ class MainMenu(Menu):
   def action_pressed(self, action):
     super(MainMenu,self).action_pressed(action)
     self.prompt_if_needed((3,0))
-      
+  
+class PlayMenu(Menu):
+  def __init__(self):
+    super(PlayMenu,self).__init__()
+    self.items = [("resume","to main menu")]
+  
 class SettingsMenu(Menu):
   COLOR_ON = "^#1DF53A"
   COLOR_OFF = "^#F51111"
@@ -2465,7 +2473,7 @@ class ControlsMenu(Menu):
     self.wait_for_release = False # used to wait for keys release before new key map is captured
 
     self.update_items()
-        
+
   def color_key_string(self, key_string):
     if key_string == "none":
       return "^#E83535" + key_string
@@ -2526,6 +2534,9 @@ class ControlsMenu(Menu):
            self.waiting_for_key = None
            self.state = Menu.MENU_STATE_SELECTING
            self.game.save_settings()
+           
+           for item in self.action_keys_previous_state:
+             self.action_keys_previous_state[item] = True
     
     self.update_items()
 
@@ -3908,7 +3919,8 @@ class Game(object):
   GAME_STATE_MENU_PLAY_SETUP = 5
   GAME_STATE_MENU_MAP_SELECT = 6
   GAME_STATE_MENU_CONTROL_SETTINGS = 7
-  GAME_STATE_GAME_STARTED = 8
+  GAME_STATE_MENU_PLAY = 8
+  GAME_STATE_GAME_STARTED = 9
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -3970,6 +3982,7 @@ class Game(object):
 
   def manage_menus(self):
     new_state = self.state
+    prevent_input_processing = False
     
     if self.state == Game.GAME_STATE_MENU_MAIN: 
       self.active_menu = self.menu_main
@@ -3983,6 +3996,9 @@ class Game(object):
           new_state = Game.GAME_STATE_MENU_ABOUT
         elif self.active_menu.get_selected_item() == (3,0):
           new_state = Game.GAME_STATE_EXIT
+    elif self.state == Game.GAME_STATE_MENU_PLAY:
+      print("sasas")
+      #TODO  
     elif self.state == Game.GAME_STATE_MENU_SETTINGS: 
       self.active_menu = self.menu_settings
       
@@ -4052,8 +4068,7 @@ class Game(object):
         self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
         self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
         self.screen.blit(self.renderer.render_map(self.game_map),(0,0)) 
-        self.simulation_step(dt)
-        
+        self.simulation_step(dt)       
       elif self.state == Game.GAME_STATE_EXIT:
         break
       elif self.state == Game.GAME_STATE_GAME_STARTED:
@@ -4085,6 +4100,11 @@ class Game(object):
 
   def simulation_step(self,dt):
     actions_being_performed = self.player_key_maps.get_current_actions()
+    
+    for action in actions_being_performed:
+      if action[0] == -1:
+        self.state = Game.GAME_STATE_MENU_PLAY
+        return
     
     for i in range(len(self.ais)):
       actions_being_performed = actions_being_performed + self.ais[i].play()
