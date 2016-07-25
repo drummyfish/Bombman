@@ -231,6 +231,18 @@ class Player(Positionable):
       return True
     
     return False
+  
+  ## Makes the player not react to bomb key immediatelly, but only after it
+  #  has been released and pressed again.
+  
+  def wait_for_bomb_action_release(self):
+    self.wait_for_bomb_release = True
+    
+  ## Makes the player not react to special key immediatelly, but only after it
+  #  has been released and pressed again.
+  
+  def wait_for_special_action_release(self):
+    self.wait_for_special_release = True
     
   def is_boxing(self):
     return self.boxing
@@ -2382,6 +2394,10 @@ class PlayMenu(Menu):
     super(PlayMenu,self).__init__()
     self.items = [("resume","to main menu")]
   
+  def action_pressed(self, action):
+    super(PlayMenu,self).action_pressed(action)
+    self.prompt_if_needed((1,0))
+  
 class SettingsMenu(Menu):
   COLOR_ON = "^#1DF53A"
   COLOR_OFF = "^#F51111"
@@ -3956,6 +3972,7 @@ class Game(object):
     self.menu_about = AboutMenu()
     self.menu_play_setup = PlaySetupMenu(self.play_setup)
     self.menu_map_select = MapSelectMenu()
+    self.menu_play = PlayMenu()
     self.menu_controls = ControlsMenu(self.player_key_maps,self)
     
     self.ais = []
@@ -3984,6 +4001,7 @@ class Game(object):
     new_state = self.state
     prevent_input_processing = False
     
+    # ================ MAIN MENU =================
     if self.state == Game.GAME_STATE_MENU_MAIN: 
       self.active_menu = self.menu_main
       
@@ -3996,9 +4014,26 @@ class Game(object):
           new_state = Game.GAME_STATE_MENU_ABOUT
         elif self.active_menu.get_selected_item() == (3,0):
           new_state = Game.GAME_STATE_EXIT
+
+    # ================ PLAY MENU =================
     elif self.state == Game.GAME_STATE_MENU_PLAY:
-      print("sasas")
-      #TODO  
+      self.active_menu = self.menu_play
+
+      if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
+        new_state = Game.GAME_STATE_PLAYING
+
+      elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
+        if self.active_menu.get_selected_item() == (0,0):
+          new_state = Game.GAME_STATE_PLAYING
+          
+          for player in self.game_map.get_players():
+            player.wait_for_bomb_action_release()
+          
+        elif self.active_menu.get_selected_item() == (1,0):
+          new_state = Game.GAME_STATE_MENU_MAIN
+          self.sound_player.change_music()
+    
+    # ============== SETTINGS MENU ===============
     elif self.state == Game.GAME_STATE_MENU_SETTINGS: 
       self.active_menu = self.menu_settings
       
@@ -4010,6 +4045,7 @@ class Game(object):
         elif self.active_menu.get_selected_item() == (7,0):
           new_state = Game.GAME_STATE_MENU_MAIN
 
+    # ========== CONTROL SETTINGS MENU ===========
     elif self.state == Game.GAME_STATE_MENU_CONTROL_SETTINGS:
       self.active_menu = self.menu_controls
       self.active_menu.update()    # needs to be called to scan for pressed keys
@@ -4020,11 +4056,14 @@ class Game(object):
         if self.active_menu.get_selected_item() == (0,0):
           new_state = Game.GAME_STATE_MENU_SETTINGS
         
+    # ================ ABOUT MENU =================
     elif self.state == Game.GAME_STATE_MENU_ABOUT: 
       self.active_menu = self.menu_about
       
       if self.active_menu.get_state() in (Menu.MENU_STATE_CONFIRM,Menu.MENU_STATE_CANCEL):
         new_state = Game.GAME_STATE_MENU_MAIN
+    
+    # ============== PLAY SETUP MENU ==============
     elif self.state == Game.GAME_STATE_MENU_PLAY_SETUP: 
       self.active_menu = self.menu_play_setup
       
@@ -4035,6 +4074,8 @@ class Game(object):
           new_state = Game.GAME_STATE_MENU_MAP_SELECT
         elif self.active_menu.get_selected_item() == (0,0):
           new_state = Game.GAME_STATE_MENU_MAIN
+    
+    # ============== MAP SELECT MENU ==============
     elif self.state == Game.GAME_STATE_MENU_MAP_SELECT:
       self.active_menu = self.menu_map_select
       
