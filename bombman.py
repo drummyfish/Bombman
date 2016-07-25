@@ -1703,9 +1703,13 @@ class Map(object):
 #  the selected map.
 
 class PlaySetup(object):
+  MAX_GAMES = 20
+  
   def __init__(self):
     self.player_slots = [None for i in range(10)]    ##< player slots: (player_number, team_color), negative player_number = AI, slot index ~ player color index
 
+    self.number_of_games = 10
+    
     # default setup, player 0 vs 3 AI players:
     self.player_slots[0] = (0,0)
     self.player_slots[1] = (-1,1)
@@ -1715,6 +1719,18 @@ class PlaySetup(object):
   def get_slots(self):
     return self.player_slots
 
+  def get_number_of_games(self):
+    return self.number_of_games
+
+  def set_number_of_games(self, number_of_games):
+    self.number_of_games = number_of_games
+  
+  def increase_number_of_games(self):
+    self.number_of_games = self.number_of_games % PlaySetup.MAX_GAMES + 1
+  
+  def decrease_number_of_games(self):
+    self.number_of_games = (self.number_of_games - 2) % PlaySetup.MAX_GAMES + 1
+   
 ## Something that can be saved/loaded to/from string.
   
 class StringSerializable(object):
@@ -2075,6 +2091,7 @@ class SoundPlayer(object):
   SOUND_EVENT_GO_AWAY = 23
   SOUND_EVENT_GO = 24
   SOUND_EVENT_EARTHQUAKE = 25
+  SOUND_EVENT_CONFIRM = 26
   
   def __init__(self):
     self.sound_volume = 0.5
@@ -2097,6 +2114,7 @@ class SoundPlayer(object):
     self.sounds[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go_away.wav"))
     self.sounds[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go.wav"))
     self.sounds[SoundPlayer.SOUND_EVENT_EARTHQUAKE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"earthquake.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_CONFIRM] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"confirm.wav"))
     
     self.music_filenames = [
       "music_broke_for_free_caught_in_the_beat_remix.wav",
@@ -2157,6 +2175,9 @@ class SoundPlayer(object):
     pygame.mixer.music.set_volume(self.music_volume)
     pygame.mixer.music.play(-1)
    
+  def play_sound_event(self,sound_event):
+    self.process_events([sound_event])
+   
   ## Processes a list of sound events (see class constants) by playing
   #  appropriate sounds.
     
@@ -2178,7 +2199,8 @@ class SoundPlayer(object):
         SoundPlayer.SOUND_EVENT_DEATH,
         SoundPlayer.SOUND_EVENT_GO_AWAY,
         SoundPlayer.SOUND_EVENT_GO,
-        SoundPlayer.SOUND_EVENT_EARTHQUAKE
+        SoundPlayer.SOUND_EVENT_EARTHQUAKE,
+        SoundPlayer.SOUND_EVENT_CONFIRM
         ):
         self.sounds[sound_event].play()
     
@@ -2255,13 +2277,14 @@ class Menu(object):
   
   MENU_MAX_ITEMS_VISIBLE = 11
   
-  def __init__(self):
+  def __init__(self,sound_player):
     self.text = ""
     self.selected_item = (0,0)        ##< row, column
     self.items = []
     self.menu_left = False
     self.confirm_prompt_result = None ##< True, False or None
     self.scroll_position = 0          ##< index of the first visible row
+    self.sound_player = sound_player
     self.action_keys_previous_state = {
       PlayerKeyMaps.ACTION_UP : True,
       PlayerKeyMaps.ACTION_RIGHT : True,
@@ -2336,6 +2359,7 @@ class Menu(object):
   def leaving(self):
     self.menu_left = True
     self.confirm_prompt_result = None
+    self.sound_player.play_sound_event(SoundPlayer.SOUND_EVENT_CONFIRM)
      
   ## Prompts confirmation of given menu item if it has been selected.
      
@@ -2347,8 +2371,10 @@ class Menu(object):
   #  not good for menus). This can be overridden.
   
   def action_pressed(self, action):
+    old_selected_item = self.selected_item
+    
     if self.state == Menu.MENU_STATE_CONFIRM_PROMPT:
-      if action == PlayerKeyMaps.ACTION_BOMB:
+      if action == PlayerKeyMaps.ACTION_BOMB or action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:
         self.confirm_prompt_result = True
         self.state = Menu.MENU_STATE_CONFIRM
       else:
@@ -2374,10 +2400,13 @@ class Menu(object):
       self.scroll_position += 1
     elif self.selected_item[0] < self.scroll_position:
       self.scroll_position -= 1
+      
+    if self.selected_item != old_selected_item:
+      self.sound_player.play_sound_event(SoundPlayer.SOUND_EVENT_CLICK)
     
 class MainMenu(Menu):
-  def __init__(self):
-    super(MainMenu,self).__init__()
+  def __init__(self, sound_player):
+    super(MainMenu,self).__init__(sound_player)
     
     self.items = [(
       "let's play!",
@@ -2390,8 +2419,8 @@ class MainMenu(Menu):
     self.prompt_if_needed((3,0))
   
 class PlayMenu(Menu):
-  def __init__(self):
-    super(PlayMenu,self).__init__()
+  def __init__(self,sound_player):
+    super(PlayMenu,self).__init__(sound_player)
     self.items = [("resume","to main menu")]
   
   def action_pressed(self, action):
@@ -2402,8 +2431,8 @@ class SettingsMenu(Menu):
   COLOR_ON = "^#1DF53A"
   COLOR_OFF = "^#F51111"
   
-  def __init__(self, settings, game):
-    super(SettingsMenu,self).__init__()
+  def __init__(self, sound_player, settings, game):
+    super(SettingsMenu,self).__init__(sound_player)
     self.settings = settings
     self.game = game
     self.update_items()  
@@ -2481,8 +2510,8 @@ class SettingsMenu(Menu):
     self.update_items()
 
 class ControlsMenu(Menu):
-  def __init__(self, player_key_maps, game):
-    super(ControlsMenu,self).__init__()
+  def __init__(self, sound_player, player_key_maps, game):
+    super(ControlsMenu,self).__init__(sound_player)
     self.player_key_maps = player_key_maps
     self.game = game
     self.waiting_for_key = None   # if not None, this contains a tuple (player number, action) of action that is currently being remapped
@@ -2583,8 +2612,8 @@ class ControlsMenu(Menu):
     self.update_items()
     
 class AboutMenu(Menu):
-  def __init__(self):
-    super(AboutMenu,self).__init__() 
+  def __init__(self,sound_player):
+    super(AboutMenu,self).__init__(sound_player) 
     self.text = ("^#2E44BFBombman^#FFFFFF - an open-source Atomic Bomberman clone, ^#4EF259version " + VERSION_STR + ".\n"
                  "copyright Miloslav \"tastyfish\" Ciz, 2016\n\n"
                  "This software is published under GPL license version 3. It's goal is to recreate\n"
@@ -2597,8 +2626,8 @@ class AboutMenu(Menu):
     self.items = [["ok, nice, back"]]
 
 class MapSelectMenu(Menu):
-  def __init__(self):
-    super(MapSelectMenu,self).__init__()
+  def __init__(self,sound_player):
+    super(MapSelectMenu,self).__init__(sound_player)
     self.text = "Now select a map."
     self.map_filenames = []
     self.update_items()
@@ -2615,14 +2644,14 @@ class MapSelectMenu(Menu):
     return self.map_filenames[self.selected_item[0]]
 
 class PlaySetupMenu(Menu):
-  def __init__(self, play_setup):
-    super(PlaySetupMenu,self).__init__()
+  def __init__(self, sound_player, play_setup):
+    super(PlaySetupMenu,self).__init__(sound_player)
     self.selected_item = (0,1)
     self.play_setup = play_setup
     self.update_items()
     
   def update_items(self):
-    self.items = [[],[]]
+    self.items = [[],[],["games: " + str(self.play_setup.get_number_of_games())]]
     
     dark_grey = (50,50,50)
       
@@ -2647,28 +2676,41 @@ class PlaySetupMenu(Menu):
   def action_pressed(self, action):
     super(PlaySetupMenu,self).action_pressed(action)
     
-    if self.state == Menu.MENU_STATE_CONFIRM and self.selected_item[0] > 0:  # override behaviour for confirm button
-      slots = self.play_setup.get_slots()
-      slot = slots[self.selected_item[0] - 1]
+    if action == PlayerKeyMaps.ACTION_UP:
+      if self.selected_item == (0,2):
+        self.play_setup.increase_number_of_games()  
+        self.state = Menu.MENU_STATE_SELECTING
+    elif action == PlayerKeyMaps.ACTION_DOWN:
+      if self.selected_item == (0,2):
+        self.play_setup.decrease_number_of_games()
+        self.state = Menu.MENU_STATE_SELECTING
+    elif self.state == Menu.MENU_STATE_CONFIRM:  
+      if self.selected_item == (0,2):
+        self.play_setup.increase_number_of_games()
+        self.state = Menu.MENU_STATE_SELECTING
+    
+      if self.selected_item[0] > 0:  # override behaviour for confirm button
+        slots = self.play_setup.get_slots()
+        slot = slots[self.selected_item[0] - 1]
       
-      if self.selected_item[1] == 0:
-        # changing players
+        if self.selected_item[1] == 0:
+          # changing players
         
-        if slot == None:
-          new_value = -1
-        else:
-          new_value = slot[0] + 1
+          if slot == None:
+            new_value = -1
+          else:
+            new_value = slot[0] + 1
           
-        slots[self.selected_item[0] - 1] = (new_value,slot[1] if slot != None else self.selected_item[0] - 1) if new_value <= 3 else None  
-      else:
-        # changing teams
+          slots[self.selected_item[0] - 1] = (new_value,slot[1] if slot != None else self.selected_item[0] - 1) if new_value <= 3 else None  
+        else:
+          # changing teams
         
-        if slot != None:
-          slots[self.selected_item[0] - 1] = (slot[0],(slot[1] + 1) % 10)
+          if slot != None:
+            slots[self.selected_item[0] - 1] = (slot[0],(slot[1] + 1) % 10)
       
-      self.state = Menu.MENU_STATE_SELECTING
+        self.state = Menu.MENU_STATE_SELECTING
       
-      self.update_items()
+    self.update_items()
    
 class Renderer(object):
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
@@ -3967,13 +4009,13 @@ class Game(object):
     
     self.play_setup = PlaySetup()
     
-    self.menu_main = MainMenu()
-    self.menu_settings = SettingsMenu(self.settings,self)
-    self.menu_about = AboutMenu()
-    self.menu_play_setup = PlaySetupMenu(self.play_setup)
-    self.menu_map_select = MapSelectMenu()
-    self.menu_play = PlayMenu()
-    self.menu_controls = ControlsMenu(self.player_key_maps,self)
+    self.menu_main = MainMenu(self.sound_player)
+    self.menu_settings = SettingsMenu(self.sound_player,self.settings,self)
+    self.menu_about = AboutMenu(self.sound_player)
+    self.menu_play_setup = PlaySetupMenu(self.sound_player,self.play_setup)
+    self.menu_map_select = MapSelectMenu(self.sound_player)
+    self.menu_play = PlayMenu(self.sound_player)
+    self.menu_controls = ControlsMenu(self.sound_player,self.player_key_maps,self)
     
     self.ais = []
     
