@@ -760,7 +760,7 @@ class Player(Positionable):
       else:
         bomb_movement = Bomb.BOMB_ROLLING_LEFT
     
-      if self.has_shoe:
+      if self.has_shoe or self.has_boxing_glove:
         if game_map.tile_has_bomb(forward_tile):
           # kick or box happens
           bomb_hit = game_map.bomb_on_tile(forward_tile)
@@ -768,9 +768,8 @@ class Player(Positionable):
           if self.boxing:
             destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)           
             bomb_hit.send_flying(destination_tile)
-          else:
-            bomb_hit = game_map.bomb_on_tile(forward_tile)
-          
+            game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
+          elif self.has_shoe:
             # align the bomb in case of kicking an already moving bomb:
             bomb_position = bomb_hit.get_position()
           
