@@ -2635,7 +2635,7 @@ class ControlsMenu(Menu):
 class AboutMenu(Menu):
   def __init__(self,sound_player):
     super(AboutMenu,self).__init__(sound_player) 
-    self.text = ("^#2E44BFBombman^#FFFFFF - an open-source Atomic Bomberman clone, ^#4EF259version " + VERSION_STR + ".\n"
+    self.text = ("^#2E44BFBombman^#FFFFFF - an open-source Atomic Bomberman clone, ^#4EF259version " + VERSION_STR + "\n"
                  "copyright Miloslav \"tastyfish\" Ciz, 2016\n\n"
                  "This software is published under GPL license version 3. It's goal is to recreate\n"
                  "a wonderful experience of Atomic Bomberman, a game that is due to its age no\n"
@@ -4021,6 +4021,8 @@ class Game(object):
     self.player_key_maps = PlayerKeyMaps()
     self.settings = Settings(self.player_key_maps)
     
+    self.game_number = 0
+    
     if os.path.isfile(SETTINGS_FILE_PATH):
       print("loading settings from file " + SETTINGS_FILE_PATH)
       self.settings.load_from_file(SETTINGS_FILE_PATH)
@@ -4157,6 +4159,7 @@ class Game(object):
         new_state = Game.GAME_STATE_MENU_PLAY_SETUP
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         self.map_name = self.active_menu.get_selected_map_name()
+        self.game_number = 1     # first game
         new_state = Game.GAME_STATE_GAME_STARTED
     
     if new_state != self.state:  # going to new state
@@ -4183,20 +4186,38 @@ class Game(object):
         self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
         self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
         self.screen.blit(self.renderer.render_map(self.game_map),(0,0)) 
-        self.simulation_step(dt)       
+        self.simulation_step(dt)
+        
+        if self.game_map.get_state() == Map.STATE_GAME_OVER:
+          self.game_number += 1
+          
+          if self.game_number > self.play_setup.get_number_of_games():
+            self.state = Game.GAME_STATE_MENU_MAIN    # back to menu
+          else:
+            self.state = Game.GAME_STATE_GAME_STARTED # new game
       elif self.state == Game.GAME_STATE_EXIT:
         break
       elif self.state == Game.GAME_STATE_GAME_STARTED:
-        print("game start confirmed")
+        print("starting game " + str(self.game_number))
+    
+        previous_winner = -1
+    
+        if self.game_number != 1:
+          previous_winner = self.game_map.get_winner_team()
+        
         with open(os.path.join(MAP_PATH,self.map_name)) as map_file:
           map_data = map_file.read()
-          self.game_map = Map(map_data,self.play_setup,1,2)
+          self.game_map = Map(map_data,self.play_setup,self.game_number,self.play_setup.get_number_of_games())
           
         player_slots = self.play_setup.get_slots()
         
         for i in range(len(player_slots)):
           if player_slots[i] != None and player_slots[i][0] < 0:  # indicates AI
             self.ais.append(AI(self.game_map.get_players_by_numbers()[i],self.game_map))
+      
+        for player in self.game_map.get_players():
+          if player.get_team_number() == previous_winner:
+            player.set_wins(player.get_wins() + 1)
         
         self.sound_player.change_music()
         self.state = Game.GAME_STATE_PLAYING
