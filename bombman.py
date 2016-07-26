@@ -221,9 +221,23 @@ class Player(Positionable):
     self.wait_for_tile_transition = False ##< used to stop the destination teleport from teleporting the player back immediatelly
     self.invincible = False               ##< can be used to make the player immortal
     self.info_board_update_needed = True
-    
+    self.kills = 0
+    self.wins = 0
+  
     self.items[Map.ITEM_BOMB] = 1
     self.items[Map.ITEM_FLAME] = 1
+    
+  def get_kills(self):
+    return self.kills
+    
+  def set_kills(self, kills):
+    self.kills = kills
+    
+  def get_wins(self):
+    return self.wins
+    
+  def set_wins(self, wins):
+    self.wins = wins
     
   def info_board_needs_update(self):
     if self.info_board_update_needed:
@@ -974,7 +988,7 @@ class Map(object):
   
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
-  def __init__(self, map_data, play_setup):
+  def __init__(self, map_data, play_setup, game_number, max_games):
     # make the tiles array:
     self.danger_map_is_up_to_date = False                    # to regenerate danger map only when needed
     self.tiles = []
@@ -992,6 +1006,9 @@ class Map(object):
     self.announce_win_at = -1
     self.state = Map.STATE_WAITING_TO_PLAY
     self.winner_team = -1                          ##< if map state is Map.STATE_GAME_OVER, this holds the winning team (-1 = draw)
+
+    self.game_number = game_number
+    self.max_games = max_games
 
     self.earthquake_time_left = 0
 
@@ -1111,6 +1128,11 @@ class Map(object):
     self.animation_events = []     ##< list of animation events, tuples in format (animation_event, coordinates)
 
     self.items_to_give_away = []   ##< list of tuples in format (time_of_giveaway, list_of_items)
+
+  ## Returns a tuple (game number, max games).
+ 
+  def get_game_number_info(self):
+    return (self.game_number,self.max_games)
 
   def start_earthquake(self):
     self.earthquake_time_left = Map.EARTHQUAKE_DURATION
@@ -2953,6 +2975,9 @@ class Renderer(object):
       
       board_image.blit(self.gui_images["info board"],(0,0))
       
+      board_image.blit(self.font_small.render(str(players[i].get_kills()),True,(0,0,0)),(45,0))
+      board_image.blit(self.font_small.render(str(players[i].get_wins()),True,(0,0,0)),(65,0))
+      
       board_image.blit(self.font_small.render(COLOR_NAMES[i],True,self.darken_color(COLOR_RGB_VALUES[i],100)),(4,2))
       
       if player.is_dead():
@@ -3304,11 +3329,19 @@ class Renderer(object):
             self.prerendered_map_background.blit(image_arrow_left,render_position)
           elif tile.special_object == MapTile.SPECIAL_OBJECT_LAVA:
             self.prerendered_map_background.blit(image_lava,render_position)
-          
+    
+      game_info = map_to_render.get_game_number_info()    
+      
+      game_info_text = self.render_text(self.font_small,"game " + str(game_info[0]) + " of " + str(game_info[1]),(255,255,255))
+      #game_info_text = self.font_normal.render("game " + str(game_info[0]) + "/" + str(game_info[1]),True,(255,0,0))
+      
+      
+      self.prerendered_map_background.blit(game_info_text,((self.prerendered_map_background.get_size()[0] - game_info_text.get_size()[0]) / 2,self.prerendered_map_background.get_size()[1] - game_info_text.get_size()[1]))
+
       self.prerendered_map = map_to_render
 
     result.blit(self.prerendered_map_background,self.map_render_location)
-
+    
     # order the players and bombs by their y position so that they are drawn correctly
 
     ordered_objects_to_render = []
@@ -4157,7 +4190,7 @@ class Game(object):
         print("game start confirmed")
         with open(os.path.join(MAP_PATH,self.map_name)) as map_file:
           map_data = map_file.read()
-          self.game_map = Map(map_data,self.play_setup)
+          self.game_map = Map(map_data,self.play_setup,1,2)
           
         player_slots = self.play_setup.get_slots()
         
