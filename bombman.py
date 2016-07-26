@@ -2373,7 +2373,7 @@ class Menu(object):
       self.action_keys_previous_state[action_code] = True
     
     for action in actions_pressed:
-      self.action_pressed(action_code)
+      self.action_pressed(action)
      
   ## Should be called when the menu is being left.
      
