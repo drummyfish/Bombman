@@ -2767,6 +2767,8 @@ class Renderer(object):
     self.font_small = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_SMALL_SIZE)
     self.font_normal = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_NORMAL_SIZE)
 
+    pygame.mouse.set_visible(False)    # hide mouse cursor
+
     environment_names = ["env1","env2","env3","env4","env5"]
 
     for environment_name in environment_names:
@@ -2810,6 +2812,7 @@ class Renderer(object):
     self.bomb_images.append(self.bomb_images[0])
      
     # load flame images:
+    
     self.flame_images = []
     
     for i in [1,2]:
@@ -2825,6 +2828,7 @@ class Renderer(object):
       self.flame_images[-1]["down"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_down.png"))
       
     # load item images:
+    
     self.item_images = {}
     
     self.item_images[Map.ITEM_BOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_bomb.png"))
@@ -2842,11 +2846,13 @@ class Renderer(object):
     self.item_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_throwing_glove.png"))
       
     # load/make gui images:
+    
     self.gui_images = {}
     self.gui_images["info board"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_info_board.png"))   
     self.gui_images["arrow up"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_up.png"))   
     self.gui_images["arrow down"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_down.png"))   
-    self.gui_images["seeker"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_seeker.png"))   
+    self.gui_images["seeker"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_seeker.png"))
+    self.gui_images["cursor"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_cursor.png"))   
     self.gui_images["prompt"] = self.render_text(self.font_normal,"You sure?",(255,255,255))
     
     self.player_info_board_images = [None for i in range(10)]  # up to date infoboard image for each player
@@ -3282,6 +3288,8 @@ class Renderer(object):
       y = self.screen_center[1] - text_image.get_size()[1] / 2
       
       result.blit(text_image,(x,y))
+    
+    result.blit(self.gui_images["cursor"],pygame.mouse.get_pos())
     
     return result
 
