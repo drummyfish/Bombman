@@ -1173,7 +1173,7 @@ class Map(object):
       for i in range(Map.MAP_WIDTH):
         tile = self.tiles[j][i]
         
-        if tile.kind == MapTile.TILE_BLOCK or len(tile.flames) >= 1 or self.tiles[j][i].special_object == MapTile.SPECIAL_OBJECT_LAVA:
+        if tile.kind == MapTile.TILE_WALL or tile.kind == MapTile.TILE_BLOCK or len(tile.flames) >= 1 or self.tiles[j][i].special_object == MapTile.SPECIAL_OBJECT_LAVA:
           self.danger_map[j][i] = 0  # 0 => there is a flame
         else:
           self.danger_map[j][i] = Map.SAFE_DANGER_VALUE
@@ -3778,7 +3778,9 @@ class AI(object):
       
       chosen_movement_action = best_action 
     else:   # not standing on a bomb
+      
       # Should I not move?
+      
       maximum_score = self.rate_tile(current_tile)
       best_direction_actions = [None]
     
