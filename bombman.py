@@ -3626,7 +3626,7 @@ class AI(object):
     result = [0,0,0,0]
     
     for direction in (0,1,2,3):
-      for i in range(1,self.player.get_flame_length() + 1):
+      for i in range(1,self.player.get_flame_length() + 2):
         axis_tile = (tile_coordinates[0] + i * axis_directions[direction][0],tile_coordinates[1] + i * axis_directions[direction][1])
         
         if not self.tile_is_escapable(axis_tile):
@@ -3813,7 +3813,7 @@ class AI(object):
           best_direction_actions.append(action[direction])
       
       chosen_movement_action = random.choice(best_direction_actions)
-       
+    
     if chosen_movement_action != None:
       if self.player.get_disease == Player.DISEASE_REVERSE_CONTROLS:
         chosen_movement_action = PlayerKeyMaps.get_opposite_action(chosen_movement_action)
@@ -3834,7 +3834,7 @@ class AI(object):
       
       if self.player.can_throw() and max(escape_direction_ratings) == 0:
         self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB_DOUBLE))
-    elif self.player.get_bombs_left() > 0 and (self.player.can_throw() or self.game_map.get_danger_value(current_tile) > 2000 and max(escape_direction_ratings) > 0):
+    elif self.player.get_bombs_left() > 0 and (self.player.can_throw() or self.game_map.get_danger_value(current_tile) > 2000 and max(escape_direction_ratings) > 0): 
       # Should I lay bomb?
       
       chance_to_put_bomb = 100    # one in how many
@@ -3857,7 +3857,7 @@ class AI(object):
         chance_to_put_bomb = 3
       elif number_of_block_neighbours == 2 or number_of_block_neighbours == 3:
         chance_to_put_bomb = 2
-        
+      
       do_lay_bomb = random.randint(0,chance_to_put_bomb) == 0
       
       if do_lay_bomb:
