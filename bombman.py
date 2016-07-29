@@ -2478,6 +2478,9 @@ class SettingsMenu(Menu):
 
     self.prompt_if_needed((6,0))
     
+    mouse_control_selected = False
+    fullscreen_selected = False
+    
     if self.state == Menu.MENU_STATE_SELECTING:
       if action == PlayerKeyMaps.ACTION_RIGHT:
         if self.selected_item == (0,0):
@@ -2492,13 +2495,6 @@ class SettingsMenu(Menu):
           self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() + 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]      
           self.game.apply_screen_settings()
           self.game.save_settings()
-        elif self.selected_item == (3,0):
-          self.settings.fullscreen = not self.settings.fullscreen
-          self.game.apply_screen_settings()
-          self.game.save_settings()
-        elif self.selected_item == (4,0):
-          self.settings.control_by_mouse = not self.settings.control_by_mouse
-          self.game.save_settings()
       elif action == PlayerKeyMaps.ACTION_LEFT:
         if self.selected_item == (0,0):
           self.settings.sound_volume = max(0.0,self.settings.sound_volume - 0.1)
@@ -2512,24 +2508,34 @@ class SettingsMenu(Menu):
           self.settings.screen_resolution = Settings.POSSIBLE_SCREEN_RESOLUTIONS[(self.settings.current_resolution_index() - 1) % len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)]
           self.game.apply_screen_settings()
           self.game.save_settings()
-        elif self.selected_item == (3,0):
-          self.settings.fullscreen = not self.settings.fullscreen
-          self.game.apply_screen_settings()
-          self.game.save_settings()
-        elif self.selected_item == (4,0):
-          self.settings.control_by_mouse = not self.settings.control_by_mouse
-          self.game.save_settings()
     elif self.state == Menu.MENU_STATE_CONFIRM:
-      if action == PlayerKeyMaps.ACTION_BOMB and self.selected_item == (6,0):
+      if self.selected_item == (6,0):
         print("resetting settings")
         self.settings.reset()
         self.game.apply_sound_settings()
         self.game.save_settings()
-        self.state = Menu.MENU_STATE_SELECTING
         self.confirm_prompt_result = None
+        self.state = Menu.MENU_STATE_SELECTING    
+      elif self.selected_item == (3,0):
+        fullscreen_selected = True
+      elif self.selected_item == (4,0):
+        mouse_control_selected = True
+      
+    if mouse_control_selected:
+      self.settings.control_by_mouse = not self.settings.control_by_mouse
+      self.game.apply_other_settings()
+      self.game.save_settings()
+      self.state = Menu.MENU_STATE_SELECTING
+      
+    if fullscreen_selected:
+      print("sasasas")
+      self.settings.fullscreen = not self.settings.fullscreen
+      self.game.apply_screen_settings()
+      self.game.save_settings()
+      self.state = Menu.MENU_STATE_SELECTING
 
     self.update_items()
-
+      
 class ControlsMenu(Menu):
   def __init__(self, sound_player, player_key_maps, game):
     super(ControlsMenu,self).__init__(sound_player)
@@ -3203,7 +3209,7 @@ class Renderer(object):
           
         self.menu_item_images[menu_coordinates] = (item_text,new_image)
     
-  def render_menu(self, menu_to_render):
+  def render_menu(self, menu_to_render, game):
     result = pygame.Surface(self.screen_resolution)
     
     if self.menu_background_image == None:
@@ -3289,7 +3295,10 @@ class Renderer(object):
       
       result.blit(text_image,(x,y))
     
-    result.blit(self.gui_images["cursor"],pygame.mouse.get_pos())
+    # draw cursor only if control by mouse is not allowed - wouldn't make sense
+    
+    if not game.get_settings().control_by_mouse:
+      result.blit(self.gui_images["cursor"],pygame.mouse.get_pos())
     
     return result
 
@@ -4029,6 +4038,7 @@ class Game(object):
     pygame.mixer.init()
     
     self.player_key_maps = PlayerKeyMaps()
+    
     self.settings = Settings(self.player_key_maps)
     
     self.game_number = 0
@@ -4065,6 +4075,9 @@ class Game(object):
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
+  def get_settings(self):
+    return self.settings
+
   def apply_screen_settings(self):
     display_flags = 0
     
@@ -4077,6 +4090,9 @@ class Game(object):
   def apply_sound_settings(self):
     self.sound_player.set_music_volume(self.settings.music_volume)
     self.sound_player.set_sound_volume(self.settings.sound_volume)
+  
+  def apply_other_settings(self):
+    self.player_key_maps.allow_control_by_mouse(self.settings.control_by_mouse)
   
   def save_settings(self):
     self.settings.save_to_file(SETTINGS_FILE_PATH)
@@ -4233,7 +4249,7 @@ class Game(object):
         self.state = Game.GAME_STATE_PLAYING
       else:   # in menu
         self.manage_menus()
-        self.screen.blit(self.renderer.render_menu(self.active_menu),(0,0))  
+        self.screen.blit(self.renderer.render_menu(self.active_menu,self),(0,0))  
 
       pygame.display.flip()
       pygame_clock.tick()
