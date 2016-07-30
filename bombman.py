@@ -2550,8 +2550,12 @@ class SettingsMenu(Menu):
         self.state = Menu.MENU_STATE_SELECTING    
       elif self.selected_item == (3,0):
         fullscreen_selected = True
+        self.state = Menu.MENU_STATE_SELECTING  
       elif self.selected_item == (4,0):
         mouse_control_selected = True
+        self.state = Menu.MENU_STATE_SELECTING  
+      elif self.selected_item != (7,0):
+        self.state = Menu.MENU_STATE_SELECTING  
       
     if mouse_control_selected:
       self.settings.control_by_mouse = not self.settings.control_by_mouse
@@ -2632,8 +2636,6 @@ class ControlsMenu(Menu):
         if not (i in (pygame.K_NUMLOCK,pygame.K_CAPSLOCK,pygame.K_SCROLLOCK,322)) and keys_pressed[i]:
           key_pressed = i
           break
-        
-      
         
       if self.wait_for_release:
         if key_pressed == None:
@@ -4126,6 +4128,10 @@ class Game(object):
       display_flags += pygame.FULLSCREEN
  
     self.screen = pygame.display.set_mode(self.settings.screen_resolution,display_flags)
+    
+    screen_center = (Renderer.get_screen_size()[0] / 2,Renderer.get_screen_size()[1] / 2)
+    pygame.mouse.set_pos(screen_center)
+    
     self.renderer.update_screen_info()
   
   def apply_sound_settings(self):
