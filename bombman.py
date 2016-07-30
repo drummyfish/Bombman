@@ -18,6 +18,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+# ========================== A FEW COMMENTS ===========================
+#
+# The code and overall design isn't the best I've ever written, but I could
+# have either made a super-clean design, or something that can actually be run,
+# so don't blame me :)
+#
 # Map string format (may contain spaces and newlines, which will be ignored):
 #
 # <environment>;<player items>;<map items>;<tiles>
@@ -1001,7 +1007,7 @@ class Map(object):
     self.environment_name = string_split[0]
 
     self.end_game_at = -1                                    ##< time at which the map should go to STATE_GAME_OVER state
-    self.start_game_at = pygame.time.get_ticks() + 2500
+    self.start_game_at = 2500
     self.win_announced = False
     self.announce_win_at = -1
     self.state = Map.STATE_WAITING_TO_PLAY
@@ -1011,6 +1017,8 @@ class Map(object):
     self.max_games = max_games
 
     self.earthquake_time_left = 0
+
+    self.time_from_start = 0                       ##< time in ms from the start of the map, the time increases with each update (so time spent in game menu is excluded)
 
     block_tiles = []
 
@@ -1351,6 +1359,11 @@ class Map(object):
       
     return result
 
+  ## Gets time in ms spent in actual game from the start of the map.
+
+  def get_map_time(self):
+    return self.time_from_start
+
   ## Tells the map that given bomb is exploding, the map then creates
   #  flames from the bomb, the bomb is destroyed and players are informed.
 
@@ -1447,6 +1460,8 @@ class Map(object):
   ## Updates some things on the map that change with time.
 
   def update(self, dt):
+    self.time_from_start += dt
+    
     self.danger_map_is_up_to_date = False   # reset this each frame
     
     i = 0
@@ -1456,7 +1471,7 @@ class Map(object):
     while i < len(self.items_to_give_away):    # giving away items of dead players
       item = self.items_to_give_away[i]
       
-      if pygame.time.get_ticks() >= item[0]:
+      if self.time_from_start >= item[0]:
         self.spread_items(item[1])
         self.items_to_give_away.remove(item)
         print("giving away items")
@@ -1661,21 +1676,21 @@ class Map(object):
           self.add_sound_event(SoundPlayer.SOUND_EVENT_GO_AWAY)
           
     if self.state == Map.STATE_WAITING_TO_PLAY:  
-      if pygame.time.get_ticks() >= self.start_game_at:
+      if self.time_from_start >= self.start_game_at:
         self.state = Map.STATE_PLAYING
         self.add_sound_event(SoundPlayer.SOUND_EVENT_GO)
     if self.state == Map.STATE_FINISHING:
-      if pygame.time.get_ticks() >= self.end_game_at:
+      if self.time_from_start >= self.end_game_at:
         self.state = Map.STATE_GAME_OVER
       elif not self.win_announced:
-        if pygame.time.get_ticks() >= self.announce_win_at:
+        if self.time_from_start >= self.announce_win_at:
           self.add_sound_event(SoundPlayer.SOUND_EVENT_WIN_0 + self.winner_team)
           self.win_announced = True
     elif self.state != Map.STATE_GAME_OVER and game_is_over:
-      self.end_game_at = pygame.time.get_ticks() + 5000
+      self.end_game_at = self.time_from_start + 5000
       self.state = Map.STATE_FINISHING
       self.winner_team = winning_color
-      self.announce_win_at = pygame.time.get_ticks() + 2000
+      self.announce_win_at = self.time_from_start + 2000
     
   def get_winner_team(self):
     return self.winner_team
@@ -3748,7 +3763,7 @@ class AI(object):
     if self.do_nothing or self.player.is_dead():
       return []
     
-    current_time = pygame.time.get_ticks()
+    current_time = self.game_map.get_map_time()
     
     if current_time < self.recompute_compute_actions_on or self.player.get_state() == Player.STATE_IN_AIR or self.player.get_state() == Player.STATE_TELEPORTING:
       return self.outputs             # only repeat actions
@@ -3830,9 +3845,9 @@ class AI(object):
         chosen_movement_action = PlayerKeyMaps.get_opposite_action(chosen_movement_action)
       
       self.outputs.append((self.player.get_number(),chosen_movement_action))
-      self.didnt_move_since = pygame.time.get_ticks()
+      self.didnt_move_since = self.game_map.get_map_time()
 
-    if pygame.time.get_ticks() - self.didnt_move_since > 10000:   # didn't move for 10 seconds or more => force move
+    if self.game_map.get_map_time() - self.didnt_move_since > 10000:   # didn't move for 10 seconds or more => force move
       chosen_movement_action = random.choice((PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT))
       self.outputs.append((self.player.get_number(),chosen_movement_action))
       
@@ -4267,7 +4282,7 @@ class Game(object):
   ## Filters a list of performed actions so that there are no actions of
   #  human players that are not participating in the game.
 
-  def filter_disallowed_actions(self, actions):
+  def filter_out_disallowed_actions(self, actions):
     result = []
     
     player_slots = self.play_setup.get_slots()
@@ -4275,13 +4290,13 @@ class Game(object):
     for item in actions:
       slot = player_slots[item[0]]
       
-      if slot != None and slot[0] >= 0:  # if action belongs to human player
+      if (slot != None and slot[0] >= 0) or (item[1] == PlayerKeyMaps.ACTION_MENU):  # if action belongs to human player
         result.append(item)
         
     return result
 
   def simulation_step(self, dt):
-    actions_being_performed = self.filter_disallowed_actions(self.player_key_maps.get_current_actions())
+    actions_being_performed = self.filter_out_disallowed_actions(self.player_key_maps.get_current_actions())
     
     for action in actions_being_performed:
       if action[0] == -1:                          # menu key pressed
