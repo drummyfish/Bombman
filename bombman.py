@@ -1791,6 +1791,8 @@ class PlayerKeyMaps(StringSerializable):
   MOUSE_CONTROL_BUTTON_M = -6
   MOUSE_CONTROL_BUTTON_R = -7
   
+  MOUSE_CONTROL_BIAS = 2         ##< mouse movement bias in pixels
+  
   ACTION_NAMES = {
     ACTION_UP : "up",
     ACTION_RIGHT : "right",
@@ -1812,7 +1814,7 @@ class PlayerKeyMaps(StringSerializable):
     MOUSE_CONTROL_BUTTON_R : "m R"
     }
   
-  MOUSE_CONTROL_SMOOTH_OUT_TIME = 350
+  MOUSE_CONTROL_SMOOTH_OUT_TIME = 50
 
   def __init__(self):
     self.key_maps = {}  ##< maps keys to tuples of a format: (player_number, action), for general actions player_number will be -1
@@ -2024,20 +2026,20 @@ class PlayerKeyMaps(StringSerializable):
       dy = abs(mouse_position[1] - screen_center[1])
       
       if dx > dy:  # choose the prevelant axis
-        if mouse_position[0] > screen_center[0]:
+        if mouse_position[0] > screen_center[0] + PlayerKeyMaps.MOUSE_CONTROL_BIAS:
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = True
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = False          
           self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
-        elif mouse_position[0] < screen_center[0]:
+        elif mouse_position[0] < screen_center[0] - PlayerKeyMaps.MOUSE_CONTROL_BIAS:
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = True
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = False
           self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
       else:
-        if mouse_position[1] < screen_center[1]:
+        if mouse_position[1] < screen_center[1] - PlayerKeyMaps.MOUSE_CONTROL_BIAS:
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_UP] = True
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = False
           self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_UP] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
-        elif mouse_position[1] > screen_center[1]:
+        elif mouse_position[1] > screen_center[1] + PlayerKeyMaps.MOUSE_CONTROL_BIAS:
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = True
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_UP] = False
           self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
@@ -4057,6 +4059,8 @@ class Game(object):
     self.sound_player = SoundPlayer()
     self.sound_player.change_music()
     self.apply_sound_settings()
+    
+    self.apply_other_settings()
              
     self.map_name = ""
     self.game_map = None
@@ -4260,11 +4264,27 @@ class Game(object):
       else:
         show_fps_in -= 1
 
-  def simulation_step(self,dt):
-    actions_being_performed = self.player_key_maps.get_current_actions()
+  ## Filters a list of performed actions so that there are no actions of
+  #  human players that are not participating in the game.
+
+  def filter_disallowed_actions(self, actions):
+    result = []
+    
+    player_slots = self.play_setup.get_slots()
+    
+    for item in actions:
+      slot = player_slots[item[0]]
+      
+      if slot != None and slot[0] >= 0:  # if action belongs to human player
+        result.append(item)
+        
+    return result
+
+  def simulation_step(self, dt):
+    actions_being_performed = self.filter_disallowed_actions(self.player_key_maps.get_current_actions())
     
     for action in actions_being_performed:
-      if action[0] == -1:
+      if action[0] == -1:                          # menu key pressed
         self.state = Game.GAME_STATE_MENU_PLAY
         return
     
@@ -4277,7 +4297,6 @@ class Game(object):
       player.react_to_inputs(actions_being_performed,dt,self.game_map)
       
     self.game_map.update(dt)
-
 # main:
 
 game = Game()
