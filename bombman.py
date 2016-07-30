@@ -97,7 +97,7 @@ COLOR_RGB_VALUES = [
   (209,117,206)            # purple
   ]
 
-VERSION_STR = "0.1"
+VERSION_STR = "0.0"
 
 COLOR_NAMES = [
   "white",
@@ -2901,6 +2901,7 @@ class Renderer(object):
     self.gui_images["seeker"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_seeker.png"))
     self.gui_images["cursor"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_cursor.png"))   
     self.gui_images["prompt"] = self.render_text(self.font_normal,"You sure?",(255,255,255))
+    self.gui_images["version"] = self.render_text(self.font_small,"v " + VERSION_STR,(0,100,0))
     
     self.player_info_board_images = [None for i in range(10)]  # up to date infoboard image for each player
 
@@ -3004,7 +3005,7 @@ class Renderer(object):
   #  rerendering is done only when needed.
 
   def update_info_boards(self, players):
-    for i in range(len(players)):      # for each player number
+    for i in range(10):      # for each player number
       
       update_needed = False
       
@@ -3013,23 +3014,32 @@ class Renderer(object):
         
         update_needed = True
       
-      if players[i].info_board_needs_update():
+      player = None
+      
+      for one_player in players:
+        if one_player.get_number() == i:
+          player = one_player
+          break
+      
+      if player == None:
+        continue
+      
+      if player.info_board_needs_update():
         update_needed = True
       
-      if not update_needed:
+      if not update_needed or player == None:
         continue
       
       # rerendering needed here
       
       print("updating info board " + str(i))
       
-      player = players[i] 
       board_image = self.player_info_board_images[i]
       
       board_image.blit(self.gui_images["info board"],(0,0))
       
-      board_image.blit(self.font_small.render(str(players[i].get_kills()),True,(0,0,0)),(45,0))
-      board_image.blit(self.font_small.render(str(players[i].get_wins()),True,(0,0,0)),(65,0))
+      board_image.blit(self.font_small.render(str(player.get_kills()),True,(0,0,0)),(45,0))
+      board_image.blit(self.font_small.render(str(player.get_wins()),True,(0,0,0)),(65,0))
       
       board_image.blit(self.font_small.render(COLOR_NAMES[i],True,self.darken_color(COLOR_RGB_VALUES[i],100)),(4,2))
       
@@ -3255,8 +3265,14 @@ class Renderer(object):
     
     if self.menu_background_image == None:
       self.menu_background_image = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_menu_background.png"))
+
+    background_position = (self.screen_center[0] - self.menu_background_image.get_size()[0] / 2,self.screen_center[1] - self.menu_background_image.get_size()[1] / 2)
       
-    result.blit(self.menu_background_image,(self.screen_center[0] - self.menu_background_image.get_size()[0] / 2,self.screen_center[1] - self.menu_background_image.get_size()[1] / 2))
+    result.blit(self.menu_background_image,background_position)
+    
+    version_position = (background_position[0] + self.menu_background_image.get_size()[0] - self.gui_images["version"].get_size()[0],background_position[1] - self.gui_images["version"].get_size()[1])
+    
+    result.blit(self.gui_images["version"],version_position)
     
     self.update_menu_item_images(menu_to_render)
     
@@ -3588,7 +3604,7 @@ class Renderer(object):
     y = self.map_render_location[1] + self.prerendered_map_background.get_size()[1] + 20
       
     for i in players_by_numbers:
-      if players_by_numbers[i] == None:
+      if players_by_numbers[i] == None or self.player_info_board_images[i] == None:
         continue
         
       if players_by_numbers[i].is_dead():
