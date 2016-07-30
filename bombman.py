@@ -3879,9 +3879,9 @@ class AI(object):
           best_direction_actions.append(action[direction])
       
       chosen_movement_action = random.choice(best_direction_actions)
-    
+      
     if chosen_movement_action != None:
-      if self.player.get_disease == Player.DISEASE_REVERSE_CONTROLS:
+      if self.player.get_disease() == Player.DISEASE_REVERSE_CONTROLS:
         chosen_movement_action = PlayerKeyMaps.get_opposite_action(chosen_movement_action)
       
       self.outputs.append((self.player.get_number(),chosen_movement_action))
