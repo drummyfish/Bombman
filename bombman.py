@@ -2015,6 +2015,21 @@ class PlayerKeyMaps(StringSerializable):
       
     return None
 
+  ## Returns a list of mouse control actions currently being performed (if mouse
+  #  control is not allowed, the list will always be empty)
+
+  def get_current_mouse_control_states(self):
+    result = []
+    
+    if not self.allow_mouse_control:
+      return result
+    
+    for mouse_action in self.mouse_control_states:
+      if self.mouse_control_states[mouse_action]:
+        result.append(mouse_action)
+      
+    return result
+
   ## From currently pressed keys makes a list of actions being currently performed and returns it, format: (player_number, action).
 
   def get_current_actions(self):
@@ -2602,17 +2617,24 @@ class ControlsMenu(Menu):
   ## This should be called periodically when the menu is cative. It will
   #  take care of catching pressed keys if waiting for key remap.
 
-  def update(self):
+  def update(self, player_key_maps):
     if self.waiting_for_key != None:
-      keys_pressed = pygame.key.get_pressed()      
+      keys_pressed = list(pygame.key.get_pressed()) 
       
       key_pressed = None
       
+      mouse_actions = player_key_maps.get_current_mouse_control_states()     
+      
+      if len(mouse_actions) > 0:
+        key_pressed = mouse_actions[0]
+        
       for i in range(len(keys_pressed)):  # find pressed key
         if not (i in (pygame.K_NUMLOCK,pygame.K_CAPSLOCK,pygame.K_SCROLLOCK,322)) and keys_pressed[i]:
           key_pressed = i
           break
+        
       
+        
       if self.wait_for_release:
         if key_pressed == None:
           self.wait_for_release = False
@@ -4169,7 +4191,8 @@ class Game(object):
     # ========== CONTROL SETTINGS MENU ===========
     elif self.state == Game.GAME_STATE_MENU_CONTROL_SETTINGS:
       self.active_menu = self.menu_controls
-      self.active_menu.update()    # needs to be called to scan for pressed keys
+      self.player_key_maps.get_current_actions()       # this has to be called in order for player_key_maps to update mouse controls properly
+      self.active_menu.update(self.player_key_maps)    # needs to be called to scan for pressed keys
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
         new_state = Game.GAME_STATE_MENU_SETTINGS
