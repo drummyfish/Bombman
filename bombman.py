@@ -3368,6 +3368,8 @@ class Renderer(object):
     self.update_info_boards(map_to_render.get_players())
   
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
+      self.animation_events = []                  # clear previous animation
+
       print("prerendering map...")
 
       # following images are only needed here, so we dont store them to self
@@ -3885,6 +3887,7 @@ class AI(object):
         chosen_movement_action = PlayerKeyMaps.get_opposite_action(chosen_movement_action)
       
       self.outputs.append((self.player.get_number(),chosen_movement_action))
+      
       self.didnt_move_since = self.game_map.get_map_time()
 
     if self.game_map.get_map_time() - self.didnt_move_since > 10000:   # didn't move for 10 seconds or more => force move
