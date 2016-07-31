@@ -3659,7 +3659,7 @@ class AI(object):
   def decide_general_direction(self):
     players = self.game_map.get_players()
     
-    enemy_player = self
+    enemy_player = self.player
     
     for player in players:
       if player == self.player or not player.is_enemy(self.player):
