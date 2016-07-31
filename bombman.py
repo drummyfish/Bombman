@@ -238,12 +238,14 @@ class Player(Positionable):
     
   def set_kills(self, kills):
     self.kills = kills
+    self.info_board_update_needed = True
     
   def get_wins(self):
     return self.wins
     
   def set_wins(self, wins):
     self.wins = wins
+    self.info_board_update_needed = True
     
   def info_board_needs_update(self):
     if self.info_board_update_needed:
@@ -1373,6 +1375,7 @@ class Map(object):
     bomb_position = bomb.get_tile_position()
     
     new_flame = Flame()
+    new_flame.player = bomb.player
     new_flame.direction = "all"
     
     self.tiles[bomb_position[1]][bomb_position[0]].flames.append(new_flame)
@@ -1645,6 +1648,13 @@ class Map(object):
       player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
       
       if player.get_state() != Player.STATE_IN_AIR and player.get_state != Player.STATE_TELEPORTING and (self.tile_has_flame(player_tile.coordinates) or self.tile_has_lava(player_tile.coordinates)):
+        flames = self.get_tile_at(player_tile.coordinates).flames
+        
+        # assign kill counts
+        
+        for flame in flames:
+          flame.player.set_kills(flame.player.get_kills() + 1)
+        
         player.kill(self)
         continue
       
@@ -4285,6 +4295,7 @@ class Game(object):
           self.game_number += 1
           
           if self.game_number > self.play_setup.get_number_of_games():
+            self.game_map = None
             self.state = Game.GAME_STATE_MENU_MAIN    # back to menu
           else:
             self.state = Game.GAME_STATE_GAME_STARTED # new game
@@ -4297,6 +4308,12 @@ class Game(object):
     
         if self.game_number != 1:
           previous_winner = self.game_map.get_winner_team()
+        
+        kill_counts = [0 for i in range(10)]
+        
+        if self.game_map != None:
+          for player in self.game_map.get_players():
+            kill_counts[player.get_number()] = player.get_kills()
         
         with open(os.path.join(MAP_PATH,self.map_name)) as map_file:
           map_data = map_file.read()
@@ -4311,6 +4328,8 @@ class Game(object):
             self.ais.append(AI(self.game_map.get_players_by_numbers()[i],self.game_map))
       
         for player in self.game_map.get_players():
+          player.set_kills(kill_counts[player.get_number()])
+          
           if player.get_team_number() == previous_winner:
             player.set_wins(player.get_wins() + 1)
         
