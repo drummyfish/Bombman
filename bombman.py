@@ -589,7 +589,7 @@ class Player(Positionable):
 
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
-  def react_to_inputs(self, input_actions, dt, game_map):
+  def react_to_inputs(self, input_actions, dt, game_map):    
     if self.state == Player.STATE_DEAD or game_map.get_state() == Map.STATE_WAITING_TO_PLAY:
       return
     
@@ -4303,6 +4303,8 @@ class Game(object):
           self.game_map = Map(map_data,self.play_setup,self.game_number,self.play_setup.get_number_of_games())
           
         player_slots = self.play_setup.get_slots()
+        
+        self.ais = []
         
         for i in range(len(player_slots)):
           if player_slots[i] != None and player_slots[i][0] < 0:  # indicates AI
