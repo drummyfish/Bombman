@@ -3662,12 +3662,12 @@ class AI(object):
     enemy_player = self.player
     
     for player in players:
-      if player == self.player or not player.is_enemy(self.player):
+      if player == self.player or not player.is_enemy(self.player) or player.is_dead():
         continue
-
+      
       enemy_player = player
       break
-      
+            
     my_tile_position = self.player.get_tile_position()
     another_player_tile_position = enemy_player.get_tile_position()
 
@@ -3853,7 +3853,7 @@ class AI(object):
       best_direction_actions = [None]
     
       general_direction = self.decide_general_direction()
-    
+
                        # up                     # right                     # down                     # left
       tile_increment  = ((0,-1),                  (1,0),                      (0,1),                     (-1,0))
       action =          (PlayerKeyMaps.ACTION_UP, PlayerKeyMaps.ACTION_RIGHT, PlayerKeyMaps.ACTION_DOWN, PlayerKeyMaps.ACTION_LEFT)
