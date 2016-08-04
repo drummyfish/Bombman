@@ -72,6 +72,10 @@ import copy
 import random
 import time
 
+DEBUG_PROFILING = False
+DEBUG_FPS = True
+DEBUG_VERBOSE = True
+
 # colors used for players and teams
 COLOR_WHITE = 0
 COLOR_BLACK = 1
@@ -117,6 +121,9 @@ NUMBER_OF_CONTROLLED_PLAYERS = 4    ##< maximum number of non-AI players
 RESOURCE_PATH = "resources"
 MAP_PATH = "maps"
 SETTINGS_FILE_PATH = "settings.txt"
+
+def debug_log(message):
+  print(message)
 
 ## Something that has a float position on the map.
 
@@ -1477,8 +1484,10 @@ class Map(object):
       if self.time_from_start >= item[0]:
         self.spread_items(item[1])
         self.items_to_give_away.remove(item)
-        print("giving away items")
-      
+        
+        if DEBUG_VERBOSE:
+          debug_log("giving away items")
+          
       i += 1
     
     i = 0
@@ -2246,7 +2255,8 @@ class SoundPlayer(object):
   def set_music_volume(self, new_volume):
     self.music_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
     
-    print("changing music volume to " + str(self.music_volume))
+    if DEBUG_VERBOSE:
+      debug_log("changing music volume to " + str(self.music_volume))
     
     if new_volume > Settings.SOUND_VOLUME_THRESHOLD:
       if not pygame.mixer.music.get_busy():
@@ -2259,7 +2269,8 @@ class SoundPlayer(object):
   def set_sound_volume(self, new_volume):
     self.sound_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
     
-    print("changing sound volume to " + str(self.sound_volume))
+    if DEBUG_VERBOSE:
+      debug_log("changing sound volume to " + str(self.sound_volume))
     
     for sound in self.sounds:
       self.sounds[sound].set_volume(self.sound_volume)
@@ -2277,7 +2288,8 @@ class SoundPlayer(object):
     
     music_name = self.music_filenames[self.current_music_index]
     
-    print("changing music to \"" + music_name + "\"")
+    if DEBUG_VERBOSE:
+      debug_log("changing music to \"" + music_name + "\"")
     
     pygame.mixer.music.stop()
     pygame.mixer.music.load(os.path.join(RESOURCE_PATH,music_name))
@@ -2613,7 +2625,10 @@ class SettingsMenu(Menu):
           self.game.save_settings()
     elif self.state == Menu.MENU_STATE_CONFIRM:
       if self.selected_item == (6,0):
-        print("resetting settings")
+        
+        if DEBUG_VERBOSE:
+          debug_log("resetting settings")
+        
         self.settings.reset()
         self.game.apply_sound_settings()
         self.game.save_settings()
@@ -2635,7 +2650,6 @@ class SettingsMenu(Menu):
       self.state = Menu.MENU_STATE_SELECTING
       
     if fullscreen_selected:
-      print("sasasas")
       self.settings.fullscreen = not self.settings.fullscreen
       self.game.apply_screen_settings()
       self.game.save_settings()
@@ -2713,7 +2727,10 @@ class ControlsMenu(Menu):
           self.wait_for_release = False
       else:
          if key_pressed != None:
-           print("new key mapping")
+           
+           if DEBUG_VERBOSE:
+             debug_log("new key mapping")
+           
            self.player_key_maps.set_one_key_map(key_pressed,self.waiting_for_key[0],self.waiting_for_key[1])
            self.waiting_for_key = None
            self.state = Menu.MENU_STATE_SELECTING
@@ -3105,7 +3122,8 @@ class Renderer(object):
       
       # rerendering needed here
       
-      print("updating info board " + str(i))
+      if DEBUG_VERBOSE:
+        debug_log("updating info board " + str(i))
       
       board_image = self.player_info_board_images[i]
       
@@ -3324,7 +3342,8 @@ class Renderer(object):
         update_needed = True        
           
       if update_needed:
-        print("updating menu item " + str(menu_coordinates))
+        if DEBUG_VERBOSE:
+          debug_log("updating menu item " + str(menu_coordinates))
           
         new_image = self.render_text(self.font_normal,item_text,Renderer.MENU_FONT_COLOR,center = center_text)
           
@@ -3459,7 +3478,8 @@ class Renderer(object):
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
       self.animation_events = []                  # clear previous animation
 
-      print("prerendering map...")
+      if DEBUG_VERBOSE:
+        debug_log("prerendering map...")
 
       # following images are only needed here, so we dont store them to self
       image_trampoline = pygame.image.load(os.path.join(RESOURCE_PATH,"other_trampoline.png"))
@@ -4130,7 +4150,9 @@ class Settings(StringSerializable):
       helper_position1 = helper_position + len(Settings.CONTROL_MAPPING_DELIMITER)
       helper_position2 = input_string.find(Settings.CONTROL_MAPPING_DELIMITER,helper_position1)
 
-      print("loading control mapping")
+      if DEBUG_VERBOSE:
+        debug_log("loading control mapping")
+
       settings_string = input_string[helper_position1:helper_position2].lstrip().rstrip()
       self.player_key_maps.load_from_string(settings_string)
 
@@ -4195,7 +4217,9 @@ class Game(object):
     self.game_number = 0
     
     if os.path.isfile(SETTINGS_FILE_PATH):
-      print("loading settings from file " + SETTINGS_FILE_PATH)
+      if DEBUG_VERBOSE:
+        debug_log("loading settings from file " + SETTINGS_FILE_PATH)
+      
       self.settings.load_from_file(SETTINGS_FILE_PATH)
  
     self.settings.save_to_file(SETTINGS_FILE_PATH)   # save the reformatted settings file (or create a new one)
@@ -4393,7 +4417,8 @@ class Game(object):
       elif self.state == Game.GAME_STATE_EXIT:
         break
       elif self.state == Game.GAME_STATE_GAME_STARTED:
-        print("starting game " + str(self.game_number))
+        if DEBUG_VERBOSE:
+          debug_log("starting game " + str(self.game_number))
     
         previous_winner = -1
     
@@ -4434,7 +4459,9 @@ class Game(object):
       pygame_clock.tick()
 
       if show_fps_in <= 0:
-        print("fps: " + str(pygame_clock.get_fps()))
+        if DEBUG_FPS:
+          debug_log("fps: " + str(pygame_clock.get_fps()))
+
         show_fps_in = 255
       else:
         show_fps_in -= 1
