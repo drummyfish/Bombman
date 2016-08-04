@@ -116,7 +116,7 @@ COLOR_NAMES = [
   "purple"
   ]
 
-NUMBER_OF_CONTROLLED_PLAYERS = 4    ##< maximum number of non-AI players
+NUMBER_OF_CONTROLLED_PLAYERS = 4    ##< maximum number of non-AI players on one PC
 
 RESOURCE_PATH = "resources"
 MAP_PATH = "maps"
@@ -303,7 +303,7 @@ class Player(Positionable):
     return self.team_number != another_player.get_team_number()
 
   ## Returns a number that says which way the player is facing (0 - up, 1 - right,
-  #   2 - down, 3 - left).
+  #  2 - down, 3 - left).
 
   def get_direction_number(self):
     if self.state == Player.STATE_IDLE_UP or self.state == Player.STATE_WALKING_UP:
@@ -369,9 +369,9 @@ class Player(Positionable):
     self.state = Player.STATE_IN_AIR
     self.jumping_from = self.get_tile_position()
     
-    landing_tiles = []  # potential tiles to land on
+    landing_tiles = []             # potential tiles to land on
     
-    # find a landing tile:
+    # find a landing tile
     
     for y in range (self.jumping_from[1] - 3,self.jumping_from[1] + 4):
       for x in range (self.jumping_from[0] - 3,self.jumping_from[0] + 4):
@@ -487,7 +487,7 @@ class Player(Positionable):
           
           player_to_switch = self
           
-          if len(players) > 1:  # should always be
+          if len(players) > 1:     # should always be true
             while player_to_switch == self:
               player_to_switch = random.choice(players)
           
@@ -640,9 +640,9 @@ class Player(Positionable):
     else:
       self.state = Player.STATE_IDLE_LEFT
 
-    moved = False  # to allow movement along only one axis at a time
+    moved = False         # to allow movement along only one axis at a time
 
-    previous_position = copy.copy(self.position)  # in case of collision we save the previous position
+    previous_position = copy.copy(self.position)    # in case of collision we save the previous position
 
     putting_bomb = False
     putting_multibomb = False
@@ -701,7 +701,7 @@ class Player(Positionable):
         special_was_pressed = True
         
         if not self.wait_for_special_release:       
-          while len(self.detonator_bombs) != 0:   # find a bomb to ddetonate (some may have exploded by themselves already)
+          while len(self.detonator_bombs) != 0:       # find a bomb to ddetonate (some may have exploded by themselves already)
             self.info_board_update_needed = True
             
             bomb_to_check = self.detonator_bombs.pop()
@@ -733,9 +733,9 @@ class Player(Positionable):
     if transitioning_tiles:
       self.wait_for_tile_transition = False
     
-    if game_map.tile_has_bomb(current_tile):    # first check if the player is standing on a bomb
-      if not transitioning_tiles:         # no transition between tiles -> let the player move
-        check_collisions = False
+    if game_map.tile_has_bomb(current_tile):   # first check if the player is standing on a bomb
+      if not transitioning_tiles:              
+        check_collisions = False               # no transition between tiles -> let the player move
 
     if check_collisions:
       collision_type = game_map.get_position_collision_type(self.position)
@@ -799,7 +799,7 @@ class Player(Positionable):
             bomb_hit.send_flying(destination_tile)
             game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
           elif self.has_shoe:
-            # align the bomb in case of kicking an already moving bomb:
+            # align the bomb in case of kicking an already moving bomb
             bomb_position = bomb_hit.get_position()
           
             if bomb_movement == Bomb.BOMB_ROLLING_LEFT or bomb_movement == Bomb.BOMB_ROLLING_RIGHT:
@@ -821,7 +821,7 @@ class Player(Positionable):
         self.wait_for_bomb_release = True
         self.throwing_time_left = 200
     
-    elif putting_multibomb:  # put multibomb
+    elif putting_multibomb:                     # put multibomb
       current_tile = self.get_tile_position()
       
       if self.state in (Player.STATE_WALKING_UP,Player.STATE_IDLE_UP):
@@ -843,7 +843,7 @@ class Player(Positionable):
         self.lay_bomb(game_map,next_tile)
         i += 1
   
-    # check disease:
+    # check disease
     
     if self.disease != Player.DISEASE_NONE:
       self.disease_time_left = max(0,self.disease_time_left - dt)
@@ -855,7 +855,7 @@ class Player(Positionable):
     if old_state == self.state:
       self.state_time += dt
     else:
-      self.state_time = 0       # reset the state time
+      self.state_time = 0        # reset the state time
 
 ## Info about a bomb's flight (when boxed or thrown).
 
@@ -884,7 +884,7 @@ class Bomb(Positionable):
     self.flame_length = player.get_flame_length()    ##< how far the flame will go
     self.player = player                             ##< to which player the bomb belongs
     self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created (detonator_time must expire before this starts counting down)
-    self.detonator_time = 0                     ##< if > 0, the bomb has a detonator on it, after expiring it becomes a regular bomb
+    self.detonator_time = 0                          ##< if > 0, the bomb has a detonator on it, after expiring it becomes a regular bomb
     self.set_position(player.get_position())
     self.move_to_tile_center()
     self.has_spring = player.bombs_have_spring()
@@ -935,14 +935,14 @@ class Bomb(Positionable):
 
 class Flame(object):
   def __init__(self):
-    self.player = None          ##< reference to player to which the exploding bomb belonged
-    self.time_to_burnout = 1000 ##< time in ms till the flame disappears
-    self.direction = "all"      ##< string representation of the flame direction
+    self.player = None               ##< reference to player to which the exploding bomb belonged
+    self.time_to_burnout = 1000      ##< time in ms till the flame disappears
+    self.direction = "all"           ##< string representation of the flame direction
 
 class MapTile(object):
-  TILE_FLOOR = 0                ##< walkable map tile
-  TILE_BLOCK = 1                ##< non-walkable but destroyable map tile
-  TILE_WALL = 2                 ##< non-walkable and non-destroyable map tile
+  TILE_FLOOR = 0                     ##< walkable map tile
+  TILE_BLOCK = 1                     ##< non-walkable but destroyable map tile
+  TILE_WALL = 2                      ##< non-walkable and non-destroyable map tile
   
   SPECIAL_OBJECT_TRAMPOLINE = 0
   SPECIAL_OBJECT_TELEPORT_A = 1
@@ -1015,7 +1015,7 @@ class Map(object):
 
     self.environment_name = string_split[0]
 
-    self.end_game_at = -1                                    ##< time at which the map should go to STATE_GAME_OVER state
+    self.end_game_at = -1                          ##< time at which the map should go to STATE_GAME_OVER state
     self.start_game_at = 2500
     self.win_announced = False
     self.announce_win_at = -1
@@ -1041,7 +1041,7 @@ class Map(object):
     for i in range(len(string_split[3])):
       tile_character = string_split[3][i]
 
-      if i % Map.MAP_WIDTH == 0:                             # add new row
+      if i % Map.MAP_WIDTH == 0: # add new row
         line += 1
         column = 0
         self.tiles.append([])
@@ -1116,8 +1116,8 @@ class Map(object):
        
     # initialise players:
 
-    self.players = []                                        ##< list of players in the game
-    self.players_by_numbers = {}                             ##< mapping of numbers to players
+    self.players = []                      ##< list of players in the game
+    self.players_by_numbers = {}           ##< mapping of numbers to players
     self.players_by_numbers[-1] = None
 
     player_slots = play_setup.get_slots()
@@ -1139,11 +1139,9 @@ class Map(object):
       for player in self.players:
         player.give_item(self.letter_to_item(string_split[1][i]))
         
-    self.bombs = []                           ##< bombs on the map
-
+    self.bombs = []                ##< bombs on the map
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
     self.animation_events = []     ##< list of animation events, tuples in format (animation_event, coordinates)
-
     self.items_to_give_away = []   ##< list of tuples in format (time_of_giveaway, list_of_items)
 
   ## Returns a tuple (game number, max games).
@@ -1200,7 +1198,7 @@ class Map(object):
       
       time_until_explosion = bomb.time_until_explosion()
       
-      if bomb.has_detonator:    # detonator = bad
+      if bomb.has_detonator:         # detonator = bad
         time_until_explosion = 100
       
       self.danger_map[bomb_tile[1]][bomb_tile[0]] = min(self.danger_map[bomb_tile[1]][bomb_tile[0]],time_until_explosion)
@@ -1238,16 +1236,17 @@ class Map(object):
     return None
     
   def get_and_clear_sound_events(self):
-    result = self.sound_events[:]      # copy of the list
+    result = self.sound_events[:]             # copy of the list
     self.sound_events = []
     return result
 
   def get_and_clear_animation_events(self):
-    result = self.animation_events[:]  # copy of the list
+    result = self.animation_events[:]         # copy of the list
     self.animation_events = []
     return result
 
   ## Converts given letter (as in map encoding string) to item code (see class constants).
+  
   def letter_to_item(self, letter):
     if letter == "f":
       return Map.ITEM_FLAME
@@ -1460,7 +1459,7 @@ class Map(object):
           
     for item in items:
       if len(possible_tiles) == 0:
-        break                        # no more tiles to place items on => end
+        break                              # no more tiles to place items on => end
       
       tile = random.choice(possible_tiles)
       tile.item = item
@@ -1472,13 +1471,13 @@ class Map(object):
   def update(self, dt):
     self.time_from_start += dt
     
-    self.danger_map_is_up_to_date = False   # reset this each frame
+    self.danger_map_is_up_to_date = False    # reset this each frame
     
     i = 0
     
     self.earthquake_time_left = max(0,self.earthquake_time_left - dt)
     
-    while i < len(self.items_to_give_away):    # giving away items of dead players
+    while i < len(self.items_to_give_away):  # giving away items of dead players
       item = self.items_to_give_away[i]
       
       if self.time_from_start >= item[0]:
@@ -1495,7 +1494,7 @@ class Map(object):
     while i < len(self.bombs):    # update all bombs
       bomb = self.bombs[i]
       
-      if bomb.has_exploded:            # just in case
+      if bomb.has_exploded:       # just in case
         self.bombs.remove(bomb)
         continue
       
@@ -1761,8 +1760,8 @@ class PlaySetup(object):
   MAX_GAMES = 20
   
   def __init__(self):
-    self.player_slots = [None for i in range(10)]    ##< player slots: (player_number, team_color), negative player_number = AI, slot index ~ player color index
-
+    self.player_slots = [None for i in range(10)]    ##< player slots: (player_number, team_color),
+                                                     #   negative player_number = AI, slot index ~ player color index
     self.number_of_games = 10
     
     # default setup, player 0 vs 3 AI players:
@@ -1856,7 +1855,7 @@ class PlayerKeyMaps(StringSerializable):
     self.bomb_key_last_pressed_time = [0 for i in range(10)]  ##< for bomb double press detection
     self.bomb_key_previous_state = [False for i in range(10)] ##< for bomb double press detection
 
-    self.allow_mouse_control = False       ##< if true, player movement by mouse is allowed, otherwise not
+    self.allow_mouse_control = False    ##< if true, player movement by mouse is allowed, otherwise not
 
     mouse_control_constants = [
       PlayerKeyMaps.MOUSE_CONTROL_UP,
@@ -1868,8 +1867,8 @@ class PlayerKeyMaps(StringSerializable):
       PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R]
 
     self.mouse_control_states = {}
-    self.mouse_control_keep_until = {} ##< time in which specified control was activated, helps keeping them active for a certain amount of time to smooth them out 
-
+    self.mouse_control_keep_until = {}  ##< time in which specified control was activated,
+                                        #   helps keeping them active for a certain amount of time to smooth them out 
     mouse_control_states = {
       PlayerKeyMaps.MOUSE_CONTROL_UP : False,
       PlayerKeyMaps.MOUSE_CONTROL_RIGHT : False,
@@ -1913,7 +1912,7 @@ class PlayerKeyMaps(StringSerializable):
     if frame_number != self.last_mouse_update_frame:
       # first time calling this function this frame => reset states
     
-      for i in range(5):   # for each of 5 buttons
+      for i in range(5):      # for each of 5 buttons
         self.previous_mouse_button_states[i] = self.mouse_button_states[i]
     
       button_states = pygame.mouse.get_pressed()
@@ -1987,7 +1986,7 @@ class PlayerKeyMaps(StringSerializable):
       
       to_be_deleted = []
       
-      for item in self.key_maps:   # get rid of possible collissions
+      for item in self.key_maps:     # get rid of possible collissions
         if item != key and self.key_maps[item] == (player_number,action):
           to_be_deleted.append(item)
           
@@ -2033,7 +2032,7 @@ class PlayerKeyMaps(StringSerializable):
   def save_to_string(self):
     result = ""
 
-    for i in range(NUMBER_OF_CONTROLLED_PLAYERS): # 4 players
+    for i in range(NUMBER_OF_CONTROLLED_PLAYERS):  # 4 players
       mapping = self.get_players_key_mapping(i)
       
       for action in mapping:
@@ -2095,7 +2094,8 @@ class PlayerKeyMaps(StringSerializable):
       
     return result
 
-  ## From currently pressed keys makes a list of actions being currently performed and returns it, format: (player_number, action).
+  ## From currently pressed keys makes a list of actions being currently performed and
+  #  returns it, format: (player_number, action).
 
   def get_current_actions(self):
     keys_pressed = pygame.key.get_pressed()
@@ -2120,7 +2120,7 @@ class PlayerKeyMaps(StringSerializable):
       dx = abs(mouse_position[0] - screen_center[0])
       dy = abs(mouse_position[1] - screen_center[1])
       
-      if dx > dy:  # choose the prevelant axis
+      if dx > dy:            # choose the prevelant axis
         if mouse_position[0] > screen_center[0] + PlayerKeyMaps.MOUSE_CONTROL_BIAS:
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = True
           self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = False          
@@ -2141,15 +2141,15 @@ class PlayerKeyMaps(StringSerializable):
         
       if pressed[0]:
         self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = current_time# + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = current_time
           
       if pressed[1]:
         self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = current_time# + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = current_time
       
       if pressed[2]:
         self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = current_time# + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = current_time
       
       pygame.mouse.set_pos(screen_center)
 
@@ -2181,7 +2181,7 @@ class PlayerKeyMaps(StringSerializable):
     return result
 
 class SoundPlayer(object):
-  # sound events used by other classes to tell soundplayer what to play:
+  # sound events used by other classes to tell soundplayer what to play
   
   SOUND_EVENT_EXPLOSION = 0
   SOUND_EVENT_BOMB_PUT = 1
@@ -2306,7 +2306,7 @@ class SoundPlayer(object):
     stop_playing_walk = True
     
     for sound_event in sound_event_list: 
-      if sound_event in (          # simple sound play
+      if sound_event in (                        # simple sound play
         SoundPlayer.SOUND_EVENT_EXPLOSION,
         SoundPlayer.SOUND_EVENT_CLICK,
         SoundPlayer.SOUND_EVENT_BOMB_PUT,
@@ -2334,7 +2334,7 @@ class SoundPlayer(object):
       elif sound_event == SoundPlayer.SOUND_EVENT_KICK:
         time_now = pygame.time.get_ticks()
         
-        if time_now > self.kick_last_played_time + 200: # wait 200 ms before playing kick sound again        
+        if time_now > self.kick_last_played_time + 200:    # wait 200 ms before playing kick sound again        
           self.sounds[SoundPlayer.SOUND_EVENT_KICK].play()
           self.kick_last_played_time = time_now
       elif SoundPlayer.SOUND_EVENT_WIN_0 <= sound_event <= SoundPlayer.SOUND_EVENT_WIN_9:
@@ -2357,8 +2357,7 @@ class Animation(object):
       self.frame_images.append(pygame.image.load(filename_prefix + str(i) + filename_postfix))
       
     self.playing_instances = []   ##< A set of playing animations, it is a list of tuples in
-                                   #  a format: (pixel_coordinates, started_playing).
-      
+                                  #  a format: (pixel_coordinates, started_playing).     
   def play(self, coordinates):
     # convert center coordinates to top left coordinates:
     
@@ -2391,20 +2390,20 @@ class Animation(object):
 #  ^htmlcolorcode - sets the text color (HTML #rrggbb format,e.g. ^#2E44BF) from here to end of line or another formatting character
     
 class Menu(object):
-  MENU_STATE_SELECTING = 0          ##< still selecting an item
-  MENU_STATE_CONFIRM = 1            ##< menu has been confirmed
-  MENU_STATE_CANCEL = 2             ##< menu has been cancelled
-  MENU_STATE_CONFIRM_PROMPT = 3     ##< prompting an action
+  MENU_STATE_SELECTING = 0                ##< still selecting an item
+  MENU_STATE_CONFIRM = 1                  ##< menu has been confirmed
+  MENU_STATE_CANCEL = 2                   ##< menu has been cancelled
+  MENU_STATE_CONFIRM_PROMPT = 3           ##< prompting an action
   
   MENU_MAX_ITEMS_VISIBLE = 11
   
   def __init__(self,sound_player):
     self.text = ""
-    self.selected_item = (0,0)        ##< row, column
+    self.selected_item = (0,0)            ##< row, column
     self.items = []
     self.menu_left = False
-    self.confirm_prompt_result = None ##< True, False or None
-    self.scroll_position = 0          ##< index of the first visible row
+    self.confirm_prompt_result = None     ##< True, False or None
+    self.scroll_position = 0              ##< index of the first visible row
     self.sound_player = sound_player
     self.action_keys_previous_state = {
       PlayerKeyMaps.ACTION_UP : True,
@@ -2414,7 +2413,7 @@ class Menu(object):
       PlayerKeyMaps.ACTION_BOMB : True,
       PlayerKeyMaps.ACTION_SPECIAL : True,
       PlayerKeyMaps.ACTION_BOMB_DOUBLE: True,
-      PlayerKeyMaps.ACTION_MENU : True}   ##< to detect single key presses, the values have to be True in order not to rect immediatelly upon entering the menu
+      PlayerKeyMaps.ACTION_MENU : True}        ##< to detect single key presses, the values have to be True in order not to rect immediatelly upon entering the menu
     self.state = Menu.MENU_STATE_SELECTING
     pass
 
@@ -2662,8 +2661,8 @@ class ControlsMenu(Menu):
     super(ControlsMenu,self).__init__(sound_player)
     self.player_key_maps = player_key_maps
     self.game = game
-    self.waiting_for_key = None   # if not None, this contains a tuple (player number, action) of action that is currently being remapped
-    self.wait_for_release = False # used to wait for keys release before new key map is captured
+    self.waiting_for_key = None     # if not None, this contains a tuple (player number, action) of action that is currently being remapped
+    self.wait_for_release = False   # used to wait for keys release before new key map is captured
 
     self.update_items()
 
@@ -2717,7 +2716,7 @@ class ControlsMenu(Menu):
       if len(mouse_actions) > 0:
         key_pressed = mouse_actions[0]
         
-      for i in range(len(keys_pressed)):  # find pressed key
+      for i in range(len(keys_pressed)):      # find pressed key
         if not (i in (pygame.K_NUMLOCK,pygame.K_CAPSLOCK,pygame.K_SCROLLOCK,322)) and keys_pressed[i]:
           key_pressed = i
           break
@@ -2948,7 +2947,7 @@ class Renderer(object):
     self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb3.png")))
     self.bomb_images.append(self.bomb_images[0])
      
-    # load flame images:
+    # load flame images
     
     self.flame_images = []
     
@@ -2964,7 +2963,7 @@ class Renderer(object):
       self.flame_images[-1]["up"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_up.png"))
       self.flame_images[-1]["down"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_down.png"))
       
-    # load item images:
+    # load item images
     
     self.item_images = {}
     
@@ -2982,7 +2981,7 @@ class Renderer(object):
     self.item_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_detonator.png"))
     self.item_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_throwing_glove.png"))
       
-    # load/make gui images:
+    # load/make gui images
     
     self.gui_images = {}
     self.gui_images["info board"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_info_board.png"))   
@@ -3000,7 +2999,7 @@ class Renderer(object):
     self.menu_background_image = None  ##< only loaded when in menu
     self.menu_item_images = None       ##< images of menu items, only loaded when in menu
  
-    # load other images:
+    # load other images
     
     self.other_images = {}
     
@@ -3027,7 +3026,7 @@ class Renderer(object):
     self.icon_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_detonator.png"))
     self.icon_images["etc"] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_etc.png"))
     
-    # load animations:
+    # load animations
     
     self.animations = {}
     self.animations[Renderer.ANIMATION_EVENT_EXPLOSION] = Animation(os.path.join(RESOURCE_PATH,"animation_explosion"),1,10,".png",7)
@@ -3050,7 +3049,7 @@ class Renderer(object):
   def color_surface(self, surface, color_number):
     result = surface.copy()
     
-    # change all red pixels to specified color:
+    # change all red pixels to specified color
     for j in range(result.get_size()[1]):
       for i in range(result.get_size()[0]):
         pixel_color = result.get_at((i,j))
@@ -3279,7 +3278,7 @@ class Renderer(object):
           text_color = pygame.Color(subline[:7])
           subline = subline[7:]
         
-        new_rendered_subline = font.render(subline,True,border_color) # create text with borders
+        new_rendered_subline = font.render(subline,True,border_color)   # create text with borders
         new_rendered_subline.blit(new_rendered_subline,(0,2))
         new_rendered_subline.blit(new_rendered_subline,(1,0))
         new_rendered_subline.blit(new_rendered_subline,(-1,0))
@@ -3312,7 +3311,7 @@ class Renderer(object):
 
   def update_menu_item_images(self, menu):
     if self.menu_item_images == None:
-      self.menu_item_images = {}     # format: (row, column) : (item text, image)
+      self.menu_item_images = {}       # format: (row, column) : (item text, image)
     
     items = menu.get_items()
 
@@ -3362,7 +3361,7 @@ class Renderer(object):
       
     result.blit(self.menu_background_image,background_position)
     
-    version_position = (background_position[0] + self.menu_background_image.get_size()[0] - self.gui_images["version"].get_size()[0],background_position[1] - self.gui_images["version"].get_size()[1])
+    version_position = (3,1)
     
     result.blit(self.gui_images["version"],version_position)
     
@@ -3378,7 +3377,7 @@ class Renderer(object):
     
     menu_items = menu_to_render.get_items()
     
-    columns = len(menu_items)  # how many columns there are
+    columns = len(menu_items)   # how many columns there are
     
     column_x_space = 150
     
@@ -3391,7 +3390,8 @@ class Renderer(object):
     
     items_y = y
     
-    # render scrollbar if needed:
+    # render scrollbar if needed
+    
     rows = 0
     
     for column in menu_items:
@@ -3409,6 +3409,7 @@ class Renderer(object):
     mouse_coordinates = pygame.mouse.get_pos()
     
     # render items
+    
     for j in range(len(menu_items)):
       y = items_y
       
@@ -3426,7 +3427,7 @@ class Renderer(object):
         
         result.blit(item_image,(x,y))
         
-        # Did mouse go over the item?
+        # did mouse go over the item?
         
         if (not game.get_settings().control_by_mouse) and (self.previous_mouse_coordinates != mouse_coordinates) and (x <= mouse_coordinates[0] <= x + item_image.get_size()[0]) and (y <= mouse_coordinates[1] <= y + item_image.get_size()[1]):
           item_coordinates = (i + menu_to_render.get_scroll_position(),j)
@@ -3470,7 +3471,7 @@ class Renderer(object):
   def render_map(self, map_to_render):
     result = pygame.Surface(self.screen_resolution)
     
-    self.menu_background_image = None  # unload unneccessarry images
+    self.menu_background_image = None             # unload unneccessarry images
     self.menu_item_images = None
     
     self.update_info_boards(map_to_render.get_players())
@@ -3518,9 +3519,7 @@ class Renderer(object):
       game_info = map_to_render.get_game_number_info()    
       
       game_info_text = self.render_text(self.font_small,"game " + str(game_info[0]) + " of " + str(game_info[1]),(255,255,255))
-      #game_info_text = self.font_normal.render("game " + str(game_info[0]) + "/" + str(game_info[1]),True,(255,0,0))
-      
-      
+
       self.prerendered_map_background.blit(game_info_text,((self.prerendered_map_background.get_size()[0] - game_info_text.get_size()[0]) / 2,self.prerendered_map_background.get_size()[1] - game_info_text.get_size()[1]))
 
       self.prerendered_map = map_to_render
@@ -3532,7 +3531,7 @@ class Renderer(object):
     ordered_objects_to_render = []
     ordered_objects_to_render.extend(map_to_render.get_players())
     ordered_objects_to_render.extend(map_to_render.get_bombs())
-    ordered_objects_to_render.sort(key = lambda what: 1000 if (isinstance(what,Bomb) and what.movement == Bomb.BOMB_FLYING) else what.get_position()[1]) # flying bomb are rendered above everything else
+    ordered_objects_to_render.sort(key = lambda what: 1000 if (isinstance(what,Bomb) and what.movement == Bomb.BOMB_FLYING) else what.get_position()[1])   # flying bombs are rendered above everything else
     
     # render the map by lines:
 
@@ -3551,7 +3550,7 @@ class Renderer(object):
     for line in tiles:
       x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH + self.map_render_location[0]
       
-      while True: # render players and bombs in the current line 
+      while True:                  # render players and bombs in the current line 
         if object_to_render_index >= len(ordered_objects_to_render):
           break
         
@@ -3565,7 +3564,7 @@ class Renderer(object):
         
         relative_offset = [0,0]    # to relatively shift images by given offset
         
-        if isinstance(object_to_render,Player):      # <= not very nice, maybe fix this later
+        if isinstance(object_to_render,Player):    # <= not very nice, maybe fix this later
           if object_to_render.is_dead():
             object_to_render_index += 1
             continue
@@ -3577,7 +3576,7 @@ class Renderer(object):
           color_index = object_to_render.get_number() if map_to_render.get_state() == Map.STATE_WAITING_TO_PLAY else object_to_render.get_team_number()
           
           if object_to_render.is_in_air():
-            # player is in air
+            # player is in the air
           
             if object_to_render.get_state_time() < Player.JUMP_DURATION / 2:
               quotient = abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
@@ -3590,8 +3589,8 @@ class Renderer(object):
             image_to_render = pygame.transform.scale(player_image,(int(scale * player_image.get_size()[0]),int(scale * player_image.get_size()[1])))
             draw_shadow = False
               
-            relative_offset[0] = -1 * (image_to_render.get_size()[0] / 2 - Renderer.PLAYER_SPRITE_CENTER[0])              # offset cause by scale  
-            relative_offset[1] = -1 * int(math.sin(quotient * math.pi / 2.0) * Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT) # height offset
+            relative_offset[0] = -1 * (image_to_render.get_size()[0] / 2 - Renderer.PLAYER_SPRITE_CENTER[0])               # offset cause by scale  
+            relative_offset[1] = -1 * int(math.sin(quotient * math.pi / 2.0) * Renderer.MAP_TILE_HEIGHT * Map.MAP_HEIGHT)  # height offset
           elif object_to_render.is_teleporting():
             
             if animation_frame == 0:
@@ -3678,8 +3677,8 @@ class Renderer(object):
       
         object_to_render_index += 1
             
-      for tile in reversed(line):           # render tiles in the current line
-        if not tile.to_be_destroyed:        # don't render a tile that is being destroyed
+      for tile in reversed(line):             # render tiles in the current line
+        if not tile.to_be_destroyed:          # don't render a tile that is being destroyed
           if tile.kind == MapTile.TILE_BLOCK:
             result.blit(environment_images[1],(x,y + y_offset_block))
           elif tile.kind == MapTile.TILE_WALL:
@@ -3702,12 +3701,12 @@ class Renderer(object):
       y += Renderer.MAP_TILE_HEIGHT
       line_number += 1
       
-    # update animations:
+    # update animations
     
     for animation_index in self.animations:
       self.animations[animation_index].draw(result)
       
-    # draw info boards:
+    # draw info boards
       
     players_by_numbers = map_to_render.get_players_by_numbers()
       
@@ -3743,10 +3742,10 @@ class AI(object):
     self.player = player
     self.game_map = game_map
     
-    self.outputs = []      ##< holds currently active outputs
+    self.outputs = []           ##< holds currently active outputs
     self.recompute_compute_actions_on = 0
     
-    self.do_nothing = False      ##< this can turn AI off for debugging purposes
+    self.do_nothing = False     ##< this can turn AI off for debugging purposes
     self.didnt_move_since = 0 
    
   def tile_is_escapable(self, tile_coordinates):
@@ -3796,7 +3795,7 @@ class AI(object):
   #  means death.
     
   def rate_bomb_escape_directions(self, tile_coordinates):
-                                # up    # right # down # left 
+                    #          up       right   down   left 
     axis_directions =          ((0,-1), (1,0),  (0,1), (-1,0))
     perpendicular_directions = ((1,0),  (0,1),  (1,0), (0,1))
 
@@ -3877,7 +3876,7 @@ class AI(object):
   def number_of_blocks_next_to_tile(self, tile_coordinates):
     count = 0
     
-    for tile_offset in ((0,-1),(1,0),(0,1),(-1,0)):    # for each neigbour file
+    for tile_offset in ((0,-1),(1,0),(0,1),(-1,0)):  # for each neigbour file
       helper_tile = self.game_map.get_tile_at((tile_coordinates[0] + tile_offset[0],tile_coordinates[1] + tile_offset[1]))
       
       if helper_tile != None and helper_tile.kind == MapTile.TILE_BLOCK:
@@ -3917,7 +3916,7 @@ class AI(object):
     current_time = self.game_map.get_map_time()
     
     if current_time < self.recompute_compute_actions_on or self.player.get_state() == Player.STATE_IN_AIR or self.player.get_state() == Player.STATE_TELEPORTING:
-      return self.outputs             # only repeat actions
+      return self.outputs          # only repeat actions
      
     # start decisions here:
     
@@ -3937,7 +3936,7 @@ class AI(object):
     elif self.game_map.tile_has_bomb(current_tile):
       # standing on a bomb, find a way to escape
       
-      # find maximum:
+      # find maximum
       best_rating = escape_direction_ratings[0]
       best_action = PlayerKeyMaps.ACTION_UP
       
@@ -3954,9 +3953,9 @@ class AI(object):
         best_action = PlayerKeyMaps.ACTION_LEFT
       
       chosen_movement_action = best_action 
-    else:   # not standing on a bomb
+    else:             # not standing on a bomb
       
-      # Should I not move?
+      # should I not move?
       
       maximum_score = self.rate_tile(current_tile)
       best_direction_actions = [None]
@@ -4003,17 +4002,17 @@ class AI(object):
       chosen_movement_action = random.choice((PlayerKeyMaps.ACTION_UP,PlayerKeyMaps.ACTION_RIGHT,PlayerKeyMaps.ACTION_DOWN,PlayerKeyMaps.ACTION_LEFT))
       self.outputs.append((self.player.get_number(),chosen_movement_action))
       
-    # bomb decisions:
+    # bomb decisions
     
     bomb_laid = False
     
     if self.game_map.tile_has_bomb(current_tile):
-      # Should I throw?
+      # should I throw?
       
       if self.player.can_throw() and max(escape_direction_ratings) == 0:
         self.outputs.append((self.player.get_number(),PlayerKeyMaps.ACTION_BOMB_DOUBLE))
     elif self.player.get_bombs_left() > 0 and (self.player.can_throw() or self.game_map.get_danger_value(current_tile) > 2000 and max(escape_direction_ratings) > 0): 
-      # Should I lay bomb?
+      # should I lay bomb?
       
       chance_to_put_bomb = 100    # one in how many
       
@@ -4024,7 +4023,7 @@ class AI(object):
       else:
         block_tile_ratio = self.game_map.get_number_of_block_tiles() / float(Map.MAP_WIDTH * Map.MAP_HEIGHT)
 
-        if block_tile_ratio < 0.4:  # if there is not many tiles left, put bombs more often
+        if block_tile_ratio < 0.4:   # if there is not many tiles left, put bombs more often
           chance_to_put_bomb = 80
         elif block_tile_ratio < 0.2:
           chance_to_put_bomb = 20
@@ -4071,13 +4070,14 @@ class AI(object):
     
     multibomb_count = self.player.get_multibomb_count()
     
-    if multibomb_count > 1:  # multibomb possible
+    if multibomb_count > 1:        # multibomb possible
       current_tile = self.player.get_tile_position()
 
       player_direction = movement_action if movement_action != None else self.player.get_direction_number()
 
       # by laying multibomb one of the escape routes will be cut off, let's check
-      # if there would be any escape routes left:
+      # if there would be any escape routes left
+      
       escape_direction_ratings = list(self.rate_bomb_escape_directions(current_tile))
       escape_direction_ratings[player_direction] = 0
       
@@ -4222,7 +4222,7 @@ class Game(object):
       
       self.settings.load_from_file(SETTINGS_FILE_PATH)
  
-    self.settings.save_to_file(SETTINGS_FILE_PATH)   # save the reformatted settings file (or create a new one)
+    self.settings.save_to_file(SETTINGS_FILE_PATH)  # save the reformatted settings file (or create a new one)
     
     pygame.display.set_caption("Bombman")
     
@@ -4501,7 +4501,8 @@ class Game(object):
       player.react_to_inputs(actions_being_performed,dt,self.game_map)
       
     self.game_map.update(dt)
-# main:
+    
+# main
 
 game = Game()
 game.run()
