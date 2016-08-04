@@ -2417,6 +2417,9 @@ class Menu(object):
     for action in actions_pressed:
       self.action_pressed(action)
      
+  def mouse_went_over_item(self, item_coordinates):
+    self.selected_item = item_coordinates
+     
   ## Should be called when the menu is being left.
      
   def leaving(self):
@@ -2564,7 +2567,7 @@ class SettingsMenu(Menu):
       elif self.selected_item == (4,0):
         mouse_control_selected = True
         self.state = Menu.MENU_STATE_SELECTING  
-      elif self.selected_item != (7,0):
+      elif self.selected_item != (7,0) and self.selected_item != (5,0):
         self.state = Menu.MENU_STATE_SELECTING  
       
     if mouse_control_selected:
@@ -2823,6 +2826,8 @@ class Renderer(object):
 
     self.font_small = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_SMALL_SIZE)
     self.font_normal = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_NORMAL_SIZE)
+
+    self.previous_mouse_coordinates = (-1,-1)
 
     pygame.mouse.set_visible(False)    # hide mouse cursor
 
@@ -3324,6 +3329,8 @@ class Renderer(object):
       scrollbar_position = int(items_y + selected_coordinates[0] / float(rows) * Renderer.SCROLLBAR_HEIGHT)
       result.blit(self.gui_images["seeker"],(x,scrollbar_position))
     
+    mouse_coordinates = pygame.mouse.get_pos()
+    
     # render items
     for j in range(len(menu_items)):
       y = items_y
@@ -3342,7 +3349,15 @@ class Renderer(object):
         
         result.blit(item_image,(x,y))
         
+        # Did mouse go over the item?
+        
+        if (not game.get_settings().control_by_mouse) and (self.previous_mouse_coordinates != mouse_coordinates) and (x <= mouse_coordinates[0] <= x + item_image.get_size()[0]) and (y <= mouse_coordinates[1] <= y + item_image.get_size()[1]):
+          item_coordinates = (i + menu_to_render.get_scroll_position(),j)
+          menu_to_render.mouse_went_over_item(item_coordinates)
+       
         y += Renderer.FONT_NORMAL_SIZE + Renderer.MENU_LINE_SPACING
+    
+    self.previous_mouse_coordinates = mouse_coordinates
     
     # render confirm dialog if prompting
     
