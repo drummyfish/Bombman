@@ -1796,7 +1796,7 @@ class StringSerializable(object):
       self.load_from_string(text_file.read())
     
 ## Handles conversion of keyboard events to actions of players, plus general
-#  actions (such as menu, ...).
+#  actions (such as menu, ...). Also managed some more complex input processing.
 
 class PlayerKeyMaps(StringSerializable):
   ACTION_UP = 0
@@ -1859,7 +1859,7 @@ class PlayerKeyMaps(StringSerializable):
       PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R]
 
     self.mouse_control_states = {}
-    self.mouse_control_keep_until = {} ## time in which specified control was activated, helps keeping them active for a certain amount of time to smooth them out 
+    self.mouse_control_keep_until = {} ##< time in which specified control was activated, helps keeping them active for a certain amount of time to smooth them out 
 
     mouse_control_states = {
       PlayerKeyMaps.MOUSE_CONTROL_UP : False,
@@ -1875,7 +1875,53 @@ class PlayerKeyMaps(StringSerializable):
       self.mouse_control_states[item] = False
       self.mouse_control_keep_until[item] = 0
       
+    self.mouse_button_states = [False,False,False,False,False] ##< (left, right, middle, wheel up, wheel down)
+    self.previous_mouse_button_states = [False,False,False,False,False]  
+    self.last_mouse_update_frame = -1
+      
     self.reset()
+
+  ## Returns a state of mouse buttons including mouse wheel (unlike pygame.mouse.get_pressed) as
+  #  a tuple (left, right, middle, wheel up, wheel down).
+
+  def get_mouse_button_states(self):
+    return self.mouse_button_states
+    
+  ## Returns a tuple corresponding to mouse buttons (same as get_mouse_button_states) where each
+  #  item says if the button has been pressed since the last frame.
+    
+  def get_mouse_button_events(self):
+    result = []
+    
+    for i in range(5):
+      result.append(self.mouse_button_states[i] and not self.previous_mouse_button_states[i])
+    
+    return result
+    
+  ## This informs the object abour pygame mouse events so it can keep track of some input states.
+    
+  def process_pygame_mouse_events(self, pygame_mouse_events, frame_number):
+    if frame_number != self.last_mouse_update_frame:
+      # first time calling this function this frame => reset states
+    
+      for i in range(5):   # for each of 5 buttons
+        self.previous_mouse_button_states[i] = self.mouse_button_states[i]
+    
+      button_states = pygame.mouse.get_pressed()
+    
+      self.mouse_button_states[0] = button_states[0]
+      self.mouse_button_states[1] = button_states[2]
+      self.mouse_button_states[2] = button_states[1]
+      self.mouse_button_states[3] = False
+      self.mouse_button_states[4] = False     
+      self.last_mouse_update_frame = frame_number
+
+    for pygame_mouse_event in pygame_mouse_events:
+      if pygame_mouse_event.type == pygame.MOUSEBUTTONDOWN:
+        if pygame_mouse_event.button == 4:
+          self.mouse_button_states[3] = True
+        elif pygame_mouse_event.button == 5:
+          self.mouse_button_states[4] = True
 
   def reset(self):
     self.allow_control_by_mouse(False)
@@ -2420,6 +2466,18 @@ class Menu(object):
   def mouse_went_over_item(self, item_coordinates):
     self.selected_item = item_coordinates
      
+  ## Handles mouse button events in the menu.
+     
+  def mouse_button_pressed(self, button_number):
+    if button_number == 0:       # left
+      self.action_pressed(PlayerKeyMaps.ACTION_BOMB)
+    elif button_number == 1:     # right
+      self.action_pressed(PlayerKeyMaps.ACTION_SPECIAL)
+    elif button_number == 3:     # up
+      self.action_pressed(PlayerKeyMaps.ACTION_UP)
+    elif button_number == 4:     # down
+      self.action_pressed(PlayerKeyMaps.ACTION_DOWN)
+    
   ## Should be called when the menu is being left.
      
   def leaving(self):
@@ -3357,6 +3415,12 @@ class Renderer(object):
        
         y += Renderer.FONT_NORMAL_SIZE + Renderer.MENU_LINE_SPACING
     
+    mouse_events = game.get_player_key_maps().get_mouse_button_events()
+    
+    for i in range(len(mouse_events)):
+      if mouse_events[i]:
+        menu_to_render.mouse_button_pressed(i)
+    
     self.previous_mouse_coordinates = mouse_coordinates
     
     # render confirm dialog if prompting
@@ -4122,6 +4186,8 @@ class Game(object):
     pygame.font.init()
     pygame.mixer.init()
     
+    self.frame_number = 0
+    
     self.player_key_maps = PlayerKeyMaps()
     
     self.settings = Settings(self.player_key_maps)
@@ -4162,6 +4228,9 @@ class Game(object):
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
+  def get_player_key_maps(self):
+    return self.player_key_maps
+
   def get_settings(self):
     return self.settings
 
@@ -4194,6 +4263,8 @@ class Game(object):
     new_state = self.state
     prevent_input_processing = False
     
+    self.player_key_maps.get_current_actions()       # this has to be called in order for player_key_maps to update mouse controls properly
+      
     # ================ MAIN MENU =================
     if self.state == Game.GAME_STATE_MENU_MAIN: 
       self.active_menu = self.menu_main
@@ -4241,7 +4312,6 @@ class Game(object):
     # ========== CONTROL SETTINGS MENU ===========
     elif self.state == Game.GAME_STATE_MENU_CONTROL_SETTINGS:
       self.active_menu = self.menu_controls
-      self.player_key_maps.get_current_actions()       # this has to be called in order for player_key_maps to update mouse controls properly
       self.active_menu.update(self.player_key_maps)    # needs to be called to scan for pressed keys
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
@@ -4296,9 +4366,15 @@ class Game(object):
       dt = min(pygame.time.get_ticks() - time_before,100)
       time_before = pygame.time.get_ticks()
 
+      mouse_events = []
+
       for event in pygame.event.get():
         if event.type == pygame.QUIT:
           self.state = Game.GAME_STATE_EXIT
+        if event.type in (pygame.MOUSEBUTTONDOWN,pygame.MOUSEBUTTONUP,pygame.MOUSEMOTION):
+          mouse_events.append(event)
+        
+      self.player_key_maps.process_pygame_mouse_events(mouse_events,self.frame_number)
 
       if self.state == Game.GAME_STATE_PLAYING:
         self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
@@ -4362,6 +4438,8 @@ class Game(object):
         show_fps_in = 255
       else:
         show_fps_in -= 1
+        
+      self.frame_number += 1
 
   ## Filters a list of performed actions so that there are no actions of
   #  human players that are not participating in the game.
