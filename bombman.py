@@ -4426,10 +4426,12 @@ class Game(object):
           previous_winner = self.game_map.get_winner_team()
         
         kill_counts = [0 for i in range(10)]
+        win_counts = [0 for i in range(10)]
         
         if self.game_map != None:
           for player in self.game_map.get_players():
             kill_counts[player.get_number()] = player.get_kills()
+            win_counts[player.get_number()] = player.get_wins()
         
         with open(os.path.join(MAP_PATH,self.map_name)) as map_file:
           map_data = map_file.read()
@@ -4445,6 +4447,7 @@ class Game(object):
       
         for player in self.game_map.get_players():
           player.set_kills(kill_counts[player.get_number()])
+          player.set_wins(win_counts[player.get_number()])
           
           if player.get_team_number() == previous_winner:
             player.set_wins(player.get_wins() + 1)
