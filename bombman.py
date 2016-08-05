@@ -2240,7 +2240,10 @@ class SoundPlayer(object):
       "music_jason_shaw_extasy_x_remix.wav",
       "music_jason_shaw_icecold_remix.wav",
       "music_jason_shaw_night_rave.wav",
-      "music_wake_68_glytch_funk_remix.wav"]
+      "music_wake_68_glytch_funk_remix.wav",
+      "music_seclorance_cleaner_remix.wav",
+      "music_broke_for_free_nothing_like_captain_crunch_remix.wav",
+      "music_jesse_spillane_spastic_mumblings_remix.wav"]
     
     self.current_music_index = -1
     
