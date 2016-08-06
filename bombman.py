@@ -2561,8 +2561,7 @@ class ResultMenu(Menu):
   def __init__(self, sound_player):
     super(ResultMenu,self).__init__(sound_player)
     
-    self.items = [[
-      "I get it"]]
+    self.items = [["I get it"]]
     
   def set_results(self, players):
     win_maximum = 0
@@ -2576,9 +2575,9 @@ class ResultMenu(Menu):
         winner_team_numbers.append(player.get_team_number())
     
     if len(winner_team_numbers) == 1:
-      announcement_text = "winner is ^" + Renderer.rgb_to_html_notation(COLOR_RGB_VALUES[winner_team_numbers[0]]) + COLOR_NAMES[winner_team_numbers[0]] + "^#FFFFFF!"
+      announcement_text = "Winner team is " + Renderer.colored_color_name(winner_team_numbers[0]) + "!"
     else:
-      announcement_text = "winners are: "
+      announcement_text = "Winners teams are: "
       
       first = True
       
@@ -2588,7 +2587,9 @@ class ResultMenu(Menu):
         else:
           announcement_text += ", "
           
-        announcement_text += Renderer.rgb_to_html_notation(COLOR_RGB_VALUES[winner_team_numbers[winner_number]]) + COLOR_NAMES[winner_team_numbers[winner_number]] + "^#FFFFFF"
+        announcement_text += Renderer.colored_color_name(winner_team_numbers[winner_number])
+    
+      announcement_text += "!"
     
     self.text = announcement_text
     
@@ -3082,6 +3083,10 @@ class Renderer(object):
   @staticmethod
   def rgb_to_html_notation(rgb_color):
     return "#" + hex(rgb_color[0])[2:].zfill(2) + hex(rgb_color[1])[2:].zfill(2) + hex(rgb_color[2])[2:].zfill(2)
+     
+  @staticmethod
+  def colored_color_name(color_index, end_with_white=True):
+    return "^" + Renderer.rgb_to_html_notation(COLOR_RGB_VALUES[color_index]) + COLOR_NAMES[color_index] + "^#FFFFFF"
      
   ## Returns colored image from another image (replaces red color with given color). This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
