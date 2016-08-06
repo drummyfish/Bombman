@@ -2574,6 +2574,8 @@ class ResultMenu(Menu):
       elif player.get_wins() == win_maximum:
         winner_team_numbers.append(player.get_team_number())
     
+    separator = "__________________________________________________"
+    
     if len(winner_team_numbers) == 1:
       announcement_text = "Winner team is " + Renderer.colored_color_name(winner_team_numbers[0]) + "!"
     else:
@@ -2591,7 +2593,37 @@ class ResultMenu(Menu):
     
       announcement_text += "!"
     
-    self.text = announcement_text
+    self.text = announcement_text + "\n" + separator + "\n"
+    
+    player_number = 0
+    row = 0
+    column = 0
+    
+    # decide how many columns for different numbers of players will the table have
+    columns_by_player_count = (1,2,3,2,3,3,4,4,3,5)
+    table_columns = columns_by_player_count[len(players) - 1]
+    
+    while player_number < len(players):
+      player = players[player_number]
+      
+      self.text += (
+        Renderer.colored_color_name(player.get_number()) + " (" +
+        Renderer.colored_text(player.get_team_number(),str(player.get_team_number() + 1)) + "): " +
+        str(player.get_kills()) + "/" + str(player.get_wins())
+        )
+      
+      column += 1
+      
+      if column >= table_columns:
+        column = 0
+        row += 1
+        self.text += "\n"
+      else:
+        self.text += "     "
+      
+      player_number += 1
+    
+    self.text += "\n" + separator
     
 class PlayMenu(Menu):
   def __init__(self,sound_player):
@@ -2856,7 +2888,7 @@ class PlaySetupMenu(Menu):
     for i in range(10):
       slot_color = COLOR_RGB_VALUES[i] if i != COLOR_BLACK else dark_grey  # black with black border not visible, use dark grey
       
-      self.items[0].append("^" + Renderer.rgb_to_html_notation(slot_color) + str(i) + "^#FFFFFF: ")
+      self.items[0].append(Renderer.colored_text(i,str(i + 1)) + ": ")
       
       slot = self.play_setup.get_slots()[i]
       
@@ -2866,8 +2898,8 @@ class PlaySetupMenu(Menu):
       else:
         team_color = COLOR_RGB_VALUES[slot[1]] if slot[1] != COLOR_BLACK else dark_grey
         self.items[0][-1] += ("player " + str(slot[0] + 1)) if slot[0] >= 0 else "AI"
-        self.items[1].append("^" + Renderer.rgb_to_html_notation(team_color) + str(slot[1] + 1))    # team number
-  
+        self.items[1].append(Renderer.colored_text(slot[1],str(slot[1] + 1)))    # team number
+ 
   def action_pressed(self, action):
     super(PlaySetupMenu,self).action_pressed(action)
     
@@ -3085,9 +3117,13 @@ class Renderer(object):
     return "#" + hex(rgb_color[0])[2:].zfill(2) + hex(rgb_color[1])[2:].zfill(2) + hex(rgb_color[2])[2:].zfill(2)
      
   @staticmethod
+  def colored_text(color_index, text, end_with_white=True):
+    return "^" + Renderer.rgb_to_html_notation(Renderer.lighten_color(COLOR_RGB_VALUES[color_index],75)) + text + "^#FFFFFF"
+    
+  @staticmethod
   def colored_color_name(color_index, end_with_white=True):
-    return "^" + Renderer.rgb_to_html_notation(COLOR_RGB_VALUES[color_index]) + COLOR_NAMES[color_index] + "^#FFFFFF"
-     
+    return Renderer.colored_text(color_index,COLOR_NAMES[color_index])
+  
   ## Returns colored image from another image (replaces red color with given color). This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
   def color_surface(self, surface, color_number):
@@ -3128,10 +3164,18 @@ class Renderer(object):
   def set_resolution(self, new_resolution):
     self.screen_resolution = new_resolution
 
-  def darken_color(self, color, by_how_may):
+  @staticmethod
+  def darken_color(color, by_how_may):
     r = max(color[0] - by_how_may,0)
     g = max(color[1] - by_how_may,0)
     b = max(color[2] - by_how_may,0)
+    return (r,g,b)
+
+  @staticmethod
+  def lighten_color(color, by_how_may):
+    r = min(color[0] + by_how_may,255)
+    g = min(color[1] + by_how_may,255)
+    b = min(color[2] + by_how_may,255)
     return (r,g,b)
 
   ## Updates info board images in self.player_info_board_images. This should be called each frame, as
@@ -3175,7 +3219,7 @@ class Renderer(object):
       board_image.blit(self.font_small.render(str(player.get_kills()),True,(0,0,0)),(45,0))
       board_image.blit(self.font_small.render(str(player.get_wins()),True,(0,0,0)),(65,0))
       
-      board_image.blit(self.font_small.render(COLOR_NAMES[i],True,self.darken_color(COLOR_RGB_VALUES[i],100)),(4,2))
+      board_image.blit(self.font_small.render(COLOR_NAMES[i],True,Renderer.darken_color(COLOR_RGB_VALUES[i],100)),(4,2))
       
       if player.is_dead():
         board_image.blit(self.gui_images["out"],(15,34))
