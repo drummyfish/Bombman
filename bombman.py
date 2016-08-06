@@ -1661,7 +1661,8 @@ class Map(object):
         # assign kill counts
         
         for flame in flames:
-          flame.player.set_kills(flame.player.get_kills() + 1)
+          increase_kills_by = 1 if flame.player != player else -1   # self kill decreases the kill count
+          flame.player.set_kills(flame.player.get_kills() + increase_kills_by)
         
         player.kill(self)
         continue
@@ -2555,7 +2556,42 @@ class MainMenu(Menu):
   def action_pressed(self, action):
     super(MainMenu,self).action_pressed(action)
     self.prompt_if_needed((3,0))
-  
+
+class ResultMenu(Menu):
+  def __init__(self, sound_player):
+    super(ResultMenu,self).__init__(sound_player)
+    
+    self.items = [[
+      "I get it"]]
+    
+  def set_results(self, players):
+    win_maximum = 0
+    winner_team_numbers = []
+    
+    for player in players:
+      if player.get_wins() > win_maximum:
+        winner_team_numbers = [player.get_team_number()]
+        win_maximum = player.get_wins()        
+      elif player.get_wins() == win_maximum:
+        winner_team_numbers.append(player.get_team_number())
+    
+    if len(winner_team_numbers) == 1:
+      announcement_text = "winner is ^" + Renderer.rgb_to_html_notation(COLOR_RGB_VALUES[winner_team_numbers[0]]) + COLOR_NAMES[winner_team_numbers[0]] + "^#FFFFFF!"
+    else:
+      announcement_text = "winners are: "
+      
+      first = True
+      
+      for winner_number in winner_team_numbers:
+        if first:
+          first = False
+        else:
+          announcement_text += ", "
+          
+        announcement_text += Renderer.rgb_to_html_notation(COLOR_RGB_VALUES[winner_team_numbers[winner_number]]) + COLOR_NAMES[winner_team_numbers[winner_number]] + "^#FFFFFF"
+    
+    self.text = announcement_text
+    
 class PlayMenu(Menu):
   def __init__(self,sound_player):
     super(PlayMenu,self).__init__(sound_player)
@@ -4203,7 +4239,8 @@ class Game(object):
   GAME_STATE_MENU_MAP_SELECT = 6
   GAME_STATE_MENU_CONTROL_SETTINGS = 7
   GAME_STATE_MENU_PLAY = 8
-  GAME_STATE_GAME_STARTED = 9
+  GAME_STATE_MENU_RESULTS = 9
+  GAME_STATE_GAME_STARTED = 10
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -4250,6 +4287,7 @@ class Game(object):
     self.menu_map_select = MapSelectMenu(self.sound_player)
     self.menu_play = PlayMenu(self.sound_player)
     self.menu_controls = ControlsMenu(self.sound_player,self.player_key_maps,self)
+    self.menu_results = ResultMenu(self.sound_player)
     
     self.ais = []
     
@@ -4377,11 +4415,23 @@ class Game(object):
         self.game_number = 1     # first game
         new_state = Game.GAME_STATE_GAME_STARTED
     
+    # ================ RESULT MENU ================
+    elif self.state == Game.GAME_STATE_MENU_RESULTS:
+      self.active_menu = self.menu_results
+    
+      if self.active_menu.get_state() in (Menu.MENU_STATE_CONFIRM,Menu.MENU_STATE_CANCEL):
+        new_state = Game.GAME_STATE_MENU_MAIN
+      
     if new_state != self.state:  # going to new state
       self.state = new_state
       self.active_menu.leaving()
     
     self.active_menu.process_inputs(self.player_key_maps.get_current_actions())
+
+  def acknowledge_wins(self, winner_team_number, players):
+    for player in players:
+      if player.get_team_number() == winner_team_number:
+        player.set_wins(player.get_wins() + 1)    
 
   def run(self):
     time_before = pygame.time.get_ticks()
@@ -4413,10 +4463,15 @@ class Game(object):
           self.game_number += 1
           
           if self.game_number > self.play_setup.get_number_of_games():
+            previous_winner = self.game_map.get_winner_team()
+            self.acknowledge_wins(previous_winner,self.game_map.get_players())
+            self.menu_results.set_results(self.game_map.get_players())
+            
             self.game_map = None
-            self.state = Game.GAME_STATE_MENU_MAIN    # back to menu
+            
+            self.state = Game.GAME_STATE_MENU_RESULTS   # show final results
           else:
-            self.state = Game.GAME_STATE_GAME_STARTED # new game
+            self.state = Game.GAME_STATE_GAME_STARTED   # new game
       elif self.state == Game.GAME_STATE_EXIT:
         break
       elif self.state == Game.GAME_STATE_GAME_STARTED:
@@ -4451,9 +4506,8 @@ class Game(object):
         for player in self.game_map.get_players():
           player.set_kills(kill_counts[player.get_number()])
           player.set_wins(win_counts[player.get_number()])
-          
-          if player.get_team_number() == previous_winner:
-            player.set_wins(player.get_wins() + 1)
+        
+        self.acknowledge_wins(previous_winner,self.game_map.get_players())    # add win counts
         
         self.sound_player.change_music()
         self.state = Game.GAME_STATE_PLAYING
