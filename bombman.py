@@ -2977,7 +2977,7 @@ class Renderer(object):
 
     pygame.mouse.set_visible(False)    # hide mouse cursor
 
-    environment_names = ["env1","env2","env3","env4","env5","env6"]
+    environment_names = ["env1","env2","env3","env4","env5","env6","env7"]
 
     for environment_name in environment_names:
       filename_floor = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_floor.png")
