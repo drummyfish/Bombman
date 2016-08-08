@@ -2404,7 +2404,7 @@ class Menu(object):
   def __init__(self,sound_player):
     self.text = ""
     self.selected_item = (0,0)            ##< row, column
-    self.items = []
+    self.items = []                       ##< list (rows) of lists (column)
     self.menu_left = False
     self.confirm_prompt_result = None     ##< True, False or None
     self.scroll_position = 0              ##< index of the first visible row
@@ -2489,9 +2489,22 @@ class Menu(object):
     elif button_number == 1:     # right
       self.action_pressed(PlayerKeyMaps.ACTION_SPECIAL)
     elif button_number == 3:     # up
-      self.action_pressed(PlayerKeyMaps.ACTION_UP)
+      self.scroll(True)
     elif button_number == 4:     # down
-      self.action_pressed(PlayerKeyMaps.ACTION_DOWN)
+      self.scroll(False)
+    
+  def scroll(self, up):
+    if up:
+      if self.scroll_position > 0:
+        self.scroll_position -= 1
+        self.action_pressed(PlayerKeyMaps.ACTION_UP)
+    else:   # down
+      rows = len(self.items[self.selected_item[1]])  
+      maximum_row = rows - Menu.MENU_MAX_ITEMS_VISIBLE
+      
+      if self.scroll_position < maximum_row:
+        self.scroll_position += 1
+        self.action_pressed(PlayerKeyMaps.ACTION_DOWN)
     
   ## Should be called when the menu is being left.
      
