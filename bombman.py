@@ -1934,9 +1934,10 @@ class PlayerKeyMaps(StringSerializable):
 
   def reset(self):
     self.allow_control_by_mouse(False)
-    self.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_g,pygame.K_h)
+    self.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_c,pygame.K_v)
     self.set_player_key_map(1,pygame.K_UP,pygame.K_RIGHT,pygame.K_DOWN,pygame.K_LEFT,pygame.K_RETURN,pygame.K_RSHIFT)
-    self.set_player_key_map(2,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
+    self.set_player_key_map(2,pygame.K_u,pygame.K_k,pygame.K_j,pygame.K_h,pygame.K_o,pygame.K_p)
+    self.set_player_key_map(3,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
 
   ##< Gets a direction of given action (0 - up, 1 - right, 2 - down, 3 - left).
 
@@ -2714,8 +2715,10 @@ class SettingsMenu(Menu):
           debug_log("resetting settings")
         
         self.settings.reset()
-        self.game.apply_sound_settings()
         self.game.save_settings()
+        self.game.apply_sound_settings()
+        self.game.apply_screen_settings()
+        self.game.apply_other_settings()
         self.confirm_prompt_result = None
         self.state = Menu.MENU_STATE_SELECTING    
       elif self.selected_item == (3,0):
@@ -4212,9 +4215,13 @@ class AI(object):
      
 class Settings(StringSerializable):
   POSSIBLE_SCREEN_RESOLUTIONS = (
+    (960,720),
     (1024,768),
+    (1280,720),
+    (1280,1024),
     (1366,768),
-    (1680,1050)
+    (1680,1050),
+    (1920,1080)
     )
   
   SOUND_VOLUME_THRESHOLD = 0.01
