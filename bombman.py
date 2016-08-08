@@ -421,7 +421,7 @@ class Player(Positionable):
   #  is needed so that sounds can be made on item pickup - if no map is provided,
   #  no sounds will be generated.
 
-  def give_item(self, item,game_map=None):
+  def give_item(self, item, game_map=None):
     if not item in self.items:
       self.items[item] = 1
     else:
@@ -495,7 +495,8 @@ class Player(Positionable):
           self.set_position(player_to_switch.get_position())
           player_to_switch.set_position(my_position)
       elif chosen_disease[0] == Player.DISEASE_EARTHQUAKE:
-        game_map.start_earthquake()
+        if game_map != None:
+          game_map.start_earthquake()
       else:
         self.disease = chosen_disease[0]
         self.disease_time_left = Player.DISEASE_TIME
@@ -1009,7 +1010,7 @@ class Map(object):
     # make the tiles array:
     self.danger_map_is_up_to_date = False                    # to regenerate danger map only when needed
     self.tiles = []
-    starting_positions = [(0.0,0.0) for i in range(10)]      # starting position for each player
+    self.starting_positions = [(0.0,0.0) for i in range(10)] # starting position for each player
 
     map_data = map_data.replace(" ","").replace("\n","")     # get rid of white characters
 
@@ -1101,11 +1102,11 @@ class Map(object):
       self.tiles[-1].append(tile)
 
       if tile_character.isdigit():
-        starting_positions[int(tile_character)] = (float(column),float(line))
+        self.starting_positions[int(tile_character)] = (float(column),float(line))
 
       column += 1
 
-    # place items on under block tiles:
+    # place items under the block tiles:
     
     for i in range(len(string_split[2])):
       random_tile = random.choice(block_tiles)
@@ -1129,7 +1130,7 @@ class Map(object):
         new_player = Player()
         new_player.set_number(i)
         new_player.set_team_number(player_slots[i][1])
-        new_player.move_to_tile_center(starting_positions[i])
+        new_player.move_to_tile_center(self.starting_positions[i])
         self.players.append(new_player)
         self.players_by_numbers[i] = new_player
       else:
@@ -1137,14 +1138,26 @@ class Map(object):
         
     # give players starting items:
     
+    self.player_starting_items = []
+    
     for i in range(len(string_split[1])):
       for player in self.players:
-        player.give_item(self.letter_to_item(string_split[1][i]))
+        item_to_give = self.letter_to_item(string_split[1][i])
+        
+        player.give_item(item_to_give)
+      
+      self.player_starting_items.append(item_to_give)
         
     self.bombs = []                ##< bombs on the map
     self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
     self.animation_events = []     ##< list of animation events, tuples in format (animation_event, coordinates)
     self.items_to_give_away = []   ##< list of tuples in format (time_of_giveaway, list_of_items)
+
+  def get_starting_items(self):
+    return self.player_starting_items
+
+  def get_starting_positions(self):
+    return self.starting_positions
 
   ## Returns a tuple (game number, max games).
  
@@ -2893,7 +2906,15 @@ class MapSelectMenu(Menu):
     return random.choice(self.map_filenames)
     
   def get_selected_map_name(self):
-    return self.map_filenames[self.selected_item[0] - 1]
+    try:
+      index = self.selected_item[0] - 1
+      
+      if index < 0:
+        return ""
+      
+      return self.map_filenames[index]
+    except IndexError:
+      return ""
 
 class PlaySetupMenu(Menu):
   def __init__(self, sound_player, play_setup):
@@ -2994,6 +3015,9 @@ class Renderer(object):
     self.update_screen_info()
 
     self.environment_images = {}
+    
+    self.preview_map_name = ""
+    self.preview_map_image = None
 
     self.font_small = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_SMALL_SIZE)
     self.font_normal = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_NORMAL_SIZE)
@@ -3580,6 +3604,14 @@ class Renderer(object):
       
       result.blit(text_image,(x,y))
     
+    # map preview
+    
+    if isinstance(menu_to_render,MapSelectMenu):       # also not too nice
+      self.update_map_preview_image(menu_to_render.get_selected_map_name())
+      
+      if self.preview_map_image != None:
+        result.blit(self.preview_map_image,(self.screen_center[0] + 180,items_y))
+    
     # draw cursor only if control by mouse is not allowed - wouldn't make sense
     
     if not game.get_settings().control_by_mouse:
@@ -3587,11 +3619,106 @@ class Renderer(object):
     
     return result
 
+  def update_map_preview_image(self, map_filename):
+    if map_filename == "":
+      self.preview_map_name = ""
+      self.preview_map_image = None
+      return
+    
+    if self.preview_map_name != map_filename:
+      if DEBUG_VERBOSE:
+        debug_log("updating map preview of " + map_filename)
+      
+      self.preview_map_name = map_filename
+      
+      tile_size = 7
+      tile_half_size = tile_size / 2
+    
+      map_info_border_size = 5
+    
+      self.preview_map_image = pygame.Surface((tile_size * Map.MAP_WIDTH,tile_size * Map.MAP_HEIGHT + map_info_border_size + Renderer.MAP_TILE_HEIGHT))
+    
+      with open(os.path.join(MAP_PATH,map_filename)) as map_file:
+        map_data = map_file.read()
+        temp_map = Map(map_data,PlaySetup(),0,0)
+        
+        for y in range(Map.MAP_HEIGHT):
+          for x in range(Map.MAP_WIDTH):
+            tile = temp_map.get_tile_at((x,y))
+            tile_kind = tile.kind
+            
+            pos_x = x * tile_size
+            pos_y = y * tile_size
+            
+            tile_special_object = tile.special_object
+            
+            if tile_special_object == None: 
+              if tile_kind == MapTile.TILE_BLOCK:
+                tile_color = (120,120,120)
+              elif tile_kind == MapTile.TILE_WALL:
+                tile_color = (60,60,60)
+              else:                                            # floor
+                tile_color = (230,230,230)
+            else:
+              if tile_special_object == MapTile.SPECIAL_OBJECT_LAVA:
+                tile_color = (200,0,0)
+              elif tile_special_object == MapTile.SPECIAL_OBJECT_TELEPORT_A or tile_special_object == MapTile.SPECIAL_OBJECT_TELEPORT_B:
+                tile_color = (0,0,200)
+              elif tile_special_object == MapTile.SPECIAL_OBJECT_TRAMPOLINE:
+                tile_color = (0,200,0)
+              elif tile_kind == MapTile.TILE_FLOOR:           # arrow
+                tile_color = (200,200,0)
+              else:
+                tile_color = (230,230,230)
+            
+            pygame.draw.rect(self.preview_map_image,tile_color,pygame.Rect(pos_x,pos_y,tile_size,tile_size))
+
+        starting_positions = temp_map.get_starting_positions()
+
+        for player_index in range(len(starting_positions)):
+          draw_position = (int(starting_positions[player_index][0]) * tile_size + tile_half_size,int(starting_positions[player_index][1]) * tile_size + tile_half_size)
+           
+          pygame.draw.rect(self.preview_map_image,tile_color,pygame.Rect(pos_x,pos_y,tile_size,tile_size))
+          pygame.draw.circle(self.preview_map_image,COLOR_RGB_VALUES[player_index],draw_position,tile_half_size)
+
+        y = tile_size * Map.MAP_HEIGHT + map_info_border_size
+        column = 0
+
+        self.preview_map_image.blit(self.environment_images[temp_map.get_environment_name()][0],(0,y))
+
+        # draw starting item icons
+
+        starting_x = Renderer.MAP_TILE_WIDTH + 5
+
+        x = starting_x
+        
+        pygame.draw.rect(self.preview_map_image,(255,255,255),pygame.Rect(x,y,Renderer.MAP_TILE_WIDTH,Renderer.MAP_TILE_HEIGHT))
+
+        starting_items = temp_map.get_starting_items()
+        
+        for i in range(len(starting_items)):
+          item = starting_items[i]
+          
+          if item in self.icon_images:
+            item_image = self.icon_images[item]
+            
+            self.preview_map_image.blit(item_image,(x + 1,y + 1))
+            
+            x += item_image.get_size()[0] + 1
+            column += 1
+            
+            if column > 2:
+              column = 0
+              x = starting_x
+              y += 12
+
   def render_map(self, map_to_render):
     result = pygame.Surface(self.screen_resolution)
     
     self.menu_background_image = None             # unload unneccessarry images
     self.menu_item_images = None
+    self.preview_map_name = ""
+    self.preview_map_image = None
     
     self.update_info_boards(map_to_render.get_players())
   
