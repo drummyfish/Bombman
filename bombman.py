@@ -994,6 +994,8 @@ class Map(object):
   
   GIVE_AWAY_DELAY = 3000       ##< after how many ms the items of dead players will be given away
   
+  START_GAME_AFTER = 2500      ##< delay in ms before the game begins
+  
   STATE_WAITING_TO_PLAY = 0    ##< players can't do anything yet
   STATE_PLAYING = 1            ##< game is being played
   STATE_FINISHING = 2          ##< game is over but the map is still being updated for a while after
@@ -1016,7 +1018,7 @@ class Map(object):
     self.environment_name = string_split[0]
 
     self.end_game_at = -1                          ##< time at which the map should go to STATE_GAME_OVER state
-    self.start_game_at = 2500
+    self.start_game_at = Map.START_GAME_AFTER
     self.win_announced = False
     self.announce_win_at = -1
     self.state = Map.STATE_WAITING_TO_PLAY
@@ -1938,6 +1940,7 @@ class PlayerKeyMaps(StringSerializable):
     self.set_player_key_map(1,pygame.K_UP,pygame.K_RIGHT,pygame.K_DOWN,pygame.K_LEFT,pygame.K_RETURN,pygame.K_RSHIFT)
     self.set_player_key_map(2,pygame.K_u,pygame.K_k,pygame.K_j,pygame.K_h,pygame.K_o,pygame.K_p)
     self.set_player_key_map(3,PlayerKeyMaps.MOUSE_CONTROL_UP,PlayerKeyMaps.MOUSE_CONTROL_RIGHT,PlayerKeyMaps.MOUSE_CONTROL_DOWN,PlayerKeyMaps.MOUSE_CONTROL_LEFT,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L,PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
+    self.set_special_key_map(pygame.K_ESCAPE)
 
   ##< Gets a direction of given action (0 - up, 1 - right, 2 - down, 3 - left).
 
@@ -3090,6 +3093,12 @@ class Renderer(object):
 
     self.gui_images["out"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_out.png"))   
      
+    self.gui_images["countdown"] = {}
+    
+    self.gui_images["countdown"][1] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_countdown_1.png"))
+    self.gui_images["countdown"][2] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_countdown_2.png"))
+    self.gui_images["countdown"][3] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_countdown_3.png"))
+    
     self.menu_background_image = None  ##< only loaded when in menu
     self.menu_item_images = None       ##< images of menu items, only loaded when in menu
  
@@ -3836,9 +3845,18 @@ class Renderer(object):
         
       x += self.gui_images["info board"].get_size()[0] - 2
 
-    if map_to_render.earthquake_is_active(): # shakinf effect
+    if map_to_render.earthquake_is_active(): # shaking effect
       random_scale = random.uniform(0.99,1.01)
       result = pygame.transform.rotate(result,random.uniform(-4,4))
+   
+    if map_to_render.get_state() == Map.STATE_WAITING_TO_PLAY:
+      third = Map.START_GAME_AFTER / 3
+      
+      countdown_image_index = max(3 - map_to_render.get_map_time() / third,1)
+      countdown_image = self.gui_images["countdown"][countdown_image_index]
+      countdown_position = (self.screen_center[0] - countdown_image.get_size()[0] / 2,self.screen_center[1] - countdown_image.get_size()[1] / 2)
+      
+      result.blit(countdown_image,countdown_position)
    
     return result    
 
