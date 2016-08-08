@@ -1,4 +1,8 @@
 !include LogicLib.nsh
+!include "MUI2.nsh"
+
+!define MUI_ICON "resources\icon.ico"
+
 Outfile "bombman_install.exe"
  
 Caption "Install Bombman"
@@ -71,7 +75,7 @@ FileClose $4
 
 # create desktop shortcut
 
-CreateShortCut "$DESKTOP\bombman.lnk" "$INSTDIR\run_bombman.bat"
+CreateShortCut "$DESKTOP\bombman.lnk" "$INSTDIR\run_bombman.bat" "" "$INSTDIR\resources\icon.ico" 0
 
 MessageBox MB_OK "Bombman has been succesfully installed."
 
