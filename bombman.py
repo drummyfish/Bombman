@@ -2875,13 +2875,19 @@ class MapSelectMenu(Menu):
   def update_items(self):
     self.map_filenames = sorted([filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))])
 
-    self.items = [[]]
+    self.items = [["^" + Renderer.rgb_to_html_notation((100,100,255)) + "each game random"]]
 
     for filename in self.map_filenames:
       self.items[0].append(filename)
-      
+    
+  def random_was_selected(self):
+    return self.selected_item[0] == 0
+    
+  def get_random_map_name(self):
+    return random.choice(self.map_filenames)
+    
   def get_selected_map_name(self):
-    return self.map_filenames[self.selected_item[0]]
+    return self.map_filenames[self.selected_item[0] - 1]
 
 class PlaySetupMenu(Menu):
   def __init__(self, sound_player, play_setup):
@@ -4338,6 +4344,7 @@ class Game(object):
     self.apply_other_settings()
              
     self.map_name = ""
+    self.random_map_selection = False
     self.game_map = None
     
     self.play_setup = PlaySetup()
@@ -4474,6 +4481,7 @@ class Game(object):
         new_state = Game.GAME_STATE_MENU_PLAY_SETUP
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         self.map_name = self.active_menu.get_selected_map_name()
+        self.random_map_selection = self.active_menu.random_was_selected()
         self.game_number = 1     # first game
         new_state = Game.GAME_STATE_GAME_STARTED
     
@@ -4553,7 +4561,9 @@ class Game(object):
             kill_counts[player.get_number()] = player.get_kills()
             win_counts[player.get_number()] = player.get_wins()
         
-        with open(os.path.join(MAP_PATH,self.map_name)) as map_file:
+        map_name_to_load = self.map_name if not self.random_map_selection else self.menu_map_select.get_random_map_name()
+        
+        with open(os.path.join(MAP_PATH,map_name_to_load)) as map_file:
           map_data = map_file.read()
           self.game_map = Map(map_data,self.play_setup,self.game_number,self.play_setup.get_number_of_games())
           
