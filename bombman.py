@@ -1854,6 +1854,8 @@ class PlayerKeyMaps(StringSerializable):
   
   MOUSE_CONTROL_BIAS = 2         ##< mouse movement bias in pixels
   
+  TYPED_STRING_BUFFER_LENGTH = 10
+  
   ACTION_NAMES = {
     ACTION_UP : "up",
     ACTION_RIGHT : "right",
@@ -1914,8 +1916,23 @@ class PlayerKeyMaps(StringSerializable):
     self.mouse_button_states = [False,False,False,False,False] ##< (left, right, middle, wheel up, wheel down)
     self.previous_mouse_button_states = [False,False,False,False,False]  
     self.last_mouse_update_frame = -1
-      
+    
+    
+    self.name_code_mapping = {}     # holds a mapping of key names to pygame key codes, since pygame itself offers no such functionality   
+    keys_pressed = pygame.key.get_pressed()
+    
+    for key_code in range(len(keys_pressed)):
+      self.name_code_mapping[pygame.key.name(key_code)] = key_code
+     
+    self.typed_string_buffer = [" " for i in range(PlayerKeyMaps.TYPED_STRING_BUFFER_LENGTH)]
+     
     self.reset()
+
+  def pygame_name_to_key_code(self, pygame_name):
+    try:
+      return self.name_code_mapping[pygame_name]
+    except KeyError:
+      return -1
 
   ## Returns a state of mouse buttons including mouse wheel (unlike pygame.mouse.get_pressed) as
   #  a tuple (left, right, middle, wheel up, wheel down).
@@ -1934,9 +1951,9 @@ class PlayerKeyMaps(StringSerializable):
     
     return result
     
-  ## This informs the object abour pygame mouse events so it can keep track of some input states.
+  ## This informs the object abour pygame events so it can keep track of some input states.
     
-  def process_pygame_mouse_events(self, pygame_mouse_events, frame_number):
+  def process_pygame_events(self, pygame_events, frame_number):
     if frame_number != self.last_mouse_update_frame:
       # first time calling this function this frame => reset states
     
@@ -1952,13 +1969,23 @@ class PlayerKeyMaps(StringSerializable):
       self.mouse_button_states[4] = False     
       self.last_mouse_update_frame = frame_number
 
-    for pygame_mouse_event in pygame_mouse_events:
-      if pygame_mouse_event.type == pygame.MOUSEBUTTONDOWN:
-        if pygame_mouse_event.button == 4:
+    for pygame_event in pygame_events:
+      if pygame_event.type == pygame.MOUSEBUTTONDOWN:
+        if pygame_event.button == 4:
           self.mouse_button_states[3] = True
-        elif pygame_mouse_event.button == 5:
+        elif pygame_event.button == 5:
           self.mouse_button_states[4] = True
-
+      elif pygame_event.type == pygame.KEYDOWN:
+        try:
+          self.typed_string_buffer = self.typed_string_buffer[1:]
+          self.typed_string_buffer.append(chr(pygame_event.key))
+        except Exception:
+          if DEBUG_VERBOSE:
+            debug_log("couldn't append typed character to the buffer")
+        
+  def string_was_typed(self, string):
+    return str.find("".join(self.typed_string_buffer),string) >= 0
+        
   def reset(self):
     self.allow_control_by_mouse(False)
     self.set_player_key_map(0,pygame.K_w,pygame.K_d,pygame.K_s,pygame.K_a,pygame.K_c,pygame.K_v)
@@ -4481,6 +4508,8 @@ class Game(object):
   GAME_STATE_MENU_RESULTS = 9
   GAME_STATE_GAME_STARTED = 10
   
+  CHEAT_PARTY = 0
+  
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
     pygame.init()
@@ -4533,6 +4562,18 @@ class Game(object):
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
+    self.active_cheats = set()
+
+  def activate_cheat(self, what_cheat):
+    self.active_cheats.add(what_cheat)
+    
+  def deactivate_cheat(self, what_cheat):
+    if what_cheat in self.active_cheats:
+      self.active_cheats.remove(what_cheat)
+
+  def cheat_is_active(self, what_cheat):
+    return what_cheat in self.active_cheats
+
   def get_player_key_maps(self):
     return self.player_key_maps
 
@@ -4567,6 +4608,9 @@ class Game(object):
   def manage_menus(self):
     new_state = self.state
     prevent_input_processing = False
+    
+    if self.player_key_maps.string_was_typed("party"):
+      self.activate_cheat(game.CHEAT_PARTY)
     
     self.player_key_maps.get_current_actions()       # this has to be called in order for player_key_maps to update mouse controls properly
       
@@ -4655,6 +4699,8 @@ class Game(object):
         self.random_map_selection = self.active_menu.random_was_selected()
         self.game_number = 1     # first game
         new_state = Game.GAME_STATE_GAME_STARTED
+        
+        self.deactivate_cheat(Game.CHEAT_PARTY)
     
     # ================ RESULT MENU ================
     elif self.state == Game.GAME_STATE_MENU_RESULTS:
@@ -4684,15 +4730,15 @@ class Game(object):
       dt = min(pygame.time.get_ticks() - time_before,100)
       time_before = pygame.time.get_ticks()
 
-      mouse_events = []
+      pygame_events = []
 
       for event in pygame.event.get():
         if event.type == pygame.QUIT:
           self.state = Game.GAME_STATE_EXIT
-        if event.type in (pygame.MOUSEBUTTONDOWN,pygame.MOUSEBUTTONUP,pygame.MOUSEMOTION):
-          mouse_events.append(event)
         
-      self.player_key_maps.process_pygame_mouse_events(mouse_events,self.frame_number)
+        pygame_events.append(event)
+        
+      self.player_key_maps.process_pygame_events(pygame_events,self.frame_number)
 
       if self.state == Game.GAME_STATE_PLAYING:
         self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
