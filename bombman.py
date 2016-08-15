@@ -24,6 +24,18 @@
 # have either made a super-clean design, or something that can actually be run,
 # so don't blame me :)
 #
+# ---------------------------------------------------------------------
+#
+# Version numbering system:
+#
+# major.minor
+#
+# Major number increases with significant new features added (multiplayer, ...),
+# minor number increases with small changes (bug fixes, AI improvements, ...) and
+# it does so in this way: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 91, 92, 93, etc.
+#
+# ---------------------------------------------------------------------
+#
 # Map string format (may contain spaces and newlines, which will be ignored):
 #
 # <environment>;<player items>;<map items>;<tiles>
@@ -2894,20 +2906,28 @@ class MapSelectMenu(Menu):
   def update_items(self):
     self.map_filenames = sorted([filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))])
 
-    self.items = [["^" + Renderer.rgb_to_html_notation((100,100,255)) + "each game random"]]
+    special_color = (100,100,255)
+
+    self.items = [["^" + Renderer.rgb_to_html_notation(special_color) + "pick random","^" + Renderer.rgb_to_html_notation(special_color) + "each game random"]]
 
     for filename in self.map_filenames:
       self.items[0].append(filename)
     
   def random_was_selected(self):
-    return self.selected_item[0] == 0
+    return self.selected_item[0] == 1
+    
+  def show_map_preview(self):
+    return self.selected_item[0] != 0 and self.selected_item[0] != 1
     
   def get_random_map_name(self):
     return random.choice(self.map_filenames)
     
   def get_selected_map_name(self):
+    if self.selected_item[0] == 0:                # pick random
+      return random.choice(self.map_filenames)
+    
     try:
-      index = self.selected_item[0] - 1
+      index = self.selected_item[0] - 2
       
       if index < 0:
         return ""
@@ -3606,10 +3626,9 @@ class Renderer(object):
     
     # map preview
     
-    if isinstance(menu_to_render,MapSelectMenu):       # also not too nice
-      self.update_map_preview_image(menu_to_render.get_selected_map_name())
-      
-      if self.preview_map_image != None:
+    if isinstance(menu_to_render,MapSelectMenu):       # also not too nice    
+      if menu_to_render.show_map_preview():
+        self.update_map_preview_image(menu_to_render.get_selected_map_name())
         result.blit(self.preview_map_image,(self.screen_center[0] + 180,items_y))
     
     # draw cursor only if control by mouse is not allowed - wouldn't make sense
