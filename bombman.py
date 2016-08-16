@@ -1018,7 +1018,7 @@ class Map(object):
   
   ## Initialises a new map from map_data (string) and a PlaySetup object.
 
-  def __init__(self, map_data, play_setup, game_number, max_games):
+  def __init__(self, map_data, play_setup, game_number, max_games, all_items_cheat=False):
     # make the tiles array:
     self.danger_map_is_up_to_date = False                    # to regenerate danger map only when needed
     self.tiles = []
@@ -1150,11 +1150,13 @@ class Map(object):
         
     # give players starting items:
     
+    start_items_string = string_split[1] if not all_items_cheat else "bbbbbFkxtsssssmp"
+    
     self.player_starting_items = []
     
-    for i in range(len(string_split[1])):
+    for i in range(len(start_items_string)):
       for player in self.players:
-        item_to_give = self.letter_to_item(string_split[1][i])
+        item_to_give = self.letter_to_item(start_items_string[i])
         
         player.give_item(item_to_give)
       
@@ -1854,7 +1856,7 @@ class PlayerKeyMaps(StringSerializable):
   
   MOUSE_CONTROL_BIAS = 2         ##< mouse movement bias in pixels
   
-  TYPED_STRING_BUFFER_LENGTH = 10
+  TYPED_STRING_BUFFER_LENGTH = 15
   
   ACTION_NAMES = {
     ACTION_UP : "up",
@@ -1982,6 +1984,9 @@ class PlayerKeyMaps(StringSerializable):
         except Exception:
           if DEBUG_VERBOSE:
             debug_log("couldn't append typed character to the buffer")
+        
+  def clear_typing_buffer(self):
+    self.typed_string_buffer = [" " for i in range(PlayerKeyMaps.TYPED_STRING_BUFFER_LENGTH)]
         
   def string_was_typed(self, string):
     return str.find("".join(self.typed_string_buffer),string) >= 0
@@ -4509,6 +4514,7 @@ class Game(object):
   GAME_STATE_GAME_STARTED = 10
   
   CHEAT_PARTY = 0
+  CHEAT_ALL_ITEMS = 1
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -4564,8 +4570,17 @@ class Game(object):
 
     self.active_cheats = set()
 
+  def deactivate_all_cheats(self):
+    self.active_cheats = set()
+
+    if DEBUG_VERBOSE:
+      debug_log("all cheats deactivated")
+      
   def activate_cheat(self, what_cheat):
     self.active_cheats.add(what_cheat)
+    
+    if DEBUG_VERBOSE:
+      debug_log("cheat activated")
     
   def deactivate_cheat(self, what_cheat):
     if what_cheat in self.active_cheats:
@@ -4609,9 +4624,18 @@ class Game(object):
     new_state = self.state
     prevent_input_processing = False
     
+    # cheack if any cheat was typed:
+    
     if self.player_key_maps.string_was_typed("party"):
       self.activate_cheat(game.CHEAT_PARTY)
-    
+      self.player_key_maps.clear_typing_buffer()
+    elif self.player_key_maps.string_was_typed("herecomedatboi"):
+      self.activate_cheat(game.CHEAT_ALL_ITEMS)
+      self.player_key_maps.clear_typing_buffer()
+    elif self.player_key_maps.string_was_typed("ifeelbad"):
+      self.deactivate_all_cheats()
+      self.player_key_maps.clear_typing_buffer()
+      
     self.player_key_maps.get_current_actions()       # this has to be called in order for player_key_maps to update mouse controls properly
       
     # ================ MAIN MENU =================
@@ -4757,6 +4781,7 @@ class Game(object):
             self.game_map = None
             
             self.state = Game.GAME_STATE_MENU_RESULTS   # show final results
+            self.deactivate_all_cheats()
           else:
             self.state = Game.GAME_STATE_GAME_STARTED   # new game
       elif self.state == Game.GAME_STATE_EXIT:
@@ -4782,7 +4807,7 @@ class Game(object):
         
         with open(os.path.join(MAP_PATH,map_name_to_load)) as map_file:
           map_data = map_file.read()
-          self.game_map = Map(map_data,self.play_setup,self.game_number,self.play_setup.get_number_of_games())
+          self.game_map = Map(map_data,self.play_setup,self.game_number,self.play_setup.get_number_of_games(),self.cheat_is_active(Game.CHEAT_ALL_ITEMS))
           
         player_slots = self.play_setup.get_slots()
         
