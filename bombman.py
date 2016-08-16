@@ -3212,6 +3212,31 @@ class Renderer(object):
     self.animations[Renderer.ANIMATION_EVENT_RIP] = Animation(os.path.join(RESOURCE_PATH,"animation_rip"),1,1,".png",0.3)
     self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
 
+    self.party_circles = []     ##< holds info about party cheat circles, list of tuples in format (coords,radius,color,phase,speed)
+    self.party_circles.append(((-180,110),40,(255,100,50),0.0,1.0))
+    self.party_circles.append(((160,70),32,(100,200,150),1.4,1.5))
+    self.party_circles.append(((40,-150),65,(150,100,170),2.0,0.7))
+    self.party_circles.append(((-170,-92),80,(200,200,32),3.2,1.3))
+    self.party_circles.append(((50,110),63,(10,180,230),0.1,1.8))
+    self.party_circles.append(((205,-130),72,(180,150,190),0.5,2.0))
+    
+    self.party_players = []    ##< holds info about party cheat players, list of tuples in format (coords,color index,millisecond delay, rotate right)
+    self.party_players.append(((-230,80),0,0,True))
+    self.party_players.append(((180,10),2,220,False))
+    self.party_players.append(((90,-150),4,880,True))
+    self.party_players.append(((-190,-95),6,320,False))
+    self.party_players.append(((-40,110),8,50,True))
+    
+    self.party_bombs = []     ##< holds info about party bombs, list of lists in format [x,y,increment x,increment y]
+    self.party_bombs.append([10,30,1,1])
+    self.party_bombs.append([700,200,1,-1])
+    self.party_bombs.append([512,512,-1,1])
+    self.party_bombs.append([1024,20,-1,-1])
+    self.party_bombs.append([900,300,1,1])
+    self.party_bombs.append([30,700,1,1])
+    self.party_bombs.append([405,530,1,-1])
+    self.party_bombs.append([250,130,-1,-1])
+
   def update_screen_info(self):
     self.screen_resolution = Renderer.get_screen_size()
     self.screen_center = (self.screen_resolution[0] / 2,self.screen_resolution[1] / 2)
@@ -3555,6 +3580,43 @@ class Renderer(object):
     background_position = (self.screen_center[0] - self.menu_background_image.get_size()[0] / 2,self.screen_center[1] - self.menu_background_image.get_size()[1] / 2)
       
     result.blit(self.menu_background_image,background_position)
+
+    if game.cheat_is_active(Game.CHEAT_PARTY):
+      for circle_info in self.party_circles:           # draw circles
+        circle_coords = (self.screen_center[0] + circle_info[0][0],self.screen_center[1] + circle_info[0][1])     
+        radius_coefficient = (math.sin(pygame.time.get_ticks() * circle_info[4] / 100.0 + circle_info[3]) + 1) / 2.0
+        circle_radius = int(circle_info[1] * radius_coefficient)
+        pygame.draw.circle(result,circle_info[2],circle_coords,circle_radius)
+    
+      for player_info in self.party_players:           # draw players
+        player_coords = (self.screen_center[0] + player_info[0][0],self.screen_center[1] + player_info[0][1])     
+        
+        player_direction = (int((pygame.time.get_ticks() + player_info[2]) / 150)) % 4
+        
+        if not player_info[3]:
+          player_direction = 3 - player_direction
+        
+        direction_string = ("up","right","down","left")[player_direction]
+        
+        if int(pygame.time.get_ticks() / 500) % 2 == 0:
+          direction_string = "box " + direction_string
+        
+        result.blit(self.player_images[player_info[1]][direction_string],player_coords)
+    
+      for bomb_info in self.party_bombs:
+        result.blit(self.bomb_images[0],(bomb_info[0],bomb_info[1]))
+        bomb_info[0] += bomb_info[2]
+        bomb_info[1] += bomb_info[3]
+        
+        if bomb_info[0] < 0:     # border collision, change direction
+          bomb_info[2] = 1
+        elif bomb_info[0] > self.screen_resolution[0] - 50:
+          bomb_info[2] = -1
+    
+        if bomb_info[1] < 0:     # border collision, change direction
+          bomb_info[3] = 1
+        elif bomb_info[1] > self.screen_resolution[1] - 50:
+          bomb_info[3] = -1
     
     version_position = (3,1)
     
@@ -4669,6 +4731,7 @@ class Game(object):
         elif self.active_menu.get_selected_item() == (1,0):
           new_state = Game.GAME_STATE_MENU_MAIN
           self.sound_player.change_music()
+          self.deactivate_all_cheats()
     
     # ============== SETTINGS MENU ===============
     elif self.state == Game.GAME_STATE_MENU_SETTINGS: 
