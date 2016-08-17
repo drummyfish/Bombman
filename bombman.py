@@ -84,9 +84,9 @@ import copy
 import random
 import time
 
-DEBUG_PROFILING = False
-DEBUG_FPS = True
-DEBUG_VERBOSE = True
+DEBUG_PROFILING = True
+DEBUG_FPS = False
+DEBUG_VERBOSE = False
 
 # colors used for players and teams
 COLOR_WHITE = 0
@@ -136,6 +136,58 @@ SETTINGS_FILE_PATH = "settings.txt"
 
 def debug_log(message):
   print(message)
+
+class Profiler(object):
+  SHOW_LAST = 10
+
+  def __init__(self):
+    self.sections = {}
+    
+  def measure_start(self, section_name):
+    if not DEBUG_PROFILING:
+      return
+      
+    if not (section_name in self.sections):
+      self.sections[section_name] = [0.0 for i in range(Profiler.SHOW_LAST)]
+
+    section_values = self.sections[section_name]
+        
+    section_values[0] -= pygame.time.get_ticks()
+
+  def measure_stop(self, section_name):
+    if not DEBUG_PROFILING:
+      return
+      
+    if not section_name in self.sections:
+      return
+  
+    section_values = self.sections[section_name]
+    
+    section_values[0] += pygame.time.get_ticks()
+     
+  def end_of_frame(self):
+    for section_name in self.sections:
+      section_values = self.sections[section_name]
+      section_values.pop()
+      section_values.insert(0,0)
+    
+  def get_profile_string(self):
+    result = "PROFILING INFO:"
+    
+    section_names = list(self.sections.keys())
+    section_names.sort()
+    
+    for section_name in section_names:
+      result += "\n" + section_name.ljust(25) + ": "
+      
+      section_values = self.sections[section_name]
+      
+      for i in range(len(section_values)):
+        result += str(section_values[i]).ljust(5)
+        
+      result += " AVG: " + str(sum(section_values) / float(len(section_values)))
+        
+    return result
 
 ## Something that has a float position on the map.
 
@@ -3579,8 +3631,11 @@ class Renderer(object):
 
     background_position = (self.screen_center[0] - self.menu_background_image.get_size()[0] / 2,self.screen_center[1] - self.menu_background_image.get_size()[1] / 2)
       
+    profiler.measure_start("menu rend. backg.")
     result.blit(self.menu_background_image,background_position)
+    profiler.measure_stop("menu rend. backg.")
 
+    profiler.measure_start("menu rend. party")
     if game.cheat_is_active(Game.CHEAT_PARTY):
       for circle_info in self.party_circles:           # draw circles
         circle_coords = (self.screen_center[0] + circle_info[0][0],self.screen_center[1] + circle_info[0][1])     
@@ -3618,10 +3673,13 @@ class Renderer(object):
         elif bomb_info[1] > self.screen_resolution[1] - 50:
           bomb_info[3] = -1
     
+    profiler.measure_stop("menu rend. party")
+    
     version_position = (3,1)
     
     result.blit(self.gui_images["version"],version_position)
     
+    profiler.measure_start("menu rend. item update")
     self.update_menu_item_images(menu_to_render)
     
     # render menu description text
@@ -3647,6 +3705,8 @@ class Renderer(object):
     
     items_y = y
     
+    profiler.measure_stop("menu rend. item update")
+    
     # render scrollbar if needed
     
     rows = 0
@@ -3666,6 +3726,8 @@ class Renderer(object):
     mouse_coordinates = pygame.mouse.get_pos()
     
     # render items
+    
+    profiler.measure_start("menu rend. items")
     
     for j in range(len(menu_items)):
       y = items_y
@@ -3691,6 +3753,8 @@ class Renderer(object):
           menu_to_render.mouse_went_over_item(item_coordinates)
        
         y += Renderer.FONT_NORMAL_SIZE + Renderer.MENU_LINE_SPACING
+    
+    profiler.measure_stop("menu rend. items")
     
     mouse_events = game.get_player_key_maps().get_mouse_button_events()
     
@@ -3720,10 +3784,14 @@ class Renderer(object):
     
     # map preview
     
+    profiler.measure_start("menu rend. preview")
+    
     if isinstance(menu_to_render,MapSelectMenu):       # also not too nice    
       if menu_to_render.show_map_preview():
         self.update_map_preview_image(menu_to_render.get_selected_map_name())
         result.blit(self.preview_map_image,(self.screen_center[0] + 180,items_y))
+    
+    profiler.measure_stop("menu rend. preview")
     
     # draw cursor only if control by mouse is not allowed - wouldn't make sense
     
@@ -3883,14 +3951,18 @@ class Renderer(object):
 
       self.prerendered_map = map_to_render
 
+    profiler.measure_start("map rend. backg.")
     result.blit(self.prerendered_map_background,self.map_render_location)
+    profiler.measure_stop("map rend. backg.")
     
     # order the players and bombs by their y position so that they are drawn correctly
 
+    profiler.measure_start("map rend. sort")
     ordered_objects_to_render = []
     ordered_objects_to_render.extend(map_to_render.get_players())
     ordered_objects_to_render.extend(map_to_render.get_bombs())
     ordered_objects_to_render.sort(key = lambda what: 1000 if (isinstance(what,Bomb) and what.movement == Bomb.BOMB_FLYING) else what.get_position()[1])   # flying bombs are rendered above everything else
+    profiler.measure_stop("map rend. sort")
     
     # render the map by lines:
 
@@ -3924,8 +3996,11 @@ class Renderer(object):
         relative_offset = [0,0]    # to relatively shift images by given offset
         
         if isinstance(object_to_render,Player):    # <= not very nice, maybe fix this later
+          profiler.measure_start("map rend. player")
+
           if object_to_render.is_dead():
             object_to_render_index += 1
+            profiler.measure_stop("map rend. player")
             continue
           
           sprite_center = Renderer.PLAYER_SPRITE_CENTER
@@ -3994,8 +4069,10 @@ class Renderer(object):
               image_to_render = self.player_images[color_index]["walk left"][animation_frame]
         
           if object_to_render.get_disease() != Player.DISEASE_NONE:
-            overlay_images.append(self.other_images["disease"][animation_frame % 2])          
+            overlay_images.append(self.other_images["disease"][animation_frame % 2]) 
+          profiler.measure_stop("map rend. player")
         else:    # bomb
+          profiler.measure_start("map rend. bomb")
           sprite_center = Renderer.BOMB_SPRITE_CENTER
           animation_frame = (object_to_render.time_of_existence / 100) % 4
          
@@ -4015,11 +4092,13 @@ class Renderer(object):
             relative_offset[1] = int(object_to_render.flight_info.direction[1] * helper_offset * Renderer.MAP_TILE_HALF_HEIGHT)
             
             relative_offset[1] -= int(math.sin(normalised_distance_travelled * math.pi) * object_to_render.flight_info.total_distance_to_travel * Renderer.MAP_TILE_HEIGHT / 2)  # height in air
-            
+          
           image_to_render = self.bomb_images[animation_frame]
           
           if object_to_render.has_spring:
             overlay_images.append(self.other_images["spring"])
+        
+          profiler.measure_stop("map rend. bomb")
         
         if draw_shadow:
           render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
@@ -4037,6 +4116,8 @@ class Renderer(object):
         object_to_render_index += 1
             
       for tile in reversed(line):             # render tiles in the current line
+        profiler.measure_start("map rend. tiles")
+        
         if not tile.to_be_destroyed:          # don't render a tile that is being destroyed
           if tile.kind == MapTile.TILE_BLOCK:
             result.blit(environment_images[1],(x,y + y_offset_block))
@@ -4055,6 +4136,8 @@ class Renderer(object):
 
         x -= Renderer.MAP_TILE_WIDTH
   
+        profiler.measure_stop("map rend. tiles")
+  
       x = (Map.MAP_WIDTH - 1) * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH + self.map_render_location[0]
   
       y += Renderer.MAP_TILE_HEIGHT
@@ -4062,10 +4145,16 @@ class Renderer(object):
       
     # update animations
     
+    profiler.measure_start("map rend. anim")
+    
     for animation_index in self.animations:
       self.animations[animation_index].draw(result)
+    
+    profiler.measure_stop("map rend. anim")
       
     # draw info boards
+      
+    profiler.measure_start("map rend. boards")
       
     players_by_numbers = map_to_render.get_players_by_numbers()
       
@@ -4085,9 +4174,15 @@ class Renderer(object):
         
       x += self.gui_images["info board"].get_size()[0] - 2
 
+    profiler.measure_stop("map rend. boards")
+
+    profiler.measure_start("map rend. earthquake")
+
     if map_to_render.earthquake_is_active(): # shaking effect
       random_scale = random.uniform(0.99,1.01)
       result = pygame.transform.rotate(result,random.uniform(-4,4))
+   
+    profiler.measure_stop("map rend. earthquake")
    
     if map_to_render.get_state() == Map.STATE_WAITING_TO_PLAY:
       third = Map.START_GAME_AFTER / 3
@@ -4814,6 +4909,7 @@ class Game(object):
     pygame_clock = pygame.time.Clock()
 
     while True:     # main loop
+      profiler.measure_start("main loop")
       dt = min(pygame.time.get_ticks() - time_before,100)
       time_before = pygame.time.get_ticks()
 
@@ -4830,8 +4926,14 @@ class Game(object):
       if self.state == Game.GAME_STATE_PLAYING:
         self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
         self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
+        
+        profiler.measure_start("map rend.")
         self.screen.blit(self.renderer.render_map(self.game_map),(0,0)) 
+        profiler.measure_stop("map rend.")
+        
+        profiler.measure_start("sim.")
         self.simulation_step(dt)
+        profiler.measure_stop("sim.")
         
         if self.game_map.get_state() == Map.STATE_GAME_OVER:
           self.game_number += 1
@@ -4890,7 +4992,9 @@ class Game(object):
         self.state = Game.GAME_STATE_PLAYING
       else:   # in menu
         self.manage_menus()
+        profiler.measure_start("menu rend.")
         self.screen.blit(self.renderer.render_menu(self.active_menu,self),(0,0))  
+        profiler.measure_stop("menu rend.")
 
       pygame.display.flip()
       pygame_clock.tick()
@@ -4904,6 +5008,12 @@ class Game(object):
         show_fps_in -= 1
         
       self.frame_number += 1
+      
+      profiler.measure_stop("main loop")
+      
+      if DEBUG_PROFILING:
+        debug_log(profiler.get_profile_string())
+        profiler.end_of_frame()
 
   ## Filters a list of performed actions so that there are no actions of
   #  human players that are not participating in the game.
@@ -4929,17 +5039,24 @@ class Game(object):
         self.state = Game.GAME_STATE_MENU_PLAY
         return
     
+    profiler.measure_start("sim. AIs")
     for i in range(len(self.ais)):
       actions_being_performed = actions_being_performed + self.ais[i].play()
+    profiler.measure_stop("sim. AIs")
     
     players = self.game_map.get_players()
 
+    profiler.measure_start("sim. inputs")
     for player in players:
       player.react_to_inputs(actions_being_performed,dt,self.game_map)
+    profiler.measure_stop("sim. inputs")
       
+    profiler.measure_start("sim. map update")
     self.game_map.update(dt)
+    profiler.measure_stop("sim. map update")
     
 # main
 
+profiler = Profiler()   # profiler object is global, for simple access
 game = Game()
 game.run()
