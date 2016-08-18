@@ -1214,10 +1214,12 @@ class Map(object):
       
       self.player_starting_items.append(item_to_give)
         
-    self.bombs = []                ##< bombs on the map
-    self.sound_events = []         ##< list of currently happening sound event (see SoundPlayer class)
-    self.animation_events = []     ##< list of animation events, tuples in format (animation_event, coordinates)
-    self.items_to_give_away = []   ##< list of tuples in format (time_of_giveaway, list_of_items)
+    self.bombs = []                   ##< bombs on the map
+    self.sound_events = []            ##< list of currently happening sound event (see SoundPlayer class)
+    self.animation_events = []        ##< list of animation events, tuples in format (animation_event, coordinates)
+    self.items_to_give_away = []      ##< list of tuples in format (time_of_giveaway, list_of_items)
+
+    self.create_disease_cloud_at = 0  ##< at what time (in ms) the disease clouds should be released
 
   def get_starting_items(self):
     return self.player_starting_items
@@ -1724,9 +1726,20 @@ class Map(object):
     winning_color = -1
     game_is_over = True
     
+    time_now = pygame.time.get_ticks()
+    
+    release_disease_cloud = False
+    
+    if time_now > self.create_disease_cloud_at:
+      self.create_disease_cloud_at = time_now + 200     # release the cloud every 200 ms
+      release_disease_cloud = True
+    
     for player in self.players:
       if player.is_dead():
         continue
+      
+      if release_disease_cloud and player.get_disease() != Player.DISEASE_NONE:
+        self.add_animation_event(Renderer.ANIMATION_EVENT_DISEASE_CLOUD,Renderer.map_position_to_pixel_position(player.get_position(),(0,0)))
       
       if winning_color == -1:
         winning_color = player.get_team_number()
@@ -3104,6 +3117,7 @@ class Renderer(object):
   ANIMATION_EVENT_EXPLOSION = 0
   ANIMATION_EVENT_RIP = 1
   ANIMATION_EVENT_SKELETION = 2
+  ANIMATION_EVENT_DISEASE_CLOUD = 3
   
   FONT_SMALL_SIZE = 12
   FONT_NORMAL_SIZE = 20
@@ -3263,6 +3277,7 @@ class Renderer(object):
     self.animations[Renderer.ANIMATION_EVENT_EXPLOSION] = Animation(os.path.join(RESOURCE_PATH,"animation_explosion"),1,10,".png",7)
     self.animations[Renderer.ANIMATION_EVENT_RIP] = Animation(os.path.join(RESOURCE_PATH,"animation_rip"),1,1,".png",0.3)
     self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
+    self.animations[Renderer.ANIMATION_EVENT_DISEASE_CLOUD] = Animation(os.path.join(RESOURCE_PATH,"animation_disease"),1,6,".png",5)
 
     self.party_circles = []     ##< holds info about party cheat circles, list of tuples in format (coords,radius,color,phase,speed)
     self.party_circles.append(((-180,110),40,(255,100,50),0.0,1.0))
