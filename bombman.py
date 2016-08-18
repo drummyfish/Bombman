@@ -1551,7 +1551,7 @@ class Map(object):
 
   ## Updates some things on the map that change with time.
 
-  def update(self, dt):
+  def update(self, dt, immortal_player_numbers=[]):
     self.time_from_start += dt
     
     self.danger_map_is_up_to_date = False    # reset this each frame
@@ -1607,7 +1607,7 @@ class Map(object):
             if not self.tile_is_walkable(bomb_tile) or self.tile_has_player(bomb_tile) or self.tile_has_teleport(bomb_tile):
               destination_tile = (bomb_tile[0] + bomb.flight_info.direction[0],bomb_tile[1] + bomb.flight_info.direction[1])
               bomb.send_flying(destination_tile)
-            else:  # bomb lands
+            else:        # bomb lands
               bomb.movement = Bomb.BOMB_NO_MOVEMENT
               self.get_tile_at(bomb_tile).item = None        
         else:            # bomb rolling          
@@ -1750,16 +1750,19 @@ class Map(object):
       player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
       
       if player.get_state() != Player.STATE_IN_AIR and player.get_state != Player.STATE_TELEPORTING and (self.tile_has_flame(player_tile.coordinates) or self.tile_has_lava(player_tile.coordinates)):
-        flames = self.get_tile_at(player_tile.coordinates).flames
+
+        # if player immortality cheat isn't activated        
+        if not (player.get_number() in immortal_player_numbers):
+          flames = self.get_tile_at(player_tile.coordinates).flames
         
-        # assign kill counts
+          # assign kill counts
         
-        for flame in flames:
-          increase_kills_by = 1 if flame.player != player else -1   # self kill decreases the kill count
-          flame.player.set_kills(flame.player.get_kills() + increase_kills_by)
+          for flame in flames:
+            increase_kills_by = 1 if flame.player != player else -1   # self kill decreases the kill count
+            flame.player.set_kills(flame.player.get_kills() + increase_kills_by)
         
-        player.kill(self)
-        continue
+          player.kill(self)
+          continue
       
       if player_tile.item != None:
         player.give_item(player_tile.item,self)
@@ -4687,6 +4690,7 @@ class Game(object):
   
   CHEAT_PARTY = 0
   CHEAT_ALL_ITEMS = 1
+  CHEAT_PLAYER_IMMORTAL = 2
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -4740,6 +4744,7 @@ class Game(object):
     
     self.state = Game.GAME_STATE_MENU_MAIN
 
+    self.immortal_players_numbers = []
     self.active_cheats = set()
 
   def deactivate_all_cheats(self):
@@ -4804,7 +4809,10 @@ class Game(object):
     elif self.player_key_maps.string_was_typed("herecomedatboi"):
       self.activate_cheat(game.CHEAT_ALL_ITEMS)
       self.player_key_maps.clear_typing_buffer()
-    elif self.player_key_maps.string_was_typed("ifeelbad"):
+    elif self.player_key_maps.string_was_typed("leeeroy"):
+      self.activate_cheat(game.CHEAT_PLAYER_IMMORTAL)
+      self.player_key_maps.clear_typing_buffer()      
+    elif self.player_key_maps.string_was_typed("feelsbadman"):
       self.deactivate_all_cheats()
       self.player_key_maps.clear_typing_buffer()
       
@@ -4991,6 +4999,13 @@ class Game(object):
           
         player_slots = self.play_setup.get_slots()
         
+        if self.cheat_is_active(Game.CHEAT_PLAYER_IMMORTAL):
+          self.immortal_players_numbers = []
+          
+          for i in range(len(player_slots)):
+            if player_slots[i] != None and player_slots[i][0] >= 0:   # if not AI
+              self.immortal_players_numbers.append(i)                 # make the player immortal
+        
         self.ais = []
         
         for i in range(len(player_slots)):
@@ -5067,7 +5082,8 @@ class Game(object):
     profiler.measure_stop("sim. inputs")
       
     profiler.measure_start("sim. map update")
-    self.game_map.update(dt)
+    
+    self.game_map.update(dt,self.immortal_players_numbers)
     profiler.measure_stop("sim. map update")
     
 # main
