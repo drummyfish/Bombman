@@ -356,6 +356,7 @@ class Player(Positionable):
     game_map.add_sound_event(SoundPlayer.SOUND_EVENT_DEATH)
     
     random_animation = random.choice((
+      Renderer.ANIMATION_EVENT_DIE,
       Renderer.ANIMATION_EVENT_EXPLOSION,
       Renderer.ANIMATION_EVENT_RIP,
       Renderer.ANIMATION_EVENT_SKELETION))
@@ -3121,6 +3122,7 @@ class Renderer(object):
   ANIMATION_EVENT_RIP = 1
   ANIMATION_EVENT_SKELETION = 2
   ANIMATION_EVENT_DISEASE_CLOUD = 3
+  ANIMATION_EVENT_DIE = 4
   
   FONT_SMALL_SIZE = 12
   FONT_NORMAL_SIZE = 20
@@ -3281,6 +3283,7 @@ class Renderer(object):
     self.animations[Renderer.ANIMATION_EVENT_RIP] = Animation(os.path.join(RESOURCE_PATH,"animation_rip"),1,1,".png",0.3)
     self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
     self.animations[Renderer.ANIMATION_EVENT_DISEASE_CLOUD] = Animation(os.path.join(RESOURCE_PATH,"animation_disease"),1,6,".png",5)
+    self.animations[Renderer.ANIMATION_EVENT_DIE] = Animation(os.path.join(RESOURCE_PATH,"animation_die"),1,7,".png",7)
 
     self.party_circles = []     ##< holds info about party cheat circles, list of tuples in format (coords,radius,color,phase,speed)
     self.party_circles.append(((-180,110),40,(255,100,50),0.0,1.0))
@@ -5082,7 +5085,6 @@ class Game(object):
     profiler.measure_stop("sim. inputs")
       
     profiler.measure_start("sim. map update")
-    
     self.game_map.update(dt,self.immortal_players_numbers)
     profiler.measure_stop("sim. map update")
     
