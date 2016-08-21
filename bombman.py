@@ -84,55 +84,9 @@ import copy
 import random
 import time
 
-DEBUG_PROFILING = True
+DEBUG_PROFILING = False
 DEBUG_FPS = False
 DEBUG_VERBOSE = False
-
-# colors used for players and teams
-COLOR_WHITE = 0
-COLOR_BLACK = 1
-COLOR_RED = 2
-COLOR_BLUE = 3
-COLOR_GREEN = 4
-COLOR_CYAN = 5
-COLOR_YELLOW = 6
-COLOR_ORANGE = 7
-COLOR_BROWN = 8
-COLOR_PURPLE = 9
-
-COLOR_RGB_VALUES = [
-  (210,210,210),           # white
-  (10,10,10),              # black
-  (255,0,0),               # red
-  (0,0,255),               # blue
-  (0,255,0),               # green
-  (52,237,250),            # cyan
-  (255,255,69),            # yellow
-  (255,192,74),            # orange
-  (168,127,56),            # brown
-  (209,117,206)            # purple
-  ]
-
-VERSION_STR = "0.0"
-
-COLOR_NAMES = [
-  "white",
-  "black",
-  "red",
-  "blue",
-  "green",
-  "cyan",
-  "yellow",
-  "orange",
-  "brown",
-  "purple"
-  ]
-
-NUMBER_OF_CONTROLLED_PLAYERS = 4    ##< maximum number of non-AI players on one PC
-
-RESOURCE_PATH = "resources"
-MAP_PATH = "maps"
-SETTINGS_FILE_PATH = "settings.txt"
 
 def debug_log(message):
   print(message)
@@ -2163,7 +2117,7 @@ class PlayerKeyMaps(StringSerializable):
   def save_to_string(self):
     result = ""
 
-    for i in range(NUMBER_OF_CONTROLLED_PLAYERS):  # 4 players
+    for i in range(Game.NUMBER_OF_CONTROLLED_PLAYERS):  # 4 players
       mapping = self.get_players_key_mapping(i)
       
       for action in mapping:
@@ -2347,23 +2301,23 @@ class SoundPlayer(object):
     self.music_volume = 0.5
     
     self.sounds = {}
-    self.sounds[SoundPlayer.SOUND_EVENT_EXPLOSION] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"explosion.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_BOMB_PUT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"bomb.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_WALK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"footsteps.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_KICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"kick.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"spring.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"fart.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"slow.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"disease.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"click.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"throw.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"trampoline.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_TELEPORT] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"teleport.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_DEATH] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"death.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go_away.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"go.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_EARTHQUAKE] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"earthquake.wav"))
-    self.sounds[SoundPlayer.SOUND_EVENT_CONFIRM] = pygame.mixer.Sound(os.path.join(RESOURCE_PATH,"confirm.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_EXPLOSION] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"explosion.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_BOMB_PUT] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"bomb.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_WALK] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"footsteps.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_KICK] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"kick.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_SPRING] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"spring.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_DIARRHEA] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"fart.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_SLOW] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"slow.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_DISEASE] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"disease.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_CLICK] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"click.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_THROW] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"throw.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_TRAMPOLINE] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"trampoline.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_TELEPORT] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"teleport.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_DEATH] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"death.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_GO_AWAY] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"go_away.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_GO] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"go.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_EARTHQUAKE] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"earthquake.wav"))
+    self.sounds[SoundPlayer.SOUND_EVENT_CONFIRM] = pygame.mixer.Sound(os.path.join(Game.RESOURCE_PATH,"confirm.wav"))
     
     self.music_filenames = [
       "music_broke_for_free_caught_in_the_beat_remix.wav",
@@ -2426,7 +2380,7 @@ class SoundPlayer(object):
       debug_log("changing music to \"" + music_name + "\"")
     
     pygame.mixer.music.stop()
-    pygame.mixer.music.load(os.path.join(RESOURCE_PATH,music_name))
+    pygame.mixer.music.load(os.path.join(Game.RESOURCE_PATH,music_name))
     pygame.mixer.music.set_volume(self.music_volume)
     pygame.mixer.music.play(-1)
    
@@ -2472,7 +2426,7 @@ class SoundPlayer(object):
           self.sounds[SoundPlayer.SOUND_EVENT_KICK].play()
           self.kick_last_played_time = time_now
       elif SoundPlayer.SOUND_EVENT_WIN_0 <= sound_event <= SoundPlayer.SOUND_EVENT_WIN_9:
-        self.play_once(os.path.join(RESOURCE_PATH,"win" + str(sound_event - SoundPlayer.SOUND_EVENT_WIN_0) + ".wav"))
+        self.play_once(os.path.join(Game.RESOURCE_PATH,"win" + str(sound_event - SoundPlayer.SOUND_EVENT_WIN_0) + ".wav"))
       
     if self.playing_walk and stop_playing_walk:
       self.sounds[SoundPlayer.SOUND_EVENT_WALK].stop()
@@ -2894,7 +2848,7 @@ class ControlsMenu(Menu):
     
     prompt_string = "press some key"
     
-    for i in range(NUMBER_OF_CONTROLLED_PLAYERS):
+    for i in range(Game.NUMBER_OF_CONTROLLED_PLAYERS):
       player_string = "p " + str(i + 1)
       
       player_maps = self.player_key_maps.get_players_key_mapping(i)
@@ -2967,7 +2921,7 @@ class ControlsMenu(Menu):
       # new key map will be captured
       helper_index = self.selected_item[0] - 1
       
-      if helper_index == NUMBER_OF_CONTROLLED_PLAYERS * 6:   # 6 controls for each player, then menu item follows
+      if helper_index == Game.NUMBER_OF_CONTROLLED_PLAYERS * 6:   # 6 controls for each player, then menu item follows
         self.waiting_for_key = (-1,PlayerKeyMaps.ACTION_MENU)
       else:
         action_index = helper_index % 6
@@ -2986,7 +2940,7 @@ class ControlsMenu(Menu):
 class AboutMenu(Menu):
   def __init__(self,sound_player):
     super(AboutMenu,self).__init__(sound_player) 
-    self.text = ("^#2E44BFBombman^#FFFFFF - an open-source Atomic Bomberman clone, ^#4EF259version " + VERSION_STR + "\n"
+    self.text = ("^#2E44BFBombman^#FFFFFF - an open-source Atomic Bomberman clone, ^#4EF259version " + Game.VERSION_STR + "\n"
                  "copyright Miloslav \"tastyfish\" Ciz, 2016\n\n"
                  "This software is published under GPL license version 3. It's goal is to recreate\n"
                  "a wonderful experience of Atomic Bomberman, a game that is due to its age no\n"
@@ -3005,7 +2959,7 @@ class MapSelectMenu(Menu):
     self.update_items()
     
   def update_items(self):
-    self.map_filenames = sorted([filename for filename in os.listdir(MAP_PATH) if os.path.isfile(os.path.join(MAP_PATH,filename))])
+    self.map_filenames = sorted([filename for filename in os.listdir(Game.MAP_PATH) if os.path.isfile(os.path.join(Game.MAP_PATH,filename))])
 
     special_color = (100,100,255)
 
@@ -3053,7 +3007,7 @@ class PlaySetupMenu(Menu):
     self.items[1].append("next")
          
     for i in range(10):
-      slot_color = COLOR_RGB_VALUES[i] if i != COLOR_BLACK else dark_grey  # black with black border not visible, use dark grey
+      slot_color = Renderer.COLOR_RGB_VALUES[i] if i != Game.COLOR_BLACK else dark_grey  # black with black border not visible, use dark grey
       
       self.items[0].append(Renderer.colored_text(i,str(i + 1)) + ": ")
       
@@ -3063,7 +3017,7 @@ class PlaySetupMenu(Menu):
         self.items[0][-1] += "-"
         self.items[1].append("-")
       else:
-        team_color = COLOR_RGB_VALUES[slot[1]] if slot[1] != COLOR_BLACK else dark_grey
+        team_color = Renderer.COLOR_RGB_VALUES[slot[1]] if slot[1] != Game.COLOR_BLACK else dark_grey
         self.items[0][-1] += ("player " + str(slot[0] + 1)) if slot[0] >= 0 else "AI"
         self.items[1].append(Renderer.colored_text(slot[1],str(slot[1] + 1)))    # team number
  
@@ -3107,6 +3061,19 @@ class PlaySetupMenu(Menu):
     self.update_items()
    
 class Renderer(object):
+  COLOR_RGB_VALUES = [
+    (210,210,210),           # white
+    (10,10,10),              # black
+    (255,0,0),               # red
+    (0,0,255),               # blue
+    (0,255,0),               # green
+    (52,237,250),            # cyan
+    (255,255,69),            # yellow
+    (255,192,74),            # orange
+    (168,127,56),            # brown
+    (209,117,206)            # purple
+    ]
+    
   MAP_TILE_WIDTH = 50              ##< tile width in pixels
   MAP_TILE_HEIGHT = 45             ##< tile height in pixels
   MAP_TILE_HALF_WIDTH = MAP_TILE_WIDTH / 2
@@ -3142,8 +3109,8 @@ class Renderer(object):
     self.preview_map_name = ""
     self.preview_map_image = None
 
-    self.font_small = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_SMALL_SIZE)
-    self.font_normal = pygame.font.Font(os.path.join(RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_NORMAL_SIZE)
+    self.font_small = pygame.font.Font(os.path.join(Game.RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_SMALL_SIZE)
+    self.font_normal = pygame.font.Font(os.path.join(Game.RESOURCE_PATH,"Roboto-Medium.ttf"),Renderer.FONT_NORMAL_SIZE)
 
     self.previous_mouse_coordinates = (-1,-1)
 
@@ -3152,9 +3119,9 @@ class Renderer(object):
     environment_names = ["env1","env2","env3","env4","env5","env6","env7"]
 
     for environment_name in environment_names:
-      filename_floor = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_floor.png")
-      filename_block = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_block.png")
-      filename_wall = os.path.join(RESOURCE_PATH,"tile_" + environment_name + "_wall.png")
+      filename_floor = os.path.join(Game.RESOURCE_PATH,"tile_" + environment_name + "_floor.png")
+      filename_block = os.path.join(Game.RESOURCE_PATH,"tile_" + environment_name + "_block.png")
+      filename_wall = os.path.join(Game.RESOURCE_PATH,"tile_" + environment_name + "_wall.png")
 
       self.environment_images[environment_name] = (pygame.image.load(filename_floor),pygame.image.load(filename_block),pygame.image.load(filename_wall))
 
@@ -3167,28 +3134,28 @@ class Renderer(object):
       self.player_images.append({})
       
       for helper_string in ["up","right","down","left"]:
-        self.player_images[-1][helper_string] =  self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + ".png")),i)
+        self.player_images[-1][helper_string] =  self.color_surface(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"player_" + helper_string + ".png")),i)
         
         string_index = "walk " + helper_string
       
         self.player_images[-1][string_index] = []
-        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk1.png")),i))
+        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"player_" + helper_string + "_walk1.png")),i))
         
         if helper_string == "up" or helper_string == "down":
-          self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk2.png")),i))
+          self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"player_" + helper_string + "_walk2.png")),i))
         else:
           self.player_images[-1][string_index].append(self.player_images[-1][helper_string])
         
-        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_walk3.png")),i))
+        self.player_images[-1][string_index].append(self.color_surface(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"player_" + helper_string + "_walk3.png")),i))
         self.player_images[-1][string_index].append(self.player_images[-1][string_index][0])
         
         string_index = "box " + helper_string
-        self.player_images[-1][string_index] = self.color_surface(pygame.image.load(os.path.join(RESOURCE_PATH,"player_" + helper_string + "_box.png")),i)
+        self.player_images[-1][string_index] = self.color_surface(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"player_" + helper_string + "_box.png")),i)
      
     self.bomb_images = []
-    self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb1.png")))
-    self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb2.png")))
-    self.bomb_images.append(pygame.image.load(os.path.join(RESOURCE_PATH,"bomb3.png")))
+    self.bomb_images.append(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"bomb1.png")))
+    self.bomb_images.append(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"bomb2.png")))
+    self.bomb_images.append(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"bomb3.png")))
     self.bomb_images.append(self.bomb_images[0])
      
     # load flame images
@@ -3199,52 +3166,52 @@ class Renderer(object):
       helper_string = "flame" + str(i)
       
       self.flame_images.append({})
-      self.flame_images[-1]["all"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + ".png"))
-      self.flame_images[-1]["horizontal"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_horizontal.png"))
-      self.flame_images[-1]["vertical"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_vertical.png"))
-      self.flame_images[-1]["left"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_left.png"))
-      self.flame_images[-1]["right"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_right.png"))
-      self.flame_images[-1]["up"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_up.png"))
-      self.flame_images[-1]["down"] = pygame.image.load(os.path.join(RESOURCE_PATH,helper_string + "_down.png"))
+      self.flame_images[-1]["all"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,helper_string + ".png"))
+      self.flame_images[-1]["horizontal"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,helper_string + "_horizontal.png"))
+      self.flame_images[-1]["vertical"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,helper_string + "_vertical.png"))
+      self.flame_images[-1]["left"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,helper_string + "_left.png"))
+      self.flame_images[-1]["right"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,helper_string + "_right.png"))
+      self.flame_images[-1]["up"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,helper_string + "_up.png"))
+      self.flame_images[-1]["down"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,helper_string + "_down.png"))
       
     # load item images
     
     self.item_images = {}
     
-    self.item_images[Map.ITEM_BOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_bomb.png"))
-    self.item_images[Map.ITEM_FLAME] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_flame.png"))
-    self.item_images[Map.ITEM_SUPERFLAME] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_superflame.png"))
-    self.item_images[Map.ITEM_SPEEDUP] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_speedup.png"))
-    self.item_images[Map.ITEM_DISEASE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_disease.png"))
-    self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_random.png"))
-    self.item_images[Map.ITEM_SPRING] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_spring.png"))
-    self.item_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_shoe.png"))
-    self.item_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_multibomb.png"))
-    self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_random.png"))
-    self.item_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_boxing_glove.png"))
-    self.item_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_detonator.png"))
-    self.item_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"item_throwing_glove.png"))
+    self.item_images[Map.ITEM_BOMB] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_bomb.png"))
+    self.item_images[Map.ITEM_FLAME] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_flame.png"))
+    self.item_images[Map.ITEM_SUPERFLAME] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_superflame.png"))
+    self.item_images[Map.ITEM_SPEEDUP] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_speedup.png"))
+    self.item_images[Map.ITEM_DISEASE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_disease.png"))
+    self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_random.png"))
+    self.item_images[Map.ITEM_SPRING] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_spring.png"))
+    self.item_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_shoe.png"))
+    self.item_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_multibomb.png"))
+    self.item_images[Map.ITEM_RANDOM] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_random.png"))
+    self.item_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_boxing_glove.png"))
+    self.item_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_detonator.png"))
+    self.item_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"item_throwing_glove.png"))
       
     # load/make gui images
     
     self.gui_images = {}
-    self.gui_images["info board"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_info_board.png"))   
-    self.gui_images["arrow up"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_up.png"))   
-    self.gui_images["arrow down"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_arrow_down.png"))   
-    self.gui_images["seeker"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_seeker.png"))
-    self.gui_images["cursor"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_cursor.png"))   
+    self.gui_images["info board"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_info_board.png"))   
+    self.gui_images["arrow up"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_arrow_up.png"))   
+    self.gui_images["arrow down"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_arrow_down.png"))   
+    self.gui_images["seeker"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_seeker.png"))
+    self.gui_images["cursor"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_cursor.png"))   
     self.gui_images["prompt"] = self.render_text(self.font_normal,"You sure?",(255,255,255))
-    self.gui_images["version"] = self.render_text(self.font_small,"v " + VERSION_STR,(0,100,0))
+    self.gui_images["version"] = self.render_text(self.font_small,"v " + Game.VERSION_STR,(0,100,0))
     
     self.player_info_board_images = [None for i in range(10)]  # up to date infoboard image for each player
 
-    self.gui_images["out"] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_out.png"))   
+    self.gui_images["out"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_out.png"))   
      
     self.gui_images["countdown"] = {}
     
-    self.gui_images["countdown"][1] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_countdown_1.png"))
-    self.gui_images["countdown"][2] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_countdown_2.png"))
-    self.gui_images["countdown"][3] = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_countdown_3.png"))
+    self.gui_images["countdown"][1] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_countdown_1.png"))
+    self.gui_images["countdown"][2] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_countdown_2.png"))
+    self.gui_images["countdown"][3] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_countdown_3.png"))
     
     self.menu_background_image = None  ##< only loaded when in menu
     self.menu_item_images = None       ##< images of menu items, only loaded when in menu
@@ -3253,37 +3220,37 @@ class Renderer(object):
     
     self.other_images = {}
     
-    self.other_images["shadow"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_shadow.png"))
-    self.other_images["spring"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_spring.png"))
-    self.other_images["antena"] = pygame.image.load(os.path.join(RESOURCE_PATH,"other_antena.png"))
+    self.other_images["shadow"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_shadow.png"))
+    self.other_images["spring"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_spring.png"))
+    self.other_images["antena"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_antena.png"))
      
     self.other_images["disease"] = []
-    self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease1.png")))
-    self.other_images["disease"].append(pygame.image.load(os.path.join(RESOURCE_PATH,"other_disease2.png")))    
+    self.other_images["disease"].append(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_disease1.png")))
+    self.other_images["disease"].append(pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_disease2.png")))    
           
     # load icon images
     
     self.icon_images = {}
-    self.icon_images[Map.ITEM_BOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_bomb.png"))
-    self.icon_images[Map.ITEM_FLAME] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_flame.png"))
-    self.icon_images[Map.ITEM_SPEEDUP] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_speedup.png"))
-    self.icon_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_kicking_shoe.png"))
-    self.icon_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_boxing_glove.png"))
-    self.icon_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_throwing_glove.png"))
-    self.icon_images[Map.ITEM_SPRING] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_spring.png"))
-    self.icon_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_multibomb.png"))
-    self.icon_images[Map.ITEM_DISEASE] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_disease.png"))
-    self.icon_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_detonator.png"))
-    self.icon_images["etc"] = pygame.image.load(os.path.join(RESOURCE_PATH,"icon_etc.png"))
+    self.icon_images[Map.ITEM_BOMB] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_bomb.png"))
+    self.icon_images[Map.ITEM_FLAME] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_flame.png"))
+    self.icon_images[Map.ITEM_SPEEDUP] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_speedup.png"))
+    self.icon_images[Map.ITEM_SHOE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_kicking_shoe.png"))
+    self.icon_images[Map.ITEM_BOXING_GLOVE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_boxing_glove.png"))
+    self.icon_images[Map.ITEM_THROWING_GLOVE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_throwing_glove.png"))
+    self.icon_images[Map.ITEM_SPRING] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_spring.png"))
+    self.icon_images[Map.ITEM_MULTIBOMB] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_multibomb.png"))
+    self.icon_images[Map.ITEM_DISEASE] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_disease.png"))
+    self.icon_images[Map.ITEM_DETONATOR] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_detonator.png"))
+    self.icon_images["etc"] = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"icon_etc.png"))
     
     # load animations
     
     self.animations = {}
-    self.animations[Renderer.ANIMATION_EVENT_EXPLOSION] = Animation(os.path.join(RESOURCE_PATH,"animation_explosion"),1,10,".png",7)
-    self.animations[Renderer.ANIMATION_EVENT_RIP] = Animation(os.path.join(RESOURCE_PATH,"animation_rip"),1,1,".png",0.3)
-    self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
-    self.animations[Renderer.ANIMATION_EVENT_DISEASE_CLOUD] = Animation(os.path.join(RESOURCE_PATH,"animation_disease"),1,6,".png",5)
-    self.animations[Renderer.ANIMATION_EVENT_DIE] = Animation(os.path.join(RESOURCE_PATH,"animation_die"),1,7,".png",7)
+    self.animations[Renderer.ANIMATION_EVENT_EXPLOSION] = Animation(os.path.join(Game.RESOURCE_PATH,"animation_explosion"),1,10,".png",7)
+    self.animations[Renderer.ANIMATION_EVENT_RIP] = Animation(os.path.join(Game.RESOURCE_PATH,"animation_rip"),1,1,".png",0.3)
+    self.animations[Renderer.ANIMATION_EVENT_SKELETION] = Animation(os.path.join(Game.RESOURCE_PATH,"animation_skeleton"),1,10,".png",7)
+    self.animations[Renderer.ANIMATION_EVENT_DISEASE_CLOUD] = Animation(os.path.join(Game.RESOURCE_PATH,"animation_disease"),1,6,".png",5)
+    self.animations[Renderer.ANIMATION_EVENT_DIE] = Animation(os.path.join(Game.RESOURCE_PATH,"animation_die"),1,7,".png",7)
 
     self.party_circles = []     ##< holds info about party cheat circles, list of tuples in format (coords,radius,color,phase,speed)
     self.party_circles.append(((-180,110),40,(255,100,50),0.0,1.0))
@@ -3293,14 +3260,14 @@ class Renderer(object):
     self.party_circles.append(((50,110),63,(10,180,230),0.1,1.8))
     self.party_circles.append(((205,-130),72,(180,150,190),0.5,2.0))
     
-    self.party_players = []    ##< holds info about party cheat players, list of tuples in format (coords,color index,millisecond delay, rotate right)
+    self.party_players = []     ##< holds info about party cheat players, list of tuples in format (coords,color index,millisecond delay, rotate right)
     self.party_players.append(((-230,80),0,0,True))
     self.party_players.append(((180,10),2,220,False))
     self.party_players.append(((90,-150),4,880,True))
     self.party_players.append(((-190,-95),6,320,False))
     self.party_players.append(((-40,110),8,50,True))
     
-    self.party_bombs = []     ##< holds info about party bombs, list of lists in format [x,y,increment x,increment y]
+    self.party_bombs = []       ##< holds info about party bombs, list of lists in format [x,y,increment x,increment y]
     self.party_bombs.append([10,30,1,1])
     self.party_bombs.append([700,200,1,-1])
     self.party_bombs.append([512,512,-1,1])
@@ -3323,11 +3290,11 @@ class Renderer(object):
      
   @staticmethod
   def colored_text(color_index, text, end_with_white=True):
-    return "^" + Renderer.rgb_to_html_notation(Renderer.lighten_color(COLOR_RGB_VALUES[color_index],75)) + text + "^#FFFFFF"
+    return "^" + Renderer.rgb_to_html_notation(Renderer.lighten_color(Renderer.COLOR_RGB_VALUES[color_index],75)) + text + "^#FFFFFF"
     
   @staticmethod
   def colored_color_name(color_index, end_with_white=True):
-    return Renderer.colored_text(color_index,COLOR_NAMES[color_index])
+    return Renderer.colored_text(color_index,Game.COLOR_NAMES[color_index])
   
   ## Returns colored image from another image (replaces red color with given color). This method is slow. Color is (r,g,b) tuple of 0 - 1 floats.
 
@@ -3340,9 +3307,9 @@ class Renderer(object):
         pixel_color = result.get_at((i,j))
         
         if pixel_color.r == 255 and pixel_color.g == 0 and pixel_color.b == 0:
-          pixel_color.r = COLOR_RGB_VALUES[color_number][0]
-          pixel_color.g = COLOR_RGB_VALUES[color_number][1]
-          pixel_color.b = COLOR_RGB_VALUES[color_number][2]
+          pixel_color.r = Renderer.COLOR_RGB_VALUES[color_number][0]
+          pixel_color.g = Renderer.COLOR_RGB_VALUES[color_number][1]
+          pixel_color.b = Renderer.COLOR_RGB_VALUES[color_number][2]
           result.set_at((i,j),pixel_color)
 
     return result
@@ -3424,7 +3391,7 @@ class Renderer(object):
       board_image.blit(self.font_small.render(str(player.get_kills()),True,(0,0,0)),(45,0))
       board_image.blit(self.font_small.render(str(player.get_wins()),True,(0,0,0)),(65,0))
       
-      board_image.blit(self.font_small.render(COLOR_NAMES[i],True,Renderer.darken_color(COLOR_RGB_VALUES[i],100)),(4,2))
+      board_image.blit(self.font_small.render(Game.COLOR_NAMES[i],True,Renderer.darken_color(Renderer.COLOR_RGB_VALUES[i],100)),(4,2))
       
       if player.is_dead():
         board_image.blit(self.gui_images["out"],(15,34))
@@ -3648,7 +3615,7 @@ class Renderer(object):
     result = pygame.Surface(self.screen_resolution)
     
     if self.menu_background_image == None:
-      self.menu_background_image = pygame.image.load(os.path.join(RESOURCE_PATH,"gui_menu_background.png"))
+      self.menu_background_image = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"gui_menu_background.png"))
 
     background_position = (self.screen_center[0] - self.menu_background_image.get_size()[0] / 2,self.screen_center[1] - self.menu_background_image.get_size()[1] / 2)
       
@@ -3840,7 +3807,7 @@ class Renderer(object):
     
       self.preview_map_image = pygame.Surface((tile_size * Map.MAP_WIDTH,tile_size * Map.MAP_HEIGHT + map_info_border_size + Renderer.MAP_TILE_HEIGHT))
     
-      with open(os.path.join(MAP_PATH,map_filename)) as map_file:
+      with open(os.path.join(Game.MAP_PATH,map_filename)) as map_file:
         map_data = map_file.read()
         temp_map = Map(map_data,PlaySetup(),0,0)
         
@@ -3881,7 +3848,7 @@ class Renderer(object):
           draw_position = (int(starting_positions[player_index][0]) * tile_size + tile_half_size,int(starting_positions[player_index][1]) * tile_size + tile_half_size)
            
           pygame.draw.rect(self.preview_map_image,tile_color,pygame.Rect(pos_x,pos_y,tile_size,tile_size))
-          pygame.draw.circle(self.preview_map_image,COLOR_RGB_VALUES[player_index],draw_position,tile_half_size)
+          pygame.draw.circle(self.preview_map_image,Renderer.COLOR_RGB_VALUES[player_index],draw_position,tile_half_size)
 
         y = tile_size * Map.MAP_HEIGHT + map_info_border_size
         column = 0
@@ -3931,14 +3898,14 @@ class Renderer(object):
         debug_log("prerendering map...")
 
       # following images are only needed here, so we dont store them to self
-      image_trampoline = pygame.image.load(os.path.join(RESOURCE_PATH,"other_trampoline.png"))
-      image_teleport = pygame.image.load(os.path.join(RESOURCE_PATH,"other_teleport.png"))
-      image_arrow_up = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_up.png"))
-      image_arrow_right = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_right.png"))
-      image_arrow_down = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_down.png"))
-      image_arrow_left = pygame.image.load(os.path.join(RESOURCE_PATH,"other_arrow_left.png"))
-      image_lava = pygame.image.load(os.path.join(RESOURCE_PATH,"other_lava.png"))
-      image_background = pygame.image.load(os.path.join(RESOURCE_PATH,"other_map_background.png"))
+      image_trampoline = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_trampoline.png"))
+      image_teleport = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_teleport.png"))
+      image_arrow_up = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_up.png"))
+      image_arrow_right = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_right.png"))
+      image_arrow_down = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_down.png"))
+      image_arrow_left = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_left.png"))
+      image_lava = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_lava.png"))
+      image_background = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_map_background.png"))
 
       self.prerendered_map_background.blit(image_background,(0,0))
 
@@ -4678,22 +4645,55 @@ class Settings(StringSerializable):
   def current_resolution_index(self):
     return next((i for i in range(len(Settings.POSSIBLE_SCREEN_RESOLUTIONS)) if self.screen_resolution == Settings.POSSIBLE_SCREEN_RESOLUTIONS[i]),0)
 
-class Game(object):
-  GAME_STATE_PLAYING = 0
-  GAME_STATE_EXIT = 1
-  GAME_STATE_MENU_MAIN = 2
-  GAME_STATE_MENU_SETTINGS = 3
-  GAME_STATE_MENU_ABOUT = 4
-  GAME_STATE_MENU_PLAY_SETUP = 5
-  GAME_STATE_MENU_MAP_SELECT = 6
-  GAME_STATE_MENU_CONTROL_SETTINGS = 7
-  GAME_STATE_MENU_PLAY = 8
-  GAME_STATE_MENU_RESULTS = 9
-  GAME_STATE_GAME_STARTED = 10
+class Game(object):    
+  # colors used for players and teams
+  COLOR_WHITE = 0
+  COLOR_BLACK = 1
+  COLOR_RED = 2
+  COLOR_BLUE = 3
+  COLOR_GREEN = 4
+  COLOR_CYAN = 5
+  COLOR_YELLOW = 6
+  COLOR_ORANGE = 7
+  COLOR_BROWN = 8
+  COLOR_PURPLE = 9
+
+  COLOR_NAMES = [
+    "white",
+    "black",
+    "red",
+    "blue",
+    "green",
+    "cyan",
+    "yellow",
+    "orange",
+    "brown",
+    "purple"
+    ]
+    
+  STATE_PLAYING = 0
+  STATE_EXIT = 1
+  STATE_MENU_MAIN = 2
+  STATE_MENU_SETTINGS = 3
+  STATE_MENU_ABOUT = 4
+  STATE_MENU_PLAY_SETUP = 5
+  STATE_MENU_MAP_SELECT = 6
+  STATE_MENU_CONTROL_SETTINGS = 7
+  STATE_MENU_PLAY = 8
+  STATE_MENU_RESULTS = 9
+  STATE_GAME_STARTED = 10
   
   CHEAT_PARTY = 0
   CHEAT_ALL_ITEMS = 1
   CHEAT_PLAYER_IMMORTAL = 2
+  
+  VERSION_STR = "0.0"
+  
+  NUMBER_OF_CONTROLLED_PLAYERS = 4    ##< maximum number of non-AI players on one PC
+  
+  RESOURCE_PATH = "resources"
+  MAP_PATH = "maps"
+  SETTINGS_FILE_PATH = "settings.txt"
   
   def __init__(self):
     pygame.mixer.pre_init(22050,-16,2,512)   # set smaller audio buffer size to prevent audio lag
@@ -4709,13 +4709,13 @@ class Game(object):
     
     self.game_number = 0
     
-    if os.path.isfile(SETTINGS_FILE_PATH):
+    if os.path.isfile(Game.SETTINGS_FILE_PATH):
       if DEBUG_VERBOSE:
-        debug_log("loading settings from file " + SETTINGS_FILE_PATH)
+        debug_log("loading settings from file " + Game.SETTINGS_FILE_PATH)
       
-      self.settings.load_from_file(SETTINGS_FILE_PATH)
+      self.settings.load_from_file(Game.SETTINGS_FILE_PATH)
  
-    self.settings.save_to_file(SETTINGS_FILE_PATH)  # save the reformatted settings file (or create a new one)
+    self.settings.save_to_file(Game.SETTINGS_FILE_PATH)  # save the reformatted settings file (or create a new one)
     
     pygame.display.set_caption("Bombman")
     
@@ -4745,7 +4745,7 @@ class Game(object):
     
     self.ais = []
     
-    self.state = Game.GAME_STATE_MENU_MAIN
+    self.state = Game.STATE_MENU_MAIN
 
     self.immortal_players_numbers = []
     self.active_cheats = set()
@@ -4796,7 +4796,7 @@ class Game(object):
     self.player_key_maps.allow_control_by_mouse(self.settings.control_by_mouse)
   
   def save_settings(self):
-    self.settings.save_to_file(SETTINGS_FILE_PATH)
+    self.settings.save_to_file(Game.SETTINGS_FILE_PATH)
 
   ## Manages the menu actions and sets self.active_menu.
 
@@ -4814,108 +4814,108 @@ class Game(object):
       self.player_key_maps.clear_typing_buffer()
     elif self.player_key_maps.string_was_typed("leeeroy"):
       self.activate_cheat(game.CHEAT_PLAYER_IMMORTAL)
-      self.player_key_maps.clear_typing_buffer()      
-    elif self.player_key_maps.string_was_typed("feelsbadman"):
+      self.player_key_maps.clear_typing_buffer()
+    elif self.player_key_maps.string_was_typed("revert"):
       self.deactivate_all_cheats()
       self.player_key_maps.clear_typing_buffer()
       
     self.player_key_maps.get_current_actions()       # this has to be called in order for player_key_maps to update mouse controls properly
       
     # ================ MAIN MENU =================
-    if self.state == Game.GAME_STATE_MENU_MAIN: 
+    if self.state == Game.STATE_MENU_MAIN: 
       self.active_menu = self.menu_main
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (0,0):
-          new_state = Game.GAME_STATE_MENU_PLAY_SETUP
+          new_state = Game.STATE_MENU_PLAY_SETUP
         elif self.active_menu.get_selected_item() == (1,0):
-          new_state = Game.GAME_STATE_MENU_SETTINGS
+          new_state = Game.STATE_MENU_SETTINGS
         elif self.active_menu.get_selected_item() == (2,0):
-          new_state = Game.GAME_STATE_MENU_ABOUT
+          new_state = Game.STATE_MENU_ABOUT
         elif self.active_menu.get_selected_item() == (3,0):
-          new_state = Game.GAME_STATE_EXIT
+          new_state = Game.STATE_EXIT
 
     # ================ PLAY MENU =================
-    elif self.state == Game.GAME_STATE_MENU_PLAY:
+    elif self.state == Game.STATE_MENU_PLAY:
       self.active_menu = self.menu_play
 
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
-        new_state = Game.GAME_STATE_PLAYING
+        new_state = Game.STATE_PLAYING
 
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (0,0):
-          new_state = Game.GAME_STATE_PLAYING
+          new_state = Game.STATE_PLAYING
           
           for player in self.game_map.get_players():
             player.wait_for_bomb_action_release()
           
         elif self.active_menu.get_selected_item() == (1,0):
-          new_state = Game.GAME_STATE_MENU_MAIN
+          new_state = Game.STATE_MENU_MAIN
           self.sound_player.change_music()
           self.deactivate_all_cheats()
     
     # ============== SETTINGS MENU ===============
-    elif self.state == Game.GAME_STATE_MENU_SETTINGS: 
+    elif self.state == Game.STATE_MENU_SETTINGS: 
       self.active_menu = self.menu_settings
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
-        new_state = Game.GAME_STATE_MENU_MAIN
+        new_state = Game.STATE_MENU_MAIN
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (5,0):
-          new_state = Game.GAME_STATE_MENU_CONTROL_SETTINGS
+          new_state = Game.STATE_MENU_CONTROL_SETTINGS
         elif self.active_menu.get_selected_item() == (7,0):
-          new_state = Game.GAME_STATE_MENU_MAIN
+          new_state = Game.STATE_MENU_MAIN
 
     # ========== CONTROL SETTINGS MENU ===========
-    elif self.state == Game.GAME_STATE_MENU_CONTROL_SETTINGS:
+    elif self.state == Game.STATE_MENU_CONTROL_SETTINGS:
       self.active_menu = self.menu_controls
       self.active_menu.update(self.player_key_maps)    # needs to be called to scan for pressed keys
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
-        new_state = Game.GAME_STATE_MENU_SETTINGS
+        new_state = Game.STATE_MENU_SETTINGS
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (0,0):
-          new_state = Game.GAME_STATE_MENU_SETTINGS
+          new_state = Game.STATE_MENU_SETTINGS
         
     # ================ ABOUT MENU =================
-    elif self.state == Game.GAME_STATE_MENU_ABOUT: 
+    elif self.state == Game.STATE_MENU_ABOUT: 
       self.active_menu = self.menu_about
       
       if self.active_menu.get_state() in (Menu.MENU_STATE_CONFIRM,Menu.MENU_STATE_CANCEL):
-        new_state = Game.GAME_STATE_MENU_MAIN
+        new_state = Game.STATE_MENU_MAIN
     
     # ============== PLAY SETUP MENU ==============
-    elif self.state == Game.GAME_STATE_MENU_PLAY_SETUP: 
+    elif self.state == Game.STATE_MENU_PLAY_SETUP: 
       self.active_menu = self.menu_play_setup
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
-        new_state = Game.GAME_STATE_MENU_MAIN
+        new_state = Game.STATE_MENU_MAIN
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         if self.active_menu.get_selected_item() == (0,1):
-          new_state = Game.GAME_STATE_MENU_MAP_SELECT
+          new_state = Game.STATE_MENU_MAP_SELECT
         elif self.active_menu.get_selected_item() == (0,0):
-          new_state = Game.GAME_STATE_MENU_MAIN
+          new_state = Game.STATE_MENU_MAIN
     
     # ============== MAP SELECT MENU ==============
-    elif self.state == Game.GAME_STATE_MENU_MAP_SELECT:
+    elif self.state == Game.STATE_MENU_MAP_SELECT:
       self.active_menu = self.menu_map_select
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CANCEL:
-        new_state = Game.GAME_STATE_MENU_PLAY_SETUP
+        new_state = Game.STATE_MENU_PLAY_SETUP
       elif self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
         self.map_name = self.active_menu.get_selected_map_name()
         self.random_map_selection = self.active_menu.random_was_selected()
         self.game_number = 1     # first game
-        new_state = Game.GAME_STATE_GAME_STARTED
+        new_state = Game.STATE_GAME_STARTED
         
         self.deactivate_cheat(Game.CHEAT_PARTY)
     
     # ================ RESULT MENU ================
-    elif self.state == Game.GAME_STATE_MENU_RESULTS:
+    elif self.state == Game.STATE_MENU_RESULTS:
       self.active_menu = self.menu_results
     
       if self.active_menu.get_state() in (Menu.MENU_STATE_CONFIRM,Menu.MENU_STATE_CANCEL):
-        new_state = Game.GAME_STATE_MENU_MAIN
+        new_state = Game.STATE_MENU_MAIN
       
     if new_state != self.state:  # going to new state
       self.state = new_state
@@ -4936,6 +4936,7 @@ class Game(object):
 
     while True:     # main loop
       profiler.measure_start("main loop")
+      
       dt = min(pygame.time.get_ticks() - time_before,100)
       time_before = pygame.time.get_ticks()
 
@@ -4943,22 +4944,26 @@ class Game(object):
 
       for event in pygame.event.get():
         if event.type == pygame.QUIT:
-          self.state = Game.GAME_STATE_EXIT
+          self.state = Game.STATE_EXIT
         
         pygame_events.append(event)
         
       self.player_key_maps.process_pygame_events(pygame_events,self.frame_number)
 
-      if self.state == Game.GAME_STATE_PLAYING:
+      if self.state == Game.STATE_PLAYING:
         self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
         self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
         
         profiler.measure_start("map rend.")
+        
         self.screen.blit(self.renderer.render_map(self.game_map),(0,0)) 
+        
         profiler.measure_stop("map rend.")
         
         profiler.measure_start("sim.")
+        
         self.simulation_step(dt)
+        
         profiler.measure_stop("sim.")
         
         if self.game_map.get_state() == Map.STATE_GAME_OVER:
@@ -4971,13 +4976,13 @@ class Game(object):
             
             self.game_map = None
             
-            self.state = Game.GAME_STATE_MENU_RESULTS   # show final results
+            self.state = Game.STATE_MENU_RESULTS   # show final results
             self.deactivate_all_cheats()
           else:
-            self.state = Game.GAME_STATE_GAME_STARTED   # new game
-      elif self.state == Game.GAME_STATE_EXIT:
+            self.state = Game.STATE_GAME_STARTED   # new game
+      elif self.state == Game.STATE_EXIT:
         break
-      elif self.state == Game.GAME_STATE_GAME_STARTED:
+      elif self.state == Game.STATE_GAME_STARTED:
         if DEBUG_VERBOSE:
           debug_log("starting game " + str(self.game_number))
     
@@ -4996,7 +5001,7 @@ class Game(object):
         
         map_name_to_load = self.map_name if not self.random_map_selection else self.menu_map_select.get_random_map_name()
         
-        with open(os.path.join(MAP_PATH,map_name_to_load)) as map_file:
+        with open(os.path.join(Game.MAP_PATH,map_name_to_load)) as map_file:
           map_data = map_file.read()
           self.game_map = Map(map_data,self.play_setup,self.game_number,self.play_setup.get_number_of_games(),self.cheat_is_active(Game.CHEAT_ALL_ITEMS))
           
@@ -5006,7 +5011,7 @@ class Game(object):
           self.immortal_players_numbers = []
           
           for i in range(len(player_slots)):
-            if player_slots[i] != None and player_slots[i][0] >= 0:   # if not AI
+            if player_slots[i] != None and player_slots[i][0] >= 0:   # cheat: if not AI
               self.immortal_players_numbers.append(i)                 # make the player immortal
         
         self.ais = []
@@ -5022,11 +5027,14 @@ class Game(object):
         self.acknowledge_wins(previous_winner,self.game_map.get_players())    # add win counts
         
         self.sound_player.change_music()
-        self.state = Game.GAME_STATE_PLAYING
+        self.state = Game.STATE_PLAYING
       else:   # in menu
         self.manage_menus()
+        
         profiler.measure_start("menu rend.")
+        
         self.screen.blit(self.renderer.render_menu(self.active_menu,self),(0,0))  
+        
         profiler.measure_stop("menu rend.")
 
       pygame.display.flip()
@@ -5068,24 +5076,30 @@ class Game(object):
     actions_being_performed = self.filter_out_disallowed_actions(self.player_key_maps.get_current_actions())
     
     for action in actions_being_performed:
-      if action[0] == -1:                          # menu key pressed
-        self.state = Game.GAME_STATE_MENU_PLAY
+      if action[0] == -1:                                # menu key pressed
+        self.state = Game.STATE_MENU_PLAY
         return
     
     profiler.measure_start("sim. AIs")
+    
     for i in range(len(self.ais)):
       actions_being_performed = actions_being_performed + self.ais[i].play()
+      
     profiler.measure_stop("sim. AIs")
     
     players = self.game_map.get_players()
 
     profiler.measure_start("sim. inputs")
+    
     for player in players:
       player.react_to_inputs(actions_being_performed,dt,self.game_map)
+      
     profiler.measure_stop("sim. inputs")
       
     profiler.measure_start("sim. map update")
+    
     self.game_map.update(dt,self.immortal_players_numbers)
+    
     profiler.measure_stop("sim. map update")
     
 # main
