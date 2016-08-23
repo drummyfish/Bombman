@@ -315,6 +315,16 @@ class Player(Positionable):
       Renderer.ANIMATION_EVENT_RIP,
       Renderer.ANIMATION_EVENT_SKELETION))
     
+    if True:
+      game_map.add_delayed_sound_event(
+        random.choice((
+          SoundPlayer.SOUND_EVENT_UNDERWEAR,
+          SoundPlayer.SOUND_EVENT_DAMN_BITCH,
+          SoundPlayer.SOUND_EVENT_SPEECH,
+          SoundPlayer.SOUND_EVENT_LAUGH,
+          SoundPlayer.SOUND_EVENT_LESS_THAN_THREE
+          )),2000)
+    
     game_map.add_animation_event(random_animation,Renderer.map_position_to_pixel_position(self.position,(0,-15)))
     game_map.give_away_items(self.get_items())
 
@@ -1051,6 +1061,8 @@ class Map(object):
 
     self.time_from_start = 0                       ##< time in ms from the start of the map, the time increases with each update (so time spent in game menu is excluded)
 
+    self.next_random_sound = 10000                 ##< at what map time there will be the next random sound event
+
     block_tiles = []
 
     line = -1
@@ -1171,6 +1183,7 @@ class Map(object):
         
     self.bombs = []                   ##< bombs on the map
     self.sound_events = []            ##< list of currently happening sound event (see SoundPlayer class)
+    self.delayed_sound_events = []    ##< sound events to be added later, tuples in format (event, time to play)
     self.animation_events = []        ##< list of animation events, tuples in format (animation_event, coordinates)
     self.items_to_give_away = []      ##< list of tuples in format (time_of_giveaway, list_of_items)
 
@@ -1263,6 +1276,9 @@ class Map(object):
           
   def add_sound_event(self, sound_event):
     self.sound_events.append(sound_event)
+    
+  def add_delayed_sound_event(self, sound_event, delay):
+    self.delayed_sound_events.append((sound_event,self.get_map_time() + delay))
     
   def add_animation_event(self, animation_event, coordinates):    
     self.animation_events.append((animation_event,coordinates))
@@ -1508,6 +1524,30 @@ class Map(object):
 
   def update(self, dt, immortal_player_numbers=[]):
     self.time_from_start += dt
+    
+    if self.get_map_time() >= self.next_random_sound:    # make random sound
+      if DEBUG_VERBOSE:
+        debug_log("playing random sound (maybe)")
+      
+      if random.randint(0,1) == 0:
+        self.add_sound_event(random.choice((
+          SoundPlayer.SOUND_EVENT_MUMBLING,
+          SoundPlayer.SOUND_EVENT_TAUNT,
+          SoundPlayer.SOUND_EVENT_TAUNT2
+          )))
+      
+      self.next_random_sound = self.get_map_time() + random.randint(5000,20000)
+    
+    i = 0
+    
+    while i < len(self.delayed_sound_events):  # delayed sound events
+      item = self.delayed_sound_events[i]
+      
+      if self.get_map_time() >= item[1]:
+        self.add_sound_event(item[0])
+        del self.delayed_sound_events[i]
+      else:
+        i += 1
     
     self.danger_map_is_up_to_date = False    # reset this each frame
     
@@ -2295,6 +2335,14 @@ class SoundPlayer(object):
   SOUND_EVENT_GO = 24
   SOUND_EVENT_EARTHQUAKE = 25
   SOUND_EVENT_CONFIRM = 26
+  SOUND_EVENT_UNDERWEAR = 27
+  SOUND_EVENT_DAMN_BITCH = 28
+  SOUND_EVENT_LESS_THAN_THREE = 29
+  SOUND_EVENT_MUMBLING = 30
+  SOUND_EVENT_SPEECH = 31
+  SOUND_EVENT_LAUGH = 32
+  SOUND_EVENT_TAUNT = 33
+  SOUND_EVENT_TAUNT2 = 34
   
   def __init__(self):
     self.sound_volume = 0.5
@@ -2427,6 +2475,24 @@ class SoundPlayer(object):
           self.kick_last_played_time = time_now
       elif SoundPlayer.SOUND_EVENT_WIN_0 <= sound_event <= SoundPlayer.SOUND_EVENT_WIN_9:
         self.play_once(os.path.join(Game.RESOURCE_PATH,"win" + str(sound_event - SoundPlayer.SOUND_EVENT_WIN_0) + ".wav"))
+      else:     
+        # not frequent sounds, play once
+        if sound_event == SoundPlayer.SOUND_EVENT_UNDERWEAR:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"underwear.wav"))
+        elif sound_event == SoundPlayer.SOUND_EVENT_DAMN_BITCH:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"damn_bitch.wav"))
+        elif sound_event == SoundPlayer.SOUND_EVENT_SPEECH:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"speech.wav"))
+        elif sound_event == SoundPlayer.SOUND_EVENT_LAUGH:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"laugh.wav"))
+        elif sound_event == SoundPlayer.SOUND_EVENT_LESS_THAN_THREE:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"less_than_three.wav"))
+        elif sound_event == SoundPlayer.SOUND_EVENT_MUMBLING:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"mumbling.wav"))
+        elif sound_event == SoundPlayer.SOUND_EVENT_TAUNT:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"taunt.wav"))
+        elif sound_event == SoundPlayer.SOUND_EVENT_TAUNT2:
+          self.play_once(os.path.join(Game.RESOURCE_PATH,"taunt2.wav"))
       
     if self.playing_walk and stop_playing_walk:
       self.sounds[SoundPlayer.SOUND_EVENT_WALK].stop()
