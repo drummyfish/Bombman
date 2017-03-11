@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding=utf-8
 #
-# Bombman - free and open-source Atomic Bomberman clone
+# Bombman - free and open-source Bomberman clone
 #
 # Copyright (C) 2016 Miloslav Číž
 #
@@ -84,13 +84,12 @@ import copy
 import random
 import time
 
-DEBUG_PROFILING = False      # print profiling info?
-DEBUG_FPS = False            # print FPS?
-DEBUG_PRINT = False          # print debuggin messages?
+DEBUG_PROFILING = False
+DEBUG_FPS = False
+DEBUG_VERBOSE = False
 
 def debug_log(message):
-  if DEBUG_PRINT:
-    print(message)
+  print(message)
 
 class Profiler(object):
   SHOW_LAST = 10
@@ -169,7 +168,7 @@ class Positionable(object):
   def get_tile_position(self):
     return Positionable.position_to_tile(self.position)
   
-  ## Moves the object to center of tile (if not specified, object's current tile is used).
+  ## Moves the object to center of tile (if not specified, objects current tile is used).
   
   def move_to_tile_center(self, tile_coordinates=None):
     if tile_coordinates != None:
@@ -315,16 +314,6 @@ class Player(Positionable):
       Renderer.ANIMATION_EVENT_EXPLOSION,
       Renderer.ANIMATION_EVENT_RIP,
       Renderer.ANIMATION_EVENT_SKELETION))
-    
-    if True:
-      game_map.add_delayed_sound_event(
-        random.choice((
-          SoundPlayer.SOUND_EVENT_UNDERWEAR,
-          SoundPlayer.SOUND_EVENT_DAMN_BITCH,
-          SoundPlayer.SOUND_EVENT_SPEECH,
-          SoundPlayer.SOUND_EVENT_LAUGH,
-          SoundPlayer.SOUND_EVENT_LESS_THAN_THREE
-          )),2000)
     
     game_map.add_animation_event(random_animation,Renderer.map_position_to_pixel_position(self.position,(0,-15)))
     game_map.give_away_items(self.get_items())
@@ -1062,8 +1051,6 @@ class Map(object):
 
     self.time_from_start = 0                       ##< time in ms from the start of the map, the time increases with each update (so time spent in game menu is excluded)
 
-    self.next_random_sound = 10000                 ##< at what map time there will be the next random sound event
-
     block_tiles = []
 
     line = -1
@@ -1184,7 +1171,6 @@ class Map(object):
         
     self.bombs = []                   ##< bombs on the map
     self.sound_events = []            ##< list of currently happening sound event (see SoundPlayer class)
-    self.delayed_sound_events = []    ##< sound events to be added later, tuples in format (event, time to play)
     self.animation_events = []        ##< list of animation events, tuples in format (animation_event, coordinates)
     self.items_to_give_away = []      ##< list of tuples in format (time_of_giveaway, list_of_items)
 
@@ -1277,9 +1263,6 @@ class Map(object):
           
   def add_sound_event(self, sound_event):
     self.sound_events.append(sound_event)
-    
-  def add_delayed_sound_event(self, sound_event, delay):
-    self.delayed_sound_events.append((sound_event,self.get_map_time() + delay))
     
   def add_animation_event(self, animation_event, coordinates):    
     self.animation_events.append((animation_event,coordinates))
@@ -1521,33 +1504,31 @@ class Map(object):
       
       possible_tiles.remove(tile)
 
-  def __update_sounds(self):
-    if self.get_map_time() >= self.next_random_sound:    # make random sound
-      debug_log("playing random sound (maybe)")
-      
-      if random.randint(0,1) == 0:
-        self.add_sound_event(random.choice((
-          SoundPlayer.SOUND_EVENT_MUMBLING,
-          SoundPlayer.SOUND_EVENT_TAUNT,
-          SoundPlayer.SOUND_EVENT_TAUNT2
-          )))
-      
-      self.next_random_sound = self.get_map_time() + random.randint(5000,20000)
-    
-    i = 0
-    
-    while i < len(self.delayed_sound_events):            # delayed sound events
-      item = self.delayed_sound_events[i]
-      
-      if self.get_map_time() >= item[1]:
-        self.add_sound_event(item[0])
-        del self.delayed_sound_events[i]
-      else:
-        i += 1
-    
-  def __update_bombs(self):
-    i = 0
+  ## Updates some things on the map that change with time.
 
+  def update(self, dt, immortal_player_numbers=[]):
+    self.time_from_start += dt
+    
+    self.danger_map_is_up_to_date = False    # reset this each frame
+    
+    i = 0
+    
+    self.earthquake_time_left = max(0,self.earthquake_time_left - dt)
+    
+    while i < len(self.items_to_give_away):  # giving away items of dead players
+      item = self.items_to_give_away[i]
+      
+      if self.time_from_start >= item[0]:
+        self.spread_items(item[1])
+        self.items_to_give_away.remove(item)
+        
+        if DEBUG_VERBOSE:
+          debug_log("giving away items")
+          
+      i += 1
+    
+    i = 0
+    
     while i < len(self.bombs):    # update all bombs
       bomb = self.bombs[i]
       
@@ -1555,7 +1536,7 @@ class Map(object):
         self.bombs.remove(bomb)
         continue
       
-      bomb.time_of_existence += self.dt
+      bomb.time_of_existence += dt
             
       bomb_position = bomb.get_position()
       bomb_tile = bomb.get_tile_position()
@@ -1571,7 +1552,7 @@ class Map(object):
       
       if bomb.movement != Bomb.BOMB_NO_MOVEMENT:
         if bomb.movement == Bomb.BOMB_FLYING:
-          distance_to_travel = self.dt / 1000.0 * Bomb.FLYING_SPEED
+          distance_to_travel = dt / 1000.0 * Bomb.FLYING_SPEED
           bomb.flight_info.distance_travelled += distance_to_travel
           
           if bomb.flight_info.distance_travelled >= bomb.flight_info.total_distance_to_travel:
@@ -1616,7 +1597,7 @@ class Map(object):
           bomb_position_within_tile = (bomb_position[0] % 1,bomb_position[1] % 1) 
           check_collision = False
           forward_tile = None
-          distance_to_travel = self.dt / 1000.0 * Bomb.ROLLING_SPEED
+          distance_to_travel = dt / 1000.0 * Bomb.ROLLING_SPEED
           
           helper_boundaries = (0.5,0.9)
           helper_boundaries2 = (1 - helper_boundaries[1],1 - helper_boundaries[0])
@@ -1665,17 +1646,59 @@ class Map(object):
               bomb.movement = Bomb.BOMB_NO_MOVEMENT
               self.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
 
-  def __update_players(self):
+    for line in self.tiles:
+      for tile in line:
+        if tile.to_be_destroyed and tile.kind == MapTile.TILE_BLOCK and not self.tile_has_flame(tile.coordinates):
+          tile.kind = MapTile.TILE_FLOOR
+          self.number_of_blocks -= 1
+          tile.to_be_destroyed = False
+        
+        i = 0
+        
+        while True:
+          if i >= len(tile.flames):
+            break
+          
+          if tile.kind == MapTile.TILE_BLOCK:  # flame on a block tile -> destroy the block
+            tile.to_be_destroyed = True
+          elif tile.kind == MapTile.TILE_FLOOR and tile.item != None:
+            tile.item = None                   # flame destroys the item
+          
+          bombs_inside_flame = self.bombs_on_tile(tile.coordinates)
+          
+          for bomb in bombs_inside_flame:      # bomb inside flame -> detonate it
+            self.bomb_explodes(bomb)
+          
+          flame = tile.flames[i]
+          
+          flame.time_to_burnout -= dt
+          
+          if flame.time_to_burnout < 0:
+            tile.flames.remove(flame)
+      
+          i += 1
+    
+    winning_color = -1
+    game_is_over = True
+    
+    time_now = pygame.time.get_ticks()
+    
+    release_disease_cloud = False
+    
+    if time_now > self.create_disease_cloud_at:
+      self.create_disease_cloud_at = time_now + 200     # release the cloud every 200 ms
+      release_disease_cloud = True
+    
     for player in self.players:
       if player.is_dead():
         continue
       
-      if self.release_disease_cloud and player.get_disease() != Player.DISEASE_NONE:
+      if release_disease_cloud and player.get_disease() != Player.DISEASE_NONE:
         self.add_animation_event(Renderer.ANIMATION_EVENT_DISEASE_CLOUD,Renderer.map_position_to_pixel_position(player.get_position(),(0,0)))
       
-      if self.winning_color == -1:
-        self.winning_color = player.get_team_number()
-      elif self.winning_color != player.get_team_number():
+      if winning_color == -1:
+        winning_color = player.get_team_number()
+      elif winning_color != player.get_team_number():
         game_is_over = False
         
       player_tile_position = player.get_tile_position()
@@ -1722,81 +1745,6 @@ class Map(object):
           
         if transmitted and random.randint(0,2) == 0:
           self.add_sound_event(SoundPlayer.SOUND_EVENT_GO_AWAY)
-
-  def __update_flames(self):
-    for line in self.tiles:
-      for tile in line:
-        if tile.to_be_destroyed and tile.kind == MapTile.TILE_BLOCK and not self.tile_has_flame(tile.coordinates):
-          tile.kind = MapTile.TILE_FLOOR
-          self.number_of_blocks -= 1
-          tile.to_be_destroyed = False
-        
-        i = 0
-        
-        while True:
-          if i >= len(tile.flames):
-            break
-          
-          if tile.kind == MapTile.TILE_BLOCK:  # flame on a block tile -> destroy the block
-            tile.to_be_destroyed = True
-          elif tile.kind == MapTile.TILE_FLOOR and tile.item != None:
-            tile.item = None                   # flame destroys the item
-          
-          bombs_inside_flame = self.bombs_on_tile(tile.coordinates)
-          
-          for bomb in bombs_inside_flame:      # bomb inside flame -> detonate it
-            self.bomb_explodes(bomb)
-          
-          flame = tile.flames[i]
-          
-          flame.time_to_burnout -= self.dt
-          
-          if flame.time_to_burnout < 0:
-            tile.flames.remove(flame)
-      
-          i += 1
-
-  ## Updates some things on the map that change with time.
-
-  def update(self, dt, immortal_player_numbers=[]):
-    self.dt = dt
-    self.time_from_start += dt
-    
-    self.__update_sounds()
-
-    self.danger_map_is_up_to_date = False      # reset this each frame
-    
-    i = 0
-    
-    self.earthquake_time_left = max(0,self.earthquake_time_left - dt)
-    
-    while i < len(self.items_to_give_away):    # giving away items of dead players
-      item = self.items_to_give_away[i]
-      
-      if self.time_from_start >= item[0]:
-        self.spread_items(item[1])
-        self.items_to_give_away.remove(item)
-        
-        debug_log("giving away items")
-          
-      i += 1
-    
-    self.__update_bombs()
-
-    self.__update_flames()
-    
-    self.winning_color = -1
-    game_is_over = True
-    
-    time_now = pygame.time.get_ticks()
-    
-    self.release_disease_cloud = False
-    
-    if time_now > self.create_disease_cloud_at:
-      self.create_disease_cloud_at = time_now + 200     # release the cloud every 200 ms
-      self.release_disease_cloud = True
-    
-    self.__update_players()
           
     if self.state == Map.STATE_WAITING_TO_PLAY:  
       if self.time_from_start >= self.start_game_at:
@@ -1812,7 +1760,7 @@ class Map(object):
     elif self.state != Map.STATE_GAME_OVER and game_is_over:
       self.end_game_at = self.time_from_start + 5000
       self.state = Map.STATE_FINISHING
-      self.winner_team = self.winning_color
+      self.winner_team = winning_color
       self.announce_win_at = self.time_from_start + 2000
     
   def get_winner_team(self):
@@ -2057,7 +2005,8 @@ class PlayerKeyMaps(StringSerializable):
           self.typed_string_buffer = self.typed_string_buffer[1:]
           self.typed_string_buffer.append(chr(pygame_event.key))
         except Exception:
-          debug_log("couldn't append typed character to the buffer")
+          if DEBUG_VERBOSE:
+            debug_log("couldn't append typed character to the buffer")
         
   def clear_typing_buffer(self):
     self.typed_string_buffer = [" " for i in range(PlayerKeyMaps.TYPED_STRING_BUFFER_LENGTH)]
@@ -2346,14 +2295,6 @@ class SoundPlayer(object):
   SOUND_EVENT_GO = 24
   SOUND_EVENT_EARTHQUAKE = 25
   SOUND_EVENT_CONFIRM = 26
-  SOUND_EVENT_UNDERWEAR = 27
-  SOUND_EVENT_DAMN_BITCH = 28
-  SOUND_EVENT_LESS_THAN_THREE = 29
-  SOUND_EVENT_MUMBLING = 30
-  SOUND_EVENT_SPEECH = 31
-  SOUND_EVENT_LAUGH = 32
-  SOUND_EVENT_TAUNT = 33
-  SOUND_EVENT_TAUNT2 = 34
   
   def __init__(self):
     self.sound_volume = 0.5
@@ -2402,7 +2343,8 @@ class SoundPlayer(object):
   def set_music_volume(self, new_volume):
     self.music_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
     
-    debug_log("changing music volume to " + str(self.music_volume))
+    if DEBUG_VERBOSE:
+      debug_log("changing music volume to " + str(self.music_volume))
     
     if new_volume > Settings.SOUND_VOLUME_THRESHOLD:
       if not pygame.mixer.music.get_busy():
@@ -2415,7 +2357,8 @@ class SoundPlayer(object):
   def set_sound_volume(self, new_volume):
     self.sound_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
     
-    debug_log("changing sound volume to " + str(self.sound_volume))
+    if DEBUG_VERBOSE:
+      debug_log("changing sound volume to " + str(self.sound_volume))
     
     for sound in self.sounds:
       self.sounds[sound].set_volume(self.sound_volume)
@@ -2433,7 +2376,8 @@ class SoundPlayer(object):
     
     music_name = self.music_filenames[self.current_music_index]
     
-    debug_log("changing music to \"" + music_name + "\"")
+    if DEBUG_VERBOSE:
+      debug_log("changing music to \"" + music_name + "\"")
     
     pygame.mixer.music.stop()
     pygame.mixer.music.load(os.path.join(Game.RESOURCE_PATH,music_name))
@@ -2483,24 +2427,6 @@ class SoundPlayer(object):
           self.kick_last_played_time = time_now
       elif SoundPlayer.SOUND_EVENT_WIN_0 <= sound_event <= SoundPlayer.SOUND_EVENT_WIN_9:
         self.play_once(os.path.join(Game.RESOURCE_PATH,"win" + str(sound_event - SoundPlayer.SOUND_EVENT_WIN_0) + ".wav"))
-      else:     
-        # not frequent sounds, play once
-        if sound_event == SoundPlayer.SOUND_EVENT_UNDERWEAR:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"underwear.wav"))
-        elif sound_event == SoundPlayer.SOUND_EVENT_DAMN_BITCH:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"damn_bitch.wav"))
-        elif sound_event == SoundPlayer.SOUND_EVENT_SPEECH:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"speech.wav"))
-        elif sound_event == SoundPlayer.SOUND_EVENT_LAUGH:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"laugh.wav"))
-        elif sound_event == SoundPlayer.SOUND_EVENT_LESS_THAN_THREE:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"less_than_three.wav"))
-        elif sound_event == SoundPlayer.SOUND_EVENT_MUMBLING:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"mumbling.wav"))
-        elif sound_event == SoundPlayer.SOUND_EVENT_TAUNT:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"taunt.wav"))
-        elif sound_event == SoundPlayer.SOUND_EVENT_TAUNT2:
-          self.play_once(os.path.join(Game.RESOURCE_PATH,"taunt2.wav"))
       
     if self.playing_walk and stop_playing_walk:
       self.sounds[SoundPlayer.SOUND_EVENT_WALK].stop()
@@ -2868,7 +2794,8 @@ class SettingsMenu(Menu):
     elif self.state == Menu.MENU_STATE_CONFIRM:
       if self.selected_item == (6,0):
         
-        debug_log("resetting settings")
+        if DEBUG_VERBOSE:
+          debug_log("resetting settings")
         
         self.settings.reset()
         self.game.save_settings()
@@ -2971,7 +2898,8 @@ class ControlsMenu(Menu):
       else:
          if key_pressed != None:
            
-           debug_log("new key mapping")
+           if DEBUG_VERBOSE:
+             debug_log("new key mapping")
            
            self.player_key_maps.set_one_key_map(key_pressed,self.waiting_for_key[0],self.waiting_for_key[1])
            self.waiting_for_key = None
@@ -3453,7 +3381,8 @@ class Renderer(object):
       
       # rerendering needed here
       
-      debug_log("updating info board " + str(i))
+      if DEBUG_VERBOSE:
+        debug_log("updating info board " + str(i))
       
       board_image = self.player_info_board_images[i]
       
@@ -3672,7 +3601,8 @@ class Renderer(object):
         update_needed = True        
           
       if update_needed:
-        debug_log("updating menu item " + str(menu_coordinates))
+        if DEBUG_VERBOSE:
+          debug_log("updating menu item " + str(menu_coordinates))
           
         new_image = self.render_text(self.font_normal,item_text,Renderer.MENU_FONT_COLOR,center = center_text)
           
@@ -3865,7 +3795,8 @@ class Renderer(object):
       return
     
     if self.preview_map_name != map_filename:
-      debug_log("updating map preview of " + map_filename)
+      if DEBUG_VERBOSE:
+        debug_log("updating map preview of " + map_filename)
       
       self.preview_map_name = map_filename
       
@@ -3963,7 +3894,8 @@ class Renderer(object):
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
       self.animation_events = []                  # clear previous animation
 
-      debug_log("prerendering map...")
+      if DEBUG_VERBOSE:
+        debug_log("prerendering map...")
 
       # following images are only needed here, so we dont store them to self
       image_trampoline = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_trampoline.png"))
@@ -4673,7 +4605,8 @@ class Settings(StringSerializable):
       helper_position1 = helper_position + len(Settings.CONTROL_MAPPING_DELIMITER)
       helper_position2 = input_string.find(Settings.CONTROL_MAPPING_DELIMITER,helper_position1)
 
-      debug_log("loading control mapping")
+      if DEBUG_VERBOSE:
+        debug_log("loading control mapping")
 
       settings_string = input_string[helper_position1:helper_position2].lstrip().rstrip()
       self.player_key_maps.load_from_string(settings_string)
@@ -4777,7 +4710,8 @@ class Game(object):
     self.game_number = 0
     
     if os.path.isfile(Game.SETTINGS_FILE_PATH):
-      debug_log("loading settings from file " + Game.SETTINGS_FILE_PATH)
+      if DEBUG_VERBOSE:
+        debug_log("loading settings from file " + Game.SETTINGS_FILE_PATH)
       
       self.settings.load_from_file(Game.SETTINGS_FILE_PATH)
  
@@ -4819,12 +4753,14 @@ class Game(object):
   def deactivate_all_cheats(self):
     self.active_cheats = set()
 
-    debug_log("all cheats deactivated")
+    if DEBUG_VERBOSE:
+      debug_log("all cheats deactivated")
       
   def activate_cheat(self, what_cheat):
     self.active_cheats.add(what_cheat)
     
-    debug_log("cheat activated")
+    if DEBUG_VERBOSE:
+      debug_log("cheat activated")
     
   def deactivate_cheat(self, what_cheat):
     if what_cheat in self.active_cheats:
@@ -5047,7 +4983,8 @@ class Game(object):
       elif self.state == Game.STATE_EXIT:
         break
       elif self.state == Game.STATE_GAME_STARTED:
-        debug_log("starting game " + str(self.game_number))
+        if DEBUG_VERBOSE:
+          debug_log("starting game " + str(self.game_number))
     
         previous_winner = -1
     
@@ -5167,7 +5104,6 @@ class Game(object):
     
 # main
 
-if __name__ == "__main__":
-  profiler = Profiler()      # profiler object is global, for simplicity
-  game = Game()
-  game.run()
+profiler = Profiler()   # profiler object is global, for simple access
+game = Game()
+game.run()
