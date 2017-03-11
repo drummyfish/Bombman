@@ -5104,6 +5104,7 @@ class Game(object):
     
 # main
 
-profiler = Profiler()   # profiler object is global, for simple access
-game = Game()
-game.run()
+if __name__ == "__main__":
+  profiler = Profiler()   # profiler object is global, for simple access
+  game = Game()
+  game.run()

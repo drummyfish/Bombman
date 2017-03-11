@@ -37,9 +37,29 @@ map_file.close()
 
 print("initialising Map object (\"classic\") with play setup")
 
-test_map = bombman.Map(map_data,test_play_setup,0,0)
+test_map = bombman.GameMap(map_data,test_play_setup,0,0)
 
-assertion("starting item == ITEM_FLAME", len(test_map.get_starting_items()) == 1 and test_map.get_starting_items()[0] == bombman.Map.ITEM_FLAME)
+assertion("starting item == ITEM_FLAME", len(test_map.get_starting_items()) == 1 and test_map.get_starting_items()[0] == bombman.GameMap.ITEM_FLAME)
+coords = (-1,0)
+assertion("tile at " + str(coords) + " == None", test_map.get_tile_at(coords) == None)
+coords = (-1,bombman.GameMap.MAP_HEIGHT)
+assertion("tile at " + str(coords) + " == None", test_map.get_tile_at(coords) == None)
+
+for y in range(bombman.GameMap.MAP_HEIGHT):
+  for x in range(bombman.GameMap.MAP_WIDTH):
+    expecting_players = 1 if (x,y) == (0,0) or (x,y) == (14,0) or (x,y) == (0,10) or (x,y) == (14,10) else 0
+    assertion("number of players at " + str((x,y)) + "] == " + str(expecting_players), len(test_map.get_players_at_tile((x,y))) == expecting_players)
+    assertion("tile [" + str((x,y)) + "] has player", test_map.tile_has_player((x,y)) == (expecting_players == 1))
+
+
+coords = (0,-1)
+assertion("tile " + str(coords) + " is walkable", not test_map.tile_is_walkable(coords))
+coords = (1,0)
+assertion("tile " + str(coords) + " is walkable", test_map.tile_is_walkable(coords))
+coords = (2,5)
+assertion("tile " + str(coords) + " is walkable", not test_map.tile_is_walkable(coords))
+
+ 
 
 print("=====================")
 print("total errors: " + str(errors_total))
