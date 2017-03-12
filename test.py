@@ -101,8 +101,13 @@ tile = (4,3)
 print("make player 1 lay bomb at " + str(tile))
 player1.lay_bomb(test_map,tile)
 
+fyling_bomb = test_map.bomb_on_tile(tile)
+
 direction_ratings = ai.rate_bomb_escape_directions(tile)
 assertion("AI - all escape directions from tile " + str(tile) + " are rated 0",direction_ratings == (0,0,0,0))
+
+print("send the bomb flying left")
+fyling_bomb.send_flying((-1,tile[1]))
 
 print("updating map, dt = 500")
 test_map.update(500)
@@ -125,6 +130,8 @@ for i in range(20):
   print("moving player 0 to the right using inputs, dt = " + str(dt))
   player.react_to_inputs(actions,dt,test_map)
   test_map.update(dt)
+
+assertion("bomb position = (11,3)",  fyling_bomb.get_tile_position() == (11,3))
 
 expected_position = (1,0)
 
@@ -215,7 +222,7 @@ for i in range(40):
 
 assertion("player 1 and player 2 are dead, player 3 is alive",player1.is_dead() and player2.is_dead() and not player3.is_dead())
 assertion("map state = STATE_FINISHING",test_map.get_state() == bombman.GameMap.STATE_FINISHING)
-assertion("number of block tiles on map = 116",test_map.get_number_of_block_tiles() == 116)
+assertion("number of block tiles on map = 117",test_map.get_number_of_block_tiles() == 117)
 
 print("wait for a while")
 
