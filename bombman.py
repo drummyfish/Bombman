@@ -1506,31 +1506,9 @@ class GameMap(object):
       
       possible_tiles.remove(tile)
 
-  ## Updates some things on the map that change with time.
+  def __update_bombs(self, dt):
+    i = 0
 
-  def update(self, dt, immortal_player_numbers=[]):
-    self.time_from_start += dt
-    
-    self.danger_map_is_up_to_date = False    # reset this each frame
-    
-    i = 0
-    
-    self.earthquake_time_left = max(0,self.earthquake_time_left - dt)
-    
-    while i < len(self.items_to_give_away):  # giving away items of dead players
-      item = self.items_to_give_away[i]
-      
-      if self.time_from_start >= item[0]:
-        self.spread_items(item[1])
-        self.items_to_give_away.remove(item)
-        
-        if DEBUG_VERBOSE:
-          debug_log("giving away items")
-          
-      i += 1
-    
-    i = 0
-    
     while i < len(self.bombs):    # update all bombs
       bomb = self.bombs[i]
       
@@ -1648,43 +1626,8 @@ class GameMap(object):
               bomb.movement = Bomb.BOMB_NO_MOVEMENT
               self.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
 
-    for line in self.tiles:
-      for tile in line:
-        if tile.to_be_destroyed and tile.kind == MapTile.TILE_BLOCK and not self.tile_has_flame(tile.coordinates):
-          tile.kind = MapTile.TILE_FLOOR
-          self.number_of_blocks -= 1
-          tile.to_be_destroyed = False
-        
-        i = 0
-        
-        while True:
-          if i >= len(tile.flames):
-            break
-          
-          if tile.kind == MapTile.TILE_BLOCK:  # flame on a block tile -> destroy the block
-            tile.to_be_destroyed = True
-          elif tile.kind == MapTile.TILE_FLOOR and tile.item != None:
-            tile.item = None                   # flame destroys the item
-          
-          bombs_inside_flame = self.bombs_on_tile(tile.coordinates)
-          
-          for bomb in bombs_inside_flame:      # bomb inside flame -> detonate it
-            self.bomb_explodes(bomb)
-          
-          flame = tile.flames[i]
-          
-          flame.time_to_burnout -= dt
-          
-          if flame.time_to_burnout < 0:
-            tile.flames.remove(flame)
-      
-          i += 1
-    
-    winning_color = -1
-    game_is_over = True
-    
+  def __update_players(self, dt, immortal_player_numbers):
     time_now = pygame.time.get_ticks()
-    
     release_disease_cloud = False
     
     if time_now > self.create_disease_cloud_at:
@@ -1698,10 +1641,10 @@ class GameMap(object):
       if release_disease_cloud and player.get_disease() != Player.DISEASE_NONE:
         self.add_animation_event(Renderer.ANIMATION_EVENT_DISEASE_CLOUD,Renderer.map_position_to_pixel_position(player.get_position(),(0,0)))
       
-      if winning_color == -1:
-        winning_color = player.get_team_number()
-      elif winning_color != player.get_team_number():
-        game_is_over = False
+      if self.winning_color == -1:
+        self.winning_color = player.get_team_number()
+      elif self.winning_color != player.get_team_number():
+        self.game_is_over = False
         
       player_tile_position = player.get_tile_position()
       player_tile = self.tiles[player_tile_position[1]][player_tile_position[0]]
@@ -1747,6 +1690,68 @@ class GameMap(object):
           
         if transmitted and random.randint(0,2) == 0:
           self.add_sound_event(SoundPlayer.SOUND_EVENT_GO_AWAY)
+
+  ## Updates some things on the map that change with time.
+
+  def update(self, dt, immortal_player_numbers=[]):
+    self.time_from_start += dt
+    
+    self.danger_map_is_up_to_date = False    # reset this each frame
+    
+    i = 0
+    
+    self.earthquake_time_left = max(0,self.earthquake_time_left - dt)
+    
+    while i < len(self.items_to_give_away):  # giving away items of dead players
+      item = self.items_to_give_away[i]
+      
+      if self.time_from_start >= item[0]:
+        self.spread_items(item[1])
+        self.items_to_give_away.remove(item)
+        
+        if DEBUG_VERBOSE:
+          debug_log("giving away items")
+          
+      i += 1
+
+    self.__update_bombs(dt)
+
+    for line in self.tiles:
+      for tile in line:
+        if tile.to_be_destroyed and tile.kind == MapTile.TILE_BLOCK and not self.tile_has_flame(tile.coordinates):
+          tile.kind = MapTile.TILE_FLOOR
+          self.number_of_blocks -= 1
+          tile.to_be_destroyed = False
+        
+        i = 0
+        
+        while True:
+          if i >= len(tile.flames):
+            break
+          
+          if tile.kind == MapTile.TILE_BLOCK:  # flame on a block tile -> destroy the block
+            tile.to_be_destroyed = True
+          elif tile.kind == MapTile.TILE_FLOOR and tile.item != None:
+            tile.item = None                   # flame destroys the item
+          
+          bombs_inside_flame = self.bombs_on_tile(tile.coordinates)
+          
+          for bomb in bombs_inside_flame:      # bomb inside flame -> detonate it
+            self.bomb_explodes(bomb)
+          
+          flame = tile.flames[i]
+          
+          flame.time_to_burnout -= dt
+          
+          if flame.time_to_burnout < 0:
+            tile.flames.remove(flame)
+      
+          i += 1
+    
+    self.game_is_over = True
+    self.winning_color = -1
+
+    self.__update_players(dt,immortal_player_numbers)
           
     if self.state == GameMap.STATE_WAITING_TO_PLAY:  
       if self.time_from_start >= self.start_game_at:
@@ -1759,10 +1764,10 @@ class GameMap(object):
         if self.time_from_start >= self.announce_win_at:
           self.add_sound_event(SoundPlayer.SOUND_EVENT_WIN_0 + self.winner_team)
           self.win_announced = True
-    elif self.state != GameMap.STATE_GAME_OVER and game_is_over:
+    elif self.state != GameMap.STATE_GAME_OVER and self.game_is_over:
       self.end_game_at = self.time_from_start + 5000
       self.state = GameMap.STATE_FINISHING
-      self.winner_team = winning_color
+      self.winner_team = self.winning_color
       self.announce_win_at = self.time_from_start + 2000
     
   def get_winner_team(self):
