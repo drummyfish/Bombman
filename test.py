@@ -56,19 +56,19 @@ for y in range(bombman.GameMap.MAP_HEIGHT):
     assertion("tile [" + str((x,y)) + "] has player", test_map.tile_has_player((x,y)) == (expecting_players == 1))
 
 coords = (0,-1)
-assertion("tile " + str(coords) + " is walkable", not test_map.tile_is_walkable(coords))
+assertion("tile " + str(coords) + " is not walkable", not test_map.tile_is_walkable(coords))
 coords = (1,0)
 assertion("tile " + str(coords) + " is walkable", test_map.tile_is_walkable(coords))
 coords = (2,5)
-assertion("tile " + str(coords) + " is walkable", not test_map.tile_is_walkable(coords))
+assertion("tile " + str(coords) + " is not walkable", not test_map.tile_is_walkable(coords))
 
 player = test_map.get_players()[0]
-assertion("player 0 is boxing", not player.is_boxing())
-assertion("player 0 is teleporting", not player.is_teleporting())
-assertion("player 0 is throwing", not player.is_throwing())
-assertion("player 0 is dead", not player.is_dead())
+assertion("player 0 is not boxing", not player.is_boxing())
+assertion("player 0 is not teleporting", not player.is_teleporting())
+assertion("player 0 is not throwing", not player.is_throwing())
+assertion("player 0 is not dead", not player.is_dead())
 assertion("player 0 state time == 0", player.get_state_time() == 0)
-assertion("player 0 is enemy of player 0", not player.is_enemy(player))
+assertion("player 0 is not enemy of player 0", not player.is_enemy(player))
 assertion("player 0 is enemy of player 1", player.is_enemy(test_map.get_players()[1]))
 
 print("updating map, dt = 500")
@@ -83,6 +83,52 @@ test_map.update(4000)
 
 assertion("map state == STATE_PLAYING", test_map.get_state() == bombman.GameMap.STATE_PLAYING)
 assertion("map time == 4800", test_map.get_map_time() == 4800)
+
+actions = [(0,bombman.PlayerKeyMaps.ACTION_RIGHT)]
+
+dt = 100
+
+for i in range(20):
+  print("moving player 0 to the right using inputs, dt = " + str(dt))
+  player.react_to_inputs(actions,dt,test_map)
+  test_map.update(dt)
+
+expected_position = (1,0)
+
+assertion("player 0 tile position = " + str(expected_position), player.get_tile_position() == expected_position)
+
+print("making player 0 lay bomb")
+
+actions = [(0,bombman.PlayerKeyMaps.ACTION_BOMB)]
+player.react_to_inputs(actions,dt,test_map)
+test_map.update(dt)
+
+bombs = test_map.bombs_on_tile(expected_position)
+assertion("1 bomb on tile " + str(expected_position), len(bombs) == 1)
+
+bomb = bombs[0]
+
+actions = [(0,bombman.PlayerKeyMaps.ACTION_DOWN)]
+
+for i in range(10):
+  print("moving player 0 to down using inputs, dt = " + str(dt))
+  player.react_to_inputs(actions,dt,test_map)
+  test_map.update(dt)
+
+expected_bomb_time = bombman.Bomb.BOMB_EXPLODES_IN - 11 * dt
+
+assertion("bomb explodes in " + str(expected_bomb_time), bomb.time_until_explosion() == expected_bomb_time)
+assertion("bomb doesn't have detonator", not bomb.has_detonator())
+assertion("bomb hasn't exploded", not bomb.has_exploded)
+
+actions = [(0,bombman.PlayerKeyMaps.ACTION_UP)]
+
+for i in range(20):
+  print("moving player 0 up using inputs, dt = " + str(dt))
+  player.react_to_inputs(actions,dt,test_map)
+  test_map.update(dt)
+
+assertion("bomb has exploded", bomb.has_exploded)
 
 print("=====================")
 print("total errors: " + str(errors_total))

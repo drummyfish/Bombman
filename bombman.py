@@ -897,13 +897,15 @@ class Bomb(Positionable):
   BOMB_NO_MOVEMENT = 5
   
   DETONATOR_EXPIRATION_TIME = 20000
+
+  BOMB_EXPLODES_IN = 3000
   
   def __init__(self, player):
     super(Bomb,self).__init__()
     self.time_of_existence = 0                       ##< for how long (in ms) the bomb has existed
     self.flame_length = player.get_flame_length()    ##< how far the flame will go
     self.player = player                             ##< to which player the bomb belongs
-    self.explodes_in = 3000                          ##< time in ms in which the bomb exploded from the time it was created (detonator_time must expire before this starts counting down)
+    self.explodes_in = Bomb.BOMB_EXPLODES_IN         ##< time in ms in which the bomb explodes from the time it was created (detonator_time must expire before this starts counting down)
     self.detonator_time = 0                          ##< if > 0, the bomb has a detonator on it, after expiring it becomes a regular bomb
     self.set_position(player.get_position())
     self.move_to_tile_center()
@@ -946,7 +948,7 @@ class Bomb(Positionable):
   def time_until_explosion(self):
     return self.explodes_in + self.detonator_time - self.time_of_existence
 
-  def exploded(self):
+  def explodes(self):
     if not self.has_exploded:
       self.player.bomb_exploded()
       self.has_exploded = True
@@ -1480,7 +1482,7 @@ class GameMap(object):
           
         axis_position[direction] += increment[direction]
     
-    bomb.exploded()
+    bomb.explodes()
    
     if bomb in self.bombs:
       self.bombs.remove(bomb)
@@ -2873,7 +2875,7 @@ class ControlsMenu(Menu):
       
     self.items[0] += [item_string]
 
-  ## This should be called periodically when the menu is cative. It will
+  ## This should be called periodically when the menu is active. It will
   #  take care of catching pressed keys if waiting for key remap.
 
   def update(self, player_key_maps):
