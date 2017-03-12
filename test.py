@@ -145,6 +145,8 @@ assertion("tile " + str(tile) + " doesn't have flame", not test_map.tile_has_fla
 assertion("player 0 is dead",player.is_dead())
 
 player1 = test_map.get_players()[1]
+player2 = test_map.get_players()[2]
+player3 = test_map.get_players()[3]
 
 actions = [(1,bombman.PlayerKeyMaps.ACTION_RIGHT)]
 
@@ -161,6 +163,35 @@ tile = (3,0)
 assertion("tile " + str(tile) + " is not walkable", not test_map.tile_is_walkable(tile))
 tile = (1,2)
 assertion("tile " + str(tile) + " is walkable (destroyed by flame)", test_map.tile_is_walkable(tile))
+
+print("making players 1 and 2 lay bombs")
+actions = [(1,bombman.PlayerKeyMaps.ACTION_BOMB),(2,bombman.PlayerKeyMaps.ACTION_BOMB)]
+
+player1.react_to_inputs(actions,dt,test_map)
+player2.react_to_inputs(actions,dt,test_map)
+test_map.update(dt)
+
+tile = (0,0)
+assertion("tile " + str(tile) + " - danger value is safe",test_map.get_danger_value(tile) >= bombman.GameMap.SAFE_DANGER_VALUE)
+tile = (5,6)
+assertion("tile " + str(tile) + " - danger value = 0",test_map.get_danger_value(tile) == 0)
+tile = player2.get_tile_position()
+assertion("tile 1 up from player 2 danger value >= bom explosion time - dt",test_map.get_danger_value(tile) >= bombman.Bomb.BOMB_EXPLODES_IN - dt)
+
+for i in range(40):
+  print("updating map, dt = " + str(dt))
+  test_map.update(dt)
+
+assertion("player 1 and player 2 are dead, player 3 is alive",player1.is_dead() and player2.is_dead() and not player3.is_dead())
+assertion("map state = STATE_FINISHING",test_map.get_state() == bombman.GameMap.STATE_FINISHING)
+
+print("wait for a while")
+
+for i in range(50):
+  test_map.update(dt)
+
+assertion("map state = STATE_GAME_OVER",test_map.get_state() == bombman.GameMap.STATE_GAME_OVER)
+assertion("map winning team = 3",test_map.get_winner_team() == 3)
 
 print("=====================")
 print("total errors: " + str(errors_total))

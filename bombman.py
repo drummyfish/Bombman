@@ -1238,7 +1238,7 @@ class GameMap(object):
       
       time_until_explosion = bomb.time_until_explosion()
       
-      if bomb.has_detonator:         # detonator = bad
+      if bomb.has_detonator():        # detonator = bad
         time_until_explosion = 100
       
       self.danger_map[bomb_tile[1]][bomb_tile[0]] = min(self.danger_map[bomb_tile[1]][bomb_tile[0]],time_until_explosion)
