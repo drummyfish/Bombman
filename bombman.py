@@ -745,9 +745,159 @@ class Player(Positionable):
 
   #----------------------------------------------------------------------------
 
+  def __manage_input_actions(self, input_actions, game_map, distance_to_travel):
+    moved = False         # to allow movement along only one axis at a time
+    detonator_triggered = False
+    special_was_pressed = False
+    bomb_was_pressed = False
+
+    for item in input_actions:
+      if item[0] != self.number:
+        continue                           # not an action for this player
+      
+      input_action = item[1]
+
+      if self.disease == Player.DISEASE_REVERSE_CONTROLS:
+        input_action = PlayerKeyMaps.get_opposite_action(input_action)
+          
+      if not moved and input_action == PlayerKeyMaps.ACTION_UP:
+        self.position[1] -= distance_to_travel
+        self.state = Player.STATE_WALKING_UP
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
+        moved = True
+      elif not moved and input_action == PlayerKeyMaps.ACTION_DOWN:
+        self.position[1] += distance_to_travel
+        self.state = Player.STATE_WALKING_DOWN
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
+        moved = True
+      elif not moved and input_action == PlayerKeyMaps.ACTION_RIGHT:
+        self.position[0] += distance_to_travel
+        self.state = Player.STATE_WALKING_RIGHT
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
+        moved = True
+      elif not moved and input_action == PlayerKeyMaps.ACTION_LEFT:
+        self.position[0] -= distance_to_travel
+        self.state = Player.STATE_WALKING_LEFT
+        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
+        moved = True
+    
+      if input_action == PlayerKeyMaps.ACTION_BOMB:
+        bomb_was_pressed = True
+        
+        if not self.wait_for_bomb_release and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position) and not self.disease == Player.DISEASE_NO_BOMB:
+          self.putting_bomb = True
+    
+      if input_action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:  # check multibomb
+        if self.has_throwing_glove:
+          self.throwing = True
+        elif self.has_multibomb: 
+          self.putting_multibomb = True
+
+      if input_action == PlayerKeyMaps.ACTION_SPECIAL:
+        special_was_pressed = True
+        
+        if not self.wait_for_special_release:       
+          while len(self.detonator_bombs) != 0:       # find a bomb to ddetonate (some may have exploded by themselves already)
+            self.info_board_update_needed = True
+            
+            bomb_to_check = self.detonator_bombs.pop()
+          
+            if bomb_to_check.has_detonator() and not bomb_to_check.has_exploded and bomb_to_check.movement != Bomb.BOMB_FLYING:
+              game_map.bomb_explodes(bomb_to_check)
+              detonator_triggered = True
+              self.wait_for_special_release = True    # to not detonate other bombs until the key is released and pressed again
+              break
+            
+          if not detonator_triggered and self.has_boxing_glove:
+            self.boxing = True
+      
+    if not special_was_pressed:
+      self.wait_for_special_release = False
+      
+    if not bomb_was_pressed:
+      self.wait_for_bomb_release = False
+
+  #----------------------------------------------------------------------------
+
+  def __manage_kick_box(self, game_map, collision_happened):
+    direction_vector = self.get_direction_vector()
+    current_tile = self.get_tile_position()
+    forward_tile = self.get_forward_tile_position()
+    
+    if collision_happened: 
+      bomb_movement = Bomb.BOMB_NO_MOVEMENT
+    
+      if self.state == Player.STATE_WALKING_UP:
+        bomb_movement = Bomb.BOMB_ROLLING_UP
+      elif self.state == Player.STATE_WALKING_RIGHT:
+        bomb_movement = Bomb.BOMB_ROLLING_RIGHT
+      elif self.state == Player.STATE_WALKING_DOWN:
+        bomb_movement = Bomb.BOMB_ROLLING_DOWN
+      else:
+        bomb_movement = Bomb.BOMB_ROLLING_LEFT
+    
+      if self.has_shoe or self.has_boxing_glove:
+        if game_map.tile_has_bomb(forward_tile):
+          # kick or box happens
+          bomb_hit = game_map.bomb_on_tile(forward_tile)
+          
+          if self.boxing:
+            destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)           
+            bomb_hit.send_flying(destination_tile)
+            game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
+          elif self.has_shoe:
+            # align the bomb in case of kicking an already moving bomb
+            bomb_position = bomb_hit.get_position()
+          
+            if bomb_movement == Bomb.BOMB_ROLLING_LEFT or bomb_movement == Bomb.BOMB_ROLLING_RIGHT:
+              bomb_hit.set_position((bomb_position[0],math.floor(bomb_position[1]) + 0.5))
+            else:
+              bomb_hit.set_position((math.floor(bomb_position[0]) + 0.5,bomb_position[1]))
+             
+            bomb_hit.movement = bomb_movement
+            game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
+ 
+  #----------------------------------------------------------------------------
+
+  def __check_collisions(self, game_map, distance_to_travel, previous_position):
+    collision_type = game_map.get_position_collision_type(self.position)
+    collision_happened = False    
+
+    if collision_type == GameMap.COLLISION_TOTAL:
+      self.position = previous_position
+      collision_happened = True
+    elif collision_type == GameMap.COLLISION_BORDER_UP:
+      if self.state == Player.STATE_WALKING_UP:
+        self.position = previous_position
+        collision_happened = True
+      elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
+        self.position[1] += distance_to_travel
+    elif collision_type == GameMap.COLLISION_BORDER_RIGHT:
+      if self.state == Player.STATE_WALKING_RIGHT:
+        self.position = previous_position
+        collision_happened = True
+      elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
+        self.position[0] -= distance_to_travel
+    elif collision_type == GameMap.COLLISION_BORDER_DOWN:
+      if self.state == Player.STATE_WALKING_DOWN:
+        self.position = previous_position
+        collision_happened = True
+      elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
+        self.position[1] -= distance_to_travel
+    elif collision_type == GameMap.COLLISION_BORDER_LEFT:
+      if self.state == Player.STATE_WALKING_LEFT:
+        self.position = previous_position
+        collision_happened = True
+      elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
+        self.position[0] += distance_to_travel
+
+    return collision_happened
+
+  #----------------------------------------------------------------------------
+
   ## Sets the state and other attributes like position etc. of this player accoording to a list of input action (returned by PlayerKeyMaps.get_current_actions()).
 
-  def react_to_inputs(self, input_actions, dt, game_map):                                                # TODO: split!!!
+  def react_to_inputs(self, input_actions, dt, game_map):
     if self.state == Player.STATE_DEAD or game_map.get_state() == GameMap.STATE_WAITING_TO_PLAY:
       return
     
@@ -789,91 +939,21 @@ class Player(Positionable):
     else:
       self.state = Player.STATE_IDLE_LEFT
 
-    moved = False         # to allow movement along only one axis at a time
-
     previous_position = copy.copy(self.position)    # in case of collision we save the previous position
 
-    putting_bomb = False
-    putting_multibomb = False
-    throwing = False
-    detonator_triggered = False
+    self.putting_bomb = False
+    self.putting_multibomb = False
+    self.throwing = False
     self.boxing = False
-    special_was_pressed = False
-    bomb_was_pressed = False
     
     if self.disease == Player.DISEASE_DIARRHEA:
       input_actions.append((self.number,PlayerKeyMaps.ACTION_BOMB))  # inject bomb put event
 
-    for item in input_actions:
-      if item[0] != self.number:
-        continue                           # not an action for this player
-      
-      input_action = item[1]
-
-      if self.disease == Player.DISEASE_REVERSE_CONTROLS:
-        input_action = PlayerKeyMaps.get_opposite_action(input_action)
-          
-      if not moved and input_action == PlayerKeyMaps.ACTION_UP:
-        self.position[1] -= distance_to_travel
-        self.state = Player.STATE_WALKING_UP
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
-        moved = True
-      elif not moved and input_action == PlayerKeyMaps.ACTION_DOWN:
-        self.position[1] += distance_to_travel
-        self.state = Player.STATE_WALKING_DOWN
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
-        moved = True
-      elif not moved and input_action == PlayerKeyMaps.ACTION_RIGHT:
-        self.position[0] += distance_to_travel
-        self.state = Player.STATE_WALKING_RIGHT
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
-        moved = True
-      elif not moved and input_action == PlayerKeyMaps.ACTION_LEFT:
-        self.position[0] -= distance_to_travel
-        self.state = Player.STATE_WALKING_LEFT
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
-        moved = True
-    
-      if input_action == PlayerKeyMaps.ACTION_BOMB:
-        bomb_was_pressed = True
-        
-        if not self.wait_for_bomb_release and self.bombs_left >= 1 and not game_map.tile_has_bomb(self.position) and not self.disease == Player.DISEASE_NO_BOMB:
-          putting_bomb = True
-    
-      if input_action == PlayerKeyMaps.ACTION_BOMB_DOUBLE:  # check multibomb
-        if self.has_throwing_glove:
-          throwing = True
-        elif self.has_multibomb: 
-          putting_multibomb = True
-
-      if input_action == PlayerKeyMaps.ACTION_SPECIAL:
-        special_was_pressed = True
-        
-        if not self.wait_for_special_release:       
-          while len(self.detonator_bombs) != 0:       # find a bomb to ddetonate (some may have exploded by themselves already)
-            self.info_board_update_needed = True
-            
-            bomb_to_check = self.detonator_bombs.pop()
-          
-            if bomb_to_check.has_detonator() and not bomb_to_check.has_exploded and bomb_to_check.movement != Bomb.BOMB_FLYING:
-              game_map.bomb_explodes(bomb_to_check)
-              detonator_triggered = True
-              self.wait_for_special_release = True    # to not detonate other bombs until the key is released and pressed again
-              break
-            
-          if not detonator_triggered and self.has_boxing_glove:
-            self.boxing = True
-      
-    if not special_was_pressed:
-      self.wait_for_special_release = False
-      
-    if not bomb_was_pressed:
-      self.wait_for_bomb_release = False
+    self.__manage_input_actions(input_actions, game_map, distance_to_travel)
       
     # resolve collisions:
 
     check_collisions = True
-    collision_happened = False
 
     current_tile = self.get_tile_position()  
     previous_tile = Positionable.position_to_tile(previous_position)
@@ -886,91 +966,31 @@ class Player(Positionable):
       if not transitioning_tiles:              
         check_collisions = False               # no transition between tiles -> let the player move
 
+    collision_happened = False
+
     if check_collisions:
-      collision_type = game_map.get_position_collision_type(self.position)
+      collision_happened = self.__check_collisions(game_map, distance_to_travel, previous_position)
     
-      if collision_type == GameMap.COLLISION_TOTAL:
-        self.position = previous_position
-        collision_happened = True
-      elif collision_type == GameMap.COLLISION_BORDER_UP:
-        if self.state == Player.STATE_WALKING_UP:
-          self.position = previous_position
-          collision_happened = True
-        elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
-          self.position[1] += distance_to_travel
-      elif collision_type == GameMap.COLLISION_BORDER_RIGHT:
-        if self.state == Player.STATE_WALKING_RIGHT:
-          self.position = previous_position
-          collision_happened = True
-        elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
-          self.position[0] -= distance_to_travel
-      elif collision_type == GameMap.COLLISION_BORDER_DOWN:
-        if self.state == Player.STATE_WALKING_DOWN:
-          self.position = previous_position
-          collision_happened = True
-        elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
-          self.position[1] -= distance_to_travel
-      elif collision_type == GameMap.COLLISION_BORDER_LEFT:
-        if self.state == Player.STATE_WALKING_LEFT:
-          self.position = previous_position
-          collision_happened = True
-        elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
-          self.position[0] += distance_to_travel
-    
-    if putting_bomb and not game_map.tile_has_bomb(self.get_tile_position()) and not game_map.tile_has_teleport(self.position):
+    if self.putting_bomb and not game_map.tile_has_bomb(self.get_tile_position()) and not game_map.tile_has_teleport(self.position):
       self.lay_bomb(game_map)
     
     # check if bomb kick or box happens
     
-    direction_vector = self.get_direction_vector()
-    current_tile = self.get_tile_position()
-    forward_tile = self.get_forward_tile_position()
+    self.__manage_kick_box(game_map, collision_happened)
     
-    if collision_happened: 
-      bomb_movement = Bomb.BOMB_NO_MOVEMENT
-    
-      if self.state == Player.STATE_WALKING_UP:
-        bomb_movement = Bomb.BOMB_ROLLING_UP
-      elif self.state == Player.STATE_WALKING_RIGHT:
-        bomb_movement = Bomb.BOMB_ROLLING_RIGHT
-      elif self.state == Player.STATE_WALKING_DOWN:
-        bomb_movement = Bomb.BOMB_ROLLING_DOWN
-      else:
-        bomb_movement = Bomb.BOMB_ROLLING_LEFT
-    
-      if self.has_shoe or self.has_boxing_glove:
-        if game_map.tile_has_bomb(forward_tile):
-          # kick or box happens
-          bomb_hit = game_map.bomb_on_tile(forward_tile)
-          
-          if self.boxing:
-            destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)           
-            bomb_hit.send_flying(destination_tile)
-            game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
-          elif self.has_shoe:
-            # align the bomb in case of kicking an already moving bomb
-            bomb_position = bomb_hit.get_position()
-          
-            if bomb_movement == Bomb.BOMB_ROLLING_LEFT or bomb_movement == Bomb.BOMB_ROLLING_RIGHT:
-              bomb_hit.set_position((bomb_position[0],math.floor(bomb_position[1]) + 0.5))
-            else:
-              bomb_hit.set_position((math.floor(bomb_position[0]) + 0.5,bomb_position[1]))
-             
-            bomb_hit.movement = bomb_movement
-            game_map.add_sound_event(SoundPlayer.SOUND_EVENT_KICK)
-    
-    if throwing:
+    if self.throwing:
       bomb_thrown = game_map.bomb_on_tile(current_tile)
       game_map.add_sound_event(SoundPlayer.SOUND_EVENT_THROW)
     
       if bomb_thrown != None:
+        forward_tile = self.get_forward_tile_position()
         direction_vector = self.get_direction_vector()
         destination_tile = (forward_tile[0] + direction_vector[0] * 3,forward_tile[1] + direction_vector[1] * 3)
         bomb_thrown.send_flying(destination_tile)
         self.wait_for_bomb_release = True
         self.throwing_time_left = 200
     
-    elif putting_multibomb:                     # put multibomb
+    elif self.putting_multibomb:                     # put multibomb
       current_tile = self.get_tile_position()
       
       if self.state in (Player.STATE_WALKING_UP,Player.STATE_IDLE_UP):
