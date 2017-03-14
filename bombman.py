@@ -559,7 +559,7 @@ class Player(Positionable):
       self.flame_length += 1
     elif item == GameMap.ITEM_SUPERFLAME:
       self.flame_length = max(GameMap.MAP_WIDTH,GameMap.MAP_HEIGHT)
-    if item == GameMap.ITEM_MULTIBOMB:
+    elif item == GameMap.ITEM_MULTIBOMB:
       self.has_multibomb = True
     elif item == GameMap.ITEM_DETONATOR:
       self.detonator_bombs_left = 3      
@@ -588,9 +588,7 @@ class Player(Positionable):
       
       if chosen_disease[0] == Player.DISEASE_SWITCH_PLAYERS:
         if game_map != None:
-          players = game_map.get_players()
-          
-          players = [helper_player for helper_player in players if not helper_player.is_dead()]
+          players = filter(lambda p: not p.is_dead(), game_map.get_players())
           
           player_to_switch = self
           
@@ -629,7 +627,7 @@ class Player(Positionable):
     if self.disease == Player.DISEASE_SHORT_FLAME:
       new_bomb.flame_length = 1
     elif self.disease == Player.DISEASE_FAST_BOMB:
-      new_bomb.explodes_in = 800 
+      new_bomb.explodes_in = Bomb.EXPLODES_IN_QUICK
       
     if self.detonator_bombs_left > 0:
       new_bomb.detonator_time = Bomb.DETONATOR_EXPIRATION_TIME
@@ -1051,6 +1049,7 @@ class Bomb(Positionable):
   DETONATOR_EXPIRATION_TIME = 20000
 
   BOMB_EXPLODES_IN = 3000
+  EXPLODES_IN_QUICK = 800     ##< for when the player has quick explosion disease
 
   #----------------------------------------------------------------------------
   
@@ -1495,32 +1494,22 @@ class GameMap(object):
   ## Converts given letter (as in map encoding string) to item code (see class constants).
   
   def letter_to_item(self, letter):
-    if letter == "f":
-      return GameMap.ITEM_FLAME
-    elif letter == "F":
-      return GameMap.ITEM_SUPERFLAME
-    elif letter == "b":
-      return GameMap.ITEM_BOMB
-    elif letter == "k":
-      return GameMap.ITEM_SHOE
-    elif letter == "s":
-      return GameMap.ITEM_SPEEDUP
-    elif letter == "p":
-      return GameMap.ITEM_SPRING
-    elif letter == "d":
-      return GameMap.ITEM_DISEASE
-    elif letter == "m":
-      return GameMap.ITEM_MULTIBOMB
-    elif letter == "r":
-      return GameMap.ITEM_RANDOM
-    elif letter == "x":
-      return GameMap.ITEM_BOXING_GLOVE
-    elif letter == "e":
-      return GameMap.ITEM_DETONATOR
-    elif letter == "t":
-      return GameMap.ITEM_THROWING_GLOVE
-    else:
-      return -1
+    mapping = {
+      "f": GameMap.ITEM_FLAME,
+      "F": GameMap.ITEM_SUPERFLAME,
+      "b": GameMap.ITEM_BOMB,
+      "k": GameMap.ITEM_SHOE,
+      "s": GameMap.ITEM_SPEEDUP,
+      "p": GameMap.ITEM_SPRING,
+      "m": GameMap.ITEM_MULTIBOMB,
+      "d": GameMap.ITEM_DISEASE,
+      "r": GameMap.ITEM_RANDOM,
+      "x": GameMap.ITEM_BOXING_GLOVE,
+      "e": GameMap.ITEM_DETONATOR,
+      "t": GameMap.ITEM_THROWING_GLOVE
+      }
+
+    return mapping[letter] if letter in mapping else -1
 
   #----------------------------------------------------------------------------
 
