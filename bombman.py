@@ -854,35 +854,28 @@ class Player(Positionable):
 
   def __check_collisions(self, game_map, distance_to_travel, previous_position):
     collision_type = game_map.get_position_collision_type(self.position)
-    collision_happened = False    
+    collision_happened = False
 
     if collision_type == GameMap.COLLISION_TOTAL:
       self.position = previous_position
       collision_happened = True
-    elif collision_type == GameMap.COLLISION_BORDER_UP:
-      if self.state == Player.STATE_WALKING_UP:
-        self.position = previous_position
-        collision_happened = True
-      elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
-        self.position[1] += distance_to_travel
-    elif collision_type == GameMap.COLLISION_BORDER_RIGHT:
-      if self.state == Player.STATE_WALKING_RIGHT:
-        self.position = previous_position
-        collision_happened = True
-      elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
-        self.position[0] -= distance_to_travel
-    elif collision_type == GameMap.COLLISION_BORDER_DOWN:
-      if self.state == Player.STATE_WALKING_DOWN:
-        self.position = previous_position
-        collision_happened = True
-      elif self.state == Player.STATE_WALKING_LEFT or self.state == Player.STATE_WALKING_RIGHT:
-        self.position[1] -= distance_to_travel
-    elif collision_type == GameMap.COLLISION_BORDER_LEFT:
-      if self.state == Player.STATE_WALKING_LEFT:
-        self.position = previous_position
-        collision_happened = True
-      elif self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_WALKING_DOWN:
-        self.position[0] += distance_to_travel
+    else:
+      helper_mapping = {
+          GameMap.COLLISION_BORDER_UP:    (Player.STATE_WALKING_UP,    [Player.STATE_WALKING_LEFT, Player.STATE_WALKING_RIGHT], (0,distance_to_travel)),
+          GameMap.COLLISION_BORDER_DOWN:  (Player.STATE_WALKING_DOWN,  [Player.STATE_WALKING_LEFT, Player.STATE_WALKING_RIGHT], (0,-1 * distance_to_travel)),
+          GameMap.COLLISION_BORDER_RIGHT: (Player.STATE_WALKING_RIGHT, [Player.STATE_WALKING_UP, Player.STATE_WALKING_DOWN],    (- 1 * distance_to_travel,0)),
+          GameMap.COLLISION_BORDER_LEFT:  (Player.STATE_WALKING_LEFT,  [Player.STATE_WALKING_UP, Player.STATE_WALKING_DOWN],    (distance_to_travel,0))
+        }
+
+      if collision_type in helper_mapping:
+        helper_values = helper_mapping[collision_type]
+        
+        if self.state == helper_values[0]:           # walking against the border won't allow player to pass
+          self.position = previous_position
+          collision_happened = True
+        elif self.state in helper_values[1]:         # walking along the border will shift the player sideways
+          self.position[0] += helper_values[2][0]
+          self.position[1] += helper_values[2][1]
 
     return collision_happened
 
