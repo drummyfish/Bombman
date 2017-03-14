@@ -250,6 +250,9 @@ assertion("map winning team = 3",test_map.get_winner_team() == 3)
 #       test other things
 #       =================
 
+assertion("ACTION_DOWN is opposite of ACTION_UP",bombman.PlayerKeyMaps.get_opposite_action(bombman.PlayerKeyMaps.ACTION_UP) == bombman.PlayerKeyMaps.ACTION_DOWN)
+assertion("ACTION_LEFT is opposite of ACTION_RIGHT",bombman.PlayerKeyMaps.get_opposite_action(bombman.PlayerKeyMaps.ACTION_LEFT) == bombman.PlayerKeyMaps.ACTION_RIGHT)
+
 print("init game")
 game = bombman.Game()
 

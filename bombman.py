@@ -722,14 +722,14 @@ class Player(Positionable):
   ## Gets a direction vector (x and y: 0, 1 or -1) depending on where the player is facing.
 
   def get_direction_vector(self):
-    if self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_IDLE_UP:
+    if self.state in [Player.STATE_WALKING_UP, Player.STATE_IDLE_UP]:
       return (0,-1)
-    elif self.state == Player.STATE_WALKING_RIGHT or self.state == Player.STATE_IDLE_RIGHT:
+    elif self.state in [Player.STATE_WALKING_RIGHT, Player.STATE_IDLE_RIGHT]:
       return (1,0)
-    elif self.state == Player.STATE_WALKING_DOWN or self.state == Player.STATE_IDLE_DOWN:
+    elif self.state in [Player.STATE_WALKING_DOWN, Player.STATE_IDLE_DOWN]:
       return (0,1)
     else:              # left
-      return (-1,0)    
+      return (-1,0)
 
   #----------------------------------------------------------------------------
 
@@ -755,22 +755,23 @@ class Player(Positionable):
       if self.disease == Player.DISEASE_REVERSE_CONTROLS:
         input_action = PlayerKeyMaps.get_opposite_action(input_action)
           
-      if not moved and input_action == PlayerKeyMaps.ACTION_UP:
-        self.position[1] -= distance_to_travel
-        self.state = Player.STATE_WALKING_UP
-        moved = True
-      elif not moved and input_action == PlayerKeyMaps.ACTION_DOWN:
-        self.position[1] += distance_to_travel
-        self.state = Player.STATE_WALKING_DOWN
-        moved = True
-      elif not moved and input_action == PlayerKeyMaps.ACTION_RIGHT:
-        self.position[0] += distance_to_travel
-        self.state = Player.STATE_WALKING_RIGHT
-        moved = True
-      elif not moved and input_action == PlayerKeyMaps.ACTION_LEFT:
-        self.position[0] -= distance_to_travel
-        self.state = Player.STATE_WALKING_LEFT
-        moved = True
+      if not moved:
+        if input_action == PlayerKeyMaps.ACTION_UP:
+          self.position[1] -= distance_to_travel
+          self.state = Player.STATE_WALKING_UP
+          moved = True
+        elif input_action == PlayerKeyMaps.ACTION_DOWN:
+          self.position[1] += distance_to_travel
+          self.state = Player.STATE_WALKING_DOWN
+          moved = True
+        elif input_action == PlayerKeyMaps.ACTION_RIGHT:
+          self.position[0] += distance_to_travel
+          self.state = Player.STATE_WALKING_RIGHT
+          moved = True
+        elif input_action == PlayerKeyMaps.ACTION_LEFT:
+          self.position[0] -= distance_to_travel
+          self.state = Player.STATE_WALKING_LEFT
+          moved = True
     
       if input_action == PlayerKeyMaps.ACTION_BOMB:
         bomb_was_pressed = True
@@ -813,11 +814,7 @@ class Player(Positionable):
 
   #----------------------------------------------------------------------------
 
-  def __manage_kick_box(self, game_map, collision_happened):
-    direction_vector = self.get_direction_vector()
-    current_tile = self.get_tile_position()
-    forward_tile = self.get_forward_tile_position()
-    
+  def __manage_kick_box(self, game_map, collision_happened):    
     if collision_happened: 
       bomb_movement = Bomb.BOMB_NO_MOVEMENT
     
@@ -830,8 +827,10 @@ class Player(Positionable):
       else:
         bomb_movement = Bomb.BOMB_ROLLING_LEFT
     
-      if self.has_shoe or self.has_boxing_glove:
-        if game_map.tile_has_bomb(forward_tile):
+      direction_vector = self.get_direction_vector()
+      forward_tile = self.get_forward_tile_position()
+
+      if (self.has_shoe or self.has_boxing_glove) and game_map.tile_has_bomb(forward_tile):
           # kick or box happens
           bomb_hit = game_map.bomb_on_tile(forward_tile)
           
@@ -1423,7 +1422,7 @@ class GameMap(object):
         tile = self.tiles[j][i]
         
         if tile.kind == MapTile.TILE_WALL or tile.kind == MapTile.TILE_BLOCK or len(tile.flames) >= 1 or self.tiles[j][i].special_object == MapTile.SPECIAL_OBJECT_LAVA:
-          self.danger_map[j][i] = 0  # 0 => there is a flame
+          self.danger_map[j][i] = 0      # 0 => there is a flame
         else:
           self.danger_map[j][i] = GameMap.SAFE_DANGER_VALUE
 
@@ -1432,7 +1431,7 @@ class GameMap(object):
       
       time_until_explosion = bomb.time_until_explosion()
       
-      if bomb.has_detonator():        # detonator = bad
+      if bomb.has_detonator():           # detonator = bad
         time_until_explosion = 100
       
       self.danger_map[bomb_tile[1]][bomb_tile[0]] = min(self.danger_map[bomb_tile[1]][bomb_tile[0]],time_until_explosion)
