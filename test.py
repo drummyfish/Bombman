@@ -87,6 +87,20 @@ assertion("player 0 is enemy of player 1", player.is_enemy(test_map.get_players(
 assertion("player 0 forward tile", player.get_forward_tile_position() == (0,1))
 assertion("AI - player 0 is not trapped", not ai.is_trapped())
 
+
+print("give some items to player 3")
+
+player3.give_item(bombman.GameMap.ITEM_BOMB)
+player3.give_item(bombman.GameMap.ITEM_BOMB)
+player3.give_item(bombman.GameMap.ITEM_BOMB)
+player3.give_item(bombman.GameMap.ITEM_SPEEDUP)
+
+print(player3.get_item_count(bombman.GameMap.ITEM_BOMB))
+assertion("right item count for ITEM_BOMB",player3.get_item_count(bombman.GameMap.ITEM_BOMB) == 4) # three plus one default bomb
+assertion("right item count for ITEM_SPEEDUP",player3.get_item_count(bombman.GameMap.ITEM_SPEEDUP) == 1)
+assertion("right item count for ITEM_SHOE",player3.get_item_count(bombman.GameMap.ITEM_SHOE) == 0)
+assertion("total number of items",len(player3.get_items()) == 7)
+
 tile = (0,0)
 assertion("AI - number of blocks next to " + str(tile) + " = 0", ai.number_of_blocks_next_to_tile(tile) == 0)
 tile = (1,1)

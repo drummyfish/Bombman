@@ -386,11 +386,11 @@ class Player(Positionable):
   #  2 - down, 3 - left).
 
   def get_direction_number(self):
-    if self.state == Player.STATE_IDLE_UP or self.state == Player.STATE_WALKING_UP:
+    if self.state in [Player.STATE_IDLE_UP, Player.STATE_WALKING_UP]:
       return 0
-    elif self.state == Player.STATE_IDLE_RIGHT or self.state == Player.STATE_WALKING_RIGHT:
+    elif self.state in [Player.STATE_IDLE_RIGHT, Player.STATE_WALKING_RIGHT]:
       return 1
-    elif self.state == Player.STATE_IDLE_DOWN or self.state == Player.STATE_WALKING_DOWN:
+    elif self.state in [Player.STATE_IDLE_DOWN, Player.STATE_WALKING_DOWN]:
       return 2
     else:
       return 3
@@ -442,8 +442,7 @@ class Player(Positionable):
     result = []
     
     for item in self.items:
-      for i in range(self.items[item]):
-        result.append(item)
+      result += [item for i in range(self.items[item])]
         
     return result
 
@@ -532,10 +531,7 @@ class Player(Positionable):
   #  no sounds will be generated.
 
   def give_item(self, item, game_map=None):
-    if not item in self.items:
-      self.items[item] = 1
-    else:
-      self.items[item] += 1
+    self.items[item] = 1 if not item in self.items else self.items[item] + 1
       
     self.info_board_update_needed = True
       
