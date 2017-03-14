@@ -91,7 +91,8 @@ DEBUG_VERBOSE = False
 #------------------------------------------------------------------------------
 
 def debug_log(message):
-  print(message)
+  if DEBUG_VERBOSE:      
+    print(message)
 
 #==============================================================================
 
@@ -759,22 +760,18 @@ class Player(Positionable):
       if not moved and input_action == PlayerKeyMaps.ACTION_UP:
         self.position[1] -= distance_to_travel
         self.state = Player.STATE_WALKING_UP
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
       elif not moved and input_action == PlayerKeyMaps.ACTION_DOWN:
         self.position[1] += distance_to_travel
         self.state = Player.STATE_WALKING_DOWN
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
       elif not moved and input_action == PlayerKeyMaps.ACTION_RIGHT:
         self.position[0] += distance_to_travel
         self.state = Player.STATE_WALKING_RIGHT
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
       elif not moved and input_action == PlayerKeyMaps.ACTION_LEFT:
         self.position[0] -= distance_to_travel
         self.state = Player.STATE_WALKING_LEFT
-        game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
         moved = True
     
       if input_action == PlayerKeyMaps.ACTION_BOMB:
@@ -807,6 +804,9 @@ class Player(Positionable):
           if not detonator_triggered and self.has_boxing_glove:
             self.boxing = True
       
+    if moved:
+      game_map.add_sound_event(SoundPlayer.SOUND_EVENT_WALK)
+
     if not special_was_pressed:
       self.wait_for_special_release = False
       
@@ -1948,8 +1948,7 @@ class GameMap(object):
         self.spread_items(item[1])
         self.items_to_give_away.remove(item)
         
-        if DEBUG_VERBOSE:
-          debug_log("giving away items")
+        debug_log("giving away items")
           
       i += 1
 
@@ -2306,8 +2305,7 @@ class PlayerKeyMaps(StringSerializable):
           self.typed_string_buffer = self.typed_string_buffer[1:]
           self.typed_string_buffer.append(chr(pygame_event.key))
         except Exception:
-          if DEBUG_VERBOSE:
-            debug_log("couldn't append typed character to the buffer")
+          debug_log("couldn't append typed character to the buffer")
 
   #----------------------------------------------------------------------------
         
@@ -2684,8 +2682,7 @@ class SoundPlayer(object):
   def set_music_volume(self, new_volume):
     self.music_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
     
-    if DEBUG_VERBOSE:
-      debug_log("changing music volume to " + str(self.music_volume))
+    debug_log("changing music volume to " + str(self.music_volume))
     
     if new_volume > Settings.SOUND_VOLUME_THRESHOLD:
       if not pygame.mixer.music.get_busy():
@@ -2700,8 +2697,7 @@ class SoundPlayer(object):
   def set_sound_volume(self, new_volume):
     self.sound_volume = new_volume if new_volume > Settings.SOUND_VOLUME_THRESHOLD else 0
     
-    if DEBUG_VERBOSE:
-      debug_log("changing sound volume to " + str(self.sound_volume))
+    debug_log("changing sound volume to " + str(self.sound_volume))
     
     for sound in self.sounds:
       self.sounds[sound].set_volume(self.sound_volume)
@@ -2721,8 +2717,7 @@ class SoundPlayer(object):
     
     music_name = self.music_filenames[self.current_music_index]
     
-    if DEBUG_VERBOSE:
-      debug_log("changing music to \"" + music_name + "\"")
+    debug_log("changing music to \"" + music_name + "\"")
     
     pygame.mixer.music.stop()
     pygame.mixer.music.load(os.path.join(Game.RESOURCE_PATH,music_name))
@@ -3214,8 +3209,7 @@ class SettingsMenu(Menu):
     elif self.state == Menu.MENU_STATE_CONFIRM:
       if self.selected_item == (6,0):
         
-        if DEBUG_VERBOSE:
-          debug_log("resetting settings")
+        debug_log("resetting settings")
         
         self.settings.reset()
         self.game.save_settings()
@@ -3329,8 +3323,7 @@ class ControlsMenu(Menu):
       else:
          if key_pressed != None:
            
-           if DEBUG_VERBOSE:
-             debug_log("new key mapping")
+           debug_log("new key mapping")
            
            self.player_key_maps.set_one_key_map(key_pressed,self.waiting_for_key[0],self.waiting_for_key[1])
            self.waiting_for_key = None
@@ -3871,8 +3864,7 @@ class Renderer(object):
       
       # rerendering needed here
       
-      if DEBUG_VERBOSE:
-        debug_log("updating info board " + str(i))
+      debug_log("updating info board " + str(i))
       
       board_image = self.player_info_board_images[i]
       
@@ -4097,8 +4089,7 @@ class Renderer(object):
         update_needed = True        
           
       if update_needed:
-        if DEBUG_VERBOSE:
-          debug_log("updating menu item " + str(menu_coordinates))
+        debug_log("updating menu item " + str(menu_coordinates))
           
         new_image = self.render_text(self.font_normal,item_text,Renderer.MENU_FONT_COLOR,center = center_text)
           
@@ -4295,8 +4286,7 @@ class Renderer(object):
       return
     
     if self.preview_map_name != map_filename:
-      if DEBUG_VERBOSE:
-        debug_log("updating map preview of " + map_filename)
+      debug_log("updating map preview of " + map_filename)
       
       self.preview_map_name = map_filename
       
@@ -4396,8 +4386,7 @@ class Renderer(object):
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
       self.animation_events = []                  # clear previous animation
 
-      if DEBUG_VERBOSE:
-        debug_log("prerendering map...")
+      debug_log("prerendering map...")
 
       # following images are only needed here, so we dont store them to self
       image_trampoline = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_trampoline.png"))
@@ -5139,8 +5128,7 @@ class Settings(StringSerializable):
       helper_position1 = helper_position + len(Settings.CONTROL_MAPPING_DELIMITER)
       helper_position2 = input_string.find(Settings.CONTROL_MAPPING_DELIMITER,helper_position1)
 
-      if DEBUG_VERBOSE:
-        debug_log("loading control mapping")
+      debug_log("loading control mapping")
 
       settings_string = input_string[helper_position1:helper_position2].lstrip().rstrip()
       self.player_key_maps.load_from_string(settings_string)
@@ -5254,8 +5242,7 @@ class Game(object):
     self.game_number = 0
     
     if os.path.isfile(Game.SETTINGS_FILE_PATH):
-      if DEBUG_VERBOSE:
-        debug_log("loading settings from file " + Game.SETTINGS_FILE_PATH)
+      debug_log("loading settings from file " + Game.SETTINGS_FILE_PATH)
       
       self.settings.load_from_file(Game.SETTINGS_FILE_PATH)
  
@@ -5299,16 +5286,14 @@ class Game(object):
   def deactivate_all_cheats(self):
     self.active_cheats = set()
 
-    if DEBUG_VERBOSE:
-      debug_log("all cheats deactivated")
+    debug_log("all cheats deactivated")
 
   #----------------------------------------------------------------------------
       
   def activate_cheat(self, what_cheat):
     self.active_cheats.add(what_cheat)
     
-    if DEBUG_VERBOSE:
-      debug_log("cheat activated")
+    debug_log("cheat activated")
 
   #----------------------------------------------------------------------------
     
@@ -5553,8 +5538,7 @@ class Game(object):
       elif self.state == Game.STATE_EXIT:
         break
       elif self.state == Game.STATE_GAME_STARTED:
-        if DEBUG_VERBOSE:
-          debug_log("starting game " + str(self.game_number))
+        debug_log("starting game " + str(self.game_number))
     
         previous_winner = -1
     
@@ -5676,9 +5660,23 @@ class Game(object):
     
     profiler.measure_stop("sim. map update")
 
+  #----------------------------------------------------------------------------
+
+  ## Sets up a test game for debugging, so that the menus can be avoided.
+ 
+  def setup_test_game(self):
+    self.map_name = "classic"
+    self.random_map_selection = False
+    self.game_number = 1
+    self.state = Game.STATE_GAME_STARTED
+
 #==============================================================================
     
 if __name__ == "__main__":
   profiler = Profiler()   # profiler object is global, for simple access
   game = Game()
+
+  if len(sys.argv) > 1 and "--test" in sys.argv:       # allows to quickly init a game
+    game.setup_test_game()
+
   game.run()
