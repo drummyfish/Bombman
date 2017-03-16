@@ -4403,14 +4403,10 @@ class Renderer(object):
       return (None, (0,0), (0,0), False, [])
         
     sprite_center = Renderer.PLAYER_SPRITE_CENTER
-          
     animation_frame = (player.get_state_time() / 100) % 4
-          
-    color_index = player.get_number() if game_map.get_state() == GameMap.STATE_WAITING_TO_PLAY else player.get_team_number()          
+    color_index = player.get_number() if game_map.get_state() == GameMap.STATE_WAITING_TO_PLAY else player.get_team_number()
 
     if player.is_in_air():
-      # player is in the air
-         
       if player.get_state_time() < Player.JUMP_DURATION / 2:
         quotient = abs(player.get_state_time() / float(Player.JUMP_DURATION / 2))
       else:
@@ -4422,19 +4418,12 @@ class Renderer(object):
       image_to_render = pygame.transform.scale(player_image,(int(scale * player_image.get_size()[0]),int(scale * player_image.get_size()[1])))
       draw_shadow = False
               
-      relative_offset[0] = -1 * (image_to_render.get_size()[0] / 2 - Renderer.PLAYER_SPRITE_CENTER[0])               # offset cause by scale  
+      relative_offset[0] = -1 * (image_to_render.get_size()[0] / 2 - Renderer.PLAYER_SPRITE_CENTER[0])                   # offset caused by scale  
       relative_offset[1] = -1 * int(math.sin(quotient * math.pi / 2.0) * Renderer.MAP_TILE_HEIGHT * GameMap.MAP_HEIGHT)  # height offset
+
     elif player.is_teleporting():
-            
-      if animation_frame == 0:
-        image_to_render = self.player_images[color_index]["up"]  
-      elif animation_frame == 1:
-        image_to_render = self.player_images[color_index]["right"]  
-      elif animation_frame == 2:
-        image_to_render = self.player_images[color_index]["down"]  
-      else:
-        image_to_render = self.player_images[color_index]["left"]  
-            
+      image_to_render = self.player_images[color_index][("up","right","down","left")[animation_frame]]
+
     elif player.is_boxing() or player.is_throwing():
       if not player.is_throwing() and animation_frame == 0:
         helper_string = ""
