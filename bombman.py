@@ -852,7 +852,7 @@ class Player(Positionable):
  
   #----------------------------------------------------------------------------
 
-  def __check_collisions(self, game_map, distance_to_travel, previous_position):
+  def __resolve_collisions(self, game_map, distance_to_travel, previous_position):
     collision_type = game_map.get_position_collision_type(self.position)
     collision_happened = False
 
@@ -916,11 +916,11 @@ class Player(Positionable):
 
     old_state = self.state
  
-    if self.state == Player.STATE_WALKING_UP or self.state == Player.STATE_IDLE_UP:
+    if self.state in [Player.STATE_WALKING_UP,Player.STATE_IDLE_UP]:
       self.state = Player.STATE_IDLE_UP
-    elif self.state == Player.STATE_WALKING_RIGHT or self.state == Player.STATE_IDLE_RIGHT:
+    elif self.state in [Player.STATE_WALKING_RIGHT,Player.STATE_IDLE_RIGHT]:
       self.state = Player.STATE_IDLE_RIGHT
-    elif self.state == Player.STATE_WALKING_DOWN or self.state == Player.STATE_IDLE_DOWN:
+    elif self.state in [Player.STATE_WALKING_DOWN,Player.STATE_IDLE_DOWN]:
       self.state = Player.STATE_IDLE_DOWN
     else:
       self.state = Player.STATE_IDLE_LEFT
@@ -938,7 +938,6 @@ class Player(Positionable):
     self.__manage_input_actions(input_actions, game_map, distance_to_travel)
       
     # resolve collisions:
-
     check_collisions = True
 
     current_tile = self.get_tile_position()  
@@ -955,13 +954,12 @@ class Player(Positionable):
     collision_happened = False
 
     if check_collisions:
-      collision_happened = self.__check_collisions(game_map, distance_to_travel, previous_position)
+      collision_happened = self.__resolve_collisions(game_map, distance_to_travel, previous_position)
     
     if self.putting_bomb and not game_map.tile_has_bomb(self.get_tile_position()) and not game_map.tile_has_teleport(self.position):
       self.lay_bomb(game_map)
     
     # check if bomb kick or box happens
-    
     self.__manage_kick_box(game_map, collision_happened)
     
     if self.throwing:
@@ -1010,7 +1008,7 @@ class Player(Positionable):
     if old_state == self.state:
       self.state_time += dt
     else:
-      self.state_time = 0        # reset the state time
+      self.state_time = 0                 # reset the state time
 
 #==============================================================================
 
@@ -1068,21 +1066,13 @@ class Bomb(Positionable):
 
     current_tile = self.get_tile_position()
     self.flight_info.distance_travelled = 0
-    
-    if current_tile[0] == destination_tile_coords[0]:
-      self.flight_info.total_distance_to_travel = abs(current_tile[1] - destination_tile_coords[1])
-      
-      if current_tile[1] > destination_tile_coords[1]:   # up
-        self.flight_info.direction = (0,-1) 
-      else:                                              # down
-        self.flight_info.direction = (0,1)
-    else:
-      self.flight_info.total_distance_to_travel = abs(current_tile[0] - destination_tile_coords[0])
-      
-      if current_tile[0] < destination_tile_coords[0]:   # right
-        self.flight_info.direction = (1,0)
-      else:                                              # left
-        self.flight_info.direction = (-1,0)
+
+    axis = 1 if current_tile[0] == destination_tile_coords[0] else 0
+
+    self.flight_info.total_distance_to_travel = abs(current_tile[axis] - destination_tile_coords[axis])
+    self.flight_info.direction = [0,0]
+    self.flight_info.direction[axis] = -1 if current_tile[axis] > destination_tile_coords[axis] else 1
+    self.flight_info.direction = tuple(self.flight_info.direction)
 
     destination_tile_coords = (destination_tile_coords[0] % GameMap.MAP_WIDTH,destination_tile_coords[1] % GameMap.MAP_HEIGHT)
     self.move_to_tile_center(destination_tile_coords)
