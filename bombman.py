@@ -4469,16 +4469,16 @@ class Renderer(object):
             
       if bomb.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME:
         animation_frame = 0                 # bomb won't pulse if within detonator expiration time
-          
+
     if bomb.movement == Bomb.BOMB_FLYING:
-            
       normalised_distance_travelled = bomb.flight_info.distance_travelled / float(bomb.flight_info.total_distance_to_travel)
             
       helper_offset = -1 * bomb.flight_info.total_distance_to_travel + bomb.flight_info.distance_travelled
             
-      relative_offset[0] = int(bomb.flight_info.direction[0] * helper_offset * Renderer.MAP_TILE_WIDTH)
-      relative_offset[1] = int(bomb.flight_info.direction[1] * helper_offset * Renderer.MAP_TILE_HALF_HEIGHT)
-            
+      relative_offset = [
+        int(bomb.flight_info.direction[0] * helper_offset * Renderer.MAP_TILE_WIDTH),
+        int(bomb.flight_info.direction[1] * helper_offset * Renderer.MAP_TILE_HALF_HEIGHT)]
+
       relative_offset[1] -= int(math.sin(normalised_distance_travelled * math.pi) * bomb.flight_info.total_distance_to_travel * Renderer.MAP_TILE_HEIGHT / 2)  # height in air
           
     image_to_render = self.bomb_images[animation_frame]
@@ -4544,7 +4544,7 @@ class Renderer(object):
         if object_to_render.get_position()[1] > line_number + 1:
           break
         
-        if isinstance(object_to_render,Player):    # <= not very nice, maybe fix this later
+        if isinstance(object_to_render,Player):
           image_to_render, sprite_center, relative_offset, draw_shadow, overlay_images = self.__get_player_render_info(object_to_render, map_to_render)
         else:                                      # bomb
           image_to_render, sprite_center, relative_offset, draw_shadow, overlay_images = self.__get_bomb_render_info(object_to_render, map_to_render)
@@ -4555,8 +4555,11 @@ class Renderer(object):
 
         if draw_shadow:
           render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
-          render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0] + self.map_render_location[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + self.map_render_location[1])
-          result.blit(self.other_images["shadow"],(render_position[0],render_position[1]))
+          render_position = (
+            (render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0] + self.map_render_location[0],
+            render_position[1] + Renderer.MAP_BORDER_WIDTH + self.map_render_location[1])
+
+          result.blit(self.other_images["shadow"],render_position)
         
         render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),sprite_center)
         render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0] + self.map_render_location[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + relative_offset[1] + self.map_render_location[1])
@@ -4579,9 +4582,8 @@ class Renderer(object):
           elif tile.item != None:
             result.blit(self.item_images[tile.item],(x,y))
 
-        if len(tile.flames) != 0: # there is at least one flame - draw it
+        if len(tile.flames) != 0:             # if there is at least one flame, draw it
           sprite_name = tile.flames[0].direction
-
           result.blit(self.flame_images[flame_animation_frame][sprite_name],(x,y))
 
       # for debug: uncomment this to see danger values on the map
@@ -4691,14 +4693,8 @@ class AI(object):
   def decide_general_direction(self):
     players = self.game_map.get_players()
     
-    enemy_player = self.player
-    
-    for player in players:
-      if player == self.player or not player.is_enemy(self.player) or player.is_dead():
-        continue
-      
-      enemy_player = player
-      break
+    enemy_players = filter(lambda p: p.is_enemy(self.player) and not p.is_dead(), players)
+    enemy_player = enemy_players[0] if len(enemy_players) > 0 else self.player
             
     my_tile_position = self.player.get_tile_position()
     another_player_tile_position = enemy_player.get_tile_position()
@@ -5638,11 +5634,17 @@ class Game(object):
 
   ## Sets up a test game for debugging, so that the menus can be avoided.
  
-  def setup_test_game(self):
-    self.map_name = "classic"
-    self.random_map_selection = False
-    self.game_number = 1
-    self.state = Game.STATE_GAME_STARTED
+  def setup_test_game(self, setup_number = 0):
+    if setup_number == 0:
+      self.map_name = "classic"
+      self.random_map_selection = False
+      self.game_number = 1
+      self.state = Game.STATE_GAME_STARTED
+    else:
+      self.play_setup.player_slots = [(-1,i) for i in range(10)]
+      self.random_map_selection = True
+      self.game_number = 1
+      self.state = Game.STATE_GAME_STARTED      
 
 #==============================================================================
     
@@ -5650,7 +5652,10 @@ if __name__ == "__main__":
   profiler = Profiler()   # profiler object is global, for simple access
   game = Game()
 
-  if len(sys.argv) > 1 and "--test" in sys.argv:       # allows to quickly init a game
-    game.setup_test_game()
+  if len(sys.argv) > 1: 
+    if "--test" in sys.argv:       # allows to quickly init a game
+      game.setup_test_game(0)
+    elif "--test2" in sys.argv:
+      game.setup_test_game(1)
 
   game.run()
