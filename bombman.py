@@ -345,6 +345,11 @@ class Player(Positionable):
 
   #----------------------------------------------------------------------------
     
+  def is_walking(self):
+    return self.state in [Player.STATE_WALKING_UP,Player.STATE_WALKING_RIGHT,Player.STATE_WALKING_DOWN,Player.STATE_WALKING_LEFT]
+
+  #----------------------------------------------------------------------------
+    
   def is_boxing(self):
     return self.boxing
 
@@ -4429,33 +4434,18 @@ class Renderer(object):
         helper_string = ""
       else:
         helper_string = "box "
-            
-      if player.get_state() == Player.STATE_IDLE_UP or player.get_state() == Player.STATE_WALKING_UP:
-        image_to_render = self.player_images[color_index][helper_string + "up"]
-      elif player.get_state() == Player.STATE_IDLE_RIGHT or player.get_state() == Player.STATE_WALKING_RIGHT:
-        image_to_render = self.player_images[color_index][helper_string + "right"]
-      elif player.get_state() == Player.STATE_IDLE_DOWN or player.get_state() == Player.STATE_WALKING_DOWN:
-        image_to_render = self.player_images[color_index][helper_string + "down"]
-      else:      # left
-        image_to_render = self.player_images[color_index][helper_string + "left"]
+
+      helper_string += ("up","right","down","left")[player.get_direction_number()]
+
+      image_to_render = self.player_images[color_index][helper_string]
     else:
-      if player.get_state() == Player.STATE_IDLE_UP:
-        image_to_render = self.player_images[color_index]["up"]
-      elif player.get_state() == Player.STATE_IDLE_RIGHT:
-        image_to_render = self.player_images[color_index]["right"]
-      elif player.get_state() == Player.STATE_IDLE_DOWN:
-        image_to_render = self.player_images[color_index]["down"]
-      elif player.get_state() == Player.STATE_IDLE_LEFT:
-        image_to_render = self.player_images[color_index]["left"]
-      elif player.get_state() == Player.STATE_WALKING_UP:
-        image_to_render = self.player_images[color_index]["walk up"][animation_frame]
-      elif player.get_state() == Player.STATE_WALKING_RIGHT:
-        image_to_render = self.player_images[color_index]["walk right"][animation_frame]
-      elif player.get_state() == Player.STATE_WALKING_DOWN:
-        image_to_render = self.player_images[color_index]["walk down"][animation_frame]
-      else: # Player.STATE_WALKING_LEFT
-        image_to_render = self.player_images[color_index]["walk left"][animation_frame]
-        
+      helper_string = ("up","right","down","left")[player.get_direction_number()]
+
+      if player.is_walking():
+        image_to_render = self.player_images[color_index]["walk " + helper_string][animation_frame]
+      else:
+        image_to_render = self.player_images[color_index][helper_string]
+
     if player.get_disease() != Player.DISEASE_NONE:
       overlay_images.append(self.other_images["disease"][animation_frame % 2]) 
 
