@@ -1136,6 +1136,9 @@ class MapTile(object):
     self.special_object = None       ##< special object present on the tile, like trampoline or teleport
     self.destination_teleport = None ##< in case of special_object equal to SPECIAL_OBJECT_TELEPORT_A or SPECIAL_OBJECT_TELEPORT_B holds the destionation teleport tile coordinates
 
+  def shouldnt_walk(self):
+    return self.kind in [MapTile.TILE_WALL,MapTile.TILE_BLOCK] or len(self.flames) >= 1 or self.special_object == MapTile.SPECIAL_OBJECT_LAVA
+
 #==============================================================================
 
 ## Holds and manipulates the map data including the players, bombs etc.
@@ -1400,14 +1403,8 @@ class GameMap(object):
   #----------------------------------------------------------------------------
   
   def update_danger_map(self):
-    for j in range(GameMap.MAP_HEIGHT):  # reset
-      for i in range(GameMap.MAP_WIDTH):
-        tile = self.tiles[j][i]
-        
-        if tile.kind == MapTile.TILE_WALL or tile.kind == MapTile.TILE_BLOCK or len(tile.flames) >= 1 or self.tiles[j][i].special_object == MapTile.SPECIAL_OBJECT_LAVA:
-          self.danger_map[j][i] = 0      # 0 => there is a flame
-        else:
-          self.danger_map[j][i] = GameMap.SAFE_DANGER_VALUE
+    # reset the map:
+    self.danger_map = [map(lambda tile: 0 if tile.shouldnt_walk() else GameMap.SAFE_DANGER_VALUE, tile_row) for tile_row in self.tiles]
 
     for bomb in self.bombs:
       bomb_tile = bomb.get_tile_position()
@@ -4581,8 +4578,8 @@ class Renderer(object):
 
           result.blit(self.flame_images[flame_animation_frame][sprite_name],(x,y))
 
-        # for debug: uncomment this to see danger values on the map
-        # pygame.draw.rect(result,(int((1 - map_to_render.get_danger_value(tile.coordinates) / float(GameMap.SAFE_DANGER_VALUE)) * 255.0),0,0),pygame.Rect(x + 10,y + 10,30,30))
+      # for debug: uncomment this to see danger values on the map
+      # pygame.draw.rect(result,(int((1 - map_to_render.get_danger_value(tile.coordinates) / float(GameMap.SAFE_DANGER_VALUE)) * 255.0),0,0),pygame.Rect(x + 10,y + 10,30,30))
 
         x -= Renderer.MAP_TILE_WIDTH
   
