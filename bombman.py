@@ -4389,6 +4389,130 @@ class Renderer(object):
 
   #----------------------------------------------------------------------------
 
+  ##< Gets an info about how given player whould be rendered in format (image to render, sprite center, relative pixel offset, draw_shadow, overlay images).
+
+  def __get_player_render_info(self, player, game_map):
+    profiler.measure_start("map rend. player")
+
+    draw_shadow = True
+    relative_offset = [0,0]
+    overlay_images = []
+
+    if player.is_dead():
+      profiler.measure_stop("map rend. player")
+      return (None, (0,0), (0,0), False, [])
+        
+    sprite_center = Renderer.PLAYER_SPRITE_CENTER
+          
+    animation_frame = (player.get_state_time() / 100) % 4
+          
+    color_index = player.get_number() if game_map.get_state() == GameMap.STATE_WAITING_TO_PLAY else player.get_team_number()          
+
+    if player.is_in_air():
+      # player is in the air
+         
+      if player.get_state_time() < Player.JUMP_DURATION / 2:
+        quotient = abs(player.get_state_time() / float(Player.JUMP_DURATION / 2))
+      else:
+        quotient = 2.0 - abs(player.get_state_time() / float(Player.JUMP_DURATION / 2))
+              
+      scale = (1 + 0.5 * quotient)
+              
+      player_image = self.player_images[color_index]["down"]
+      image_to_render = pygame.transform.scale(player_image,(int(scale * player_image.get_size()[0]),int(scale * player_image.get_size()[1])))
+      draw_shadow = False
+              
+      relative_offset[0] = -1 * (image_to_render.get_size()[0] / 2 - Renderer.PLAYER_SPRITE_CENTER[0])               # offset cause by scale  
+      relative_offset[1] = -1 * int(math.sin(quotient * math.pi / 2.0) * Renderer.MAP_TILE_HEIGHT * GameMap.MAP_HEIGHT)  # height offset
+    elif player.is_teleporting():
+            
+      if animation_frame == 0:
+        image_to_render = self.player_images[color_index]["up"]  
+      elif animation_frame == 1:
+        image_to_render = self.player_images[color_index]["right"]  
+      elif animation_frame == 2:
+        image_to_render = self.player_images[color_index]["down"]  
+      else:
+        image_to_render = self.player_images[color_index]["left"]  
+            
+    elif player.is_boxing() or player.is_throwing():
+      if not player.is_throwing() and animation_frame == 0:
+        helper_string = ""
+      else:
+        helper_string = "box "
+            
+      if player.get_state() == Player.STATE_IDLE_UP or player.get_state() == Player.STATE_WALKING_UP:
+        image_to_render = self.player_images[color_index][helper_string + "up"]
+      elif player.get_state() == Player.STATE_IDLE_RIGHT or player.get_state() == Player.STATE_WALKING_RIGHT:
+        image_to_render = self.player_images[color_index][helper_string + "right"]
+      elif player.get_state() == Player.STATE_IDLE_DOWN or player.get_state() == Player.STATE_WALKING_DOWN:
+        image_to_render = self.player_images[color_index][helper_string + "down"]
+      else:      # left
+        image_to_render = self.player_images[color_index][helper_string + "left"]
+    else:
+      if player.get_state() == Player.STATE_IDLE_UP:
+        image_to_render = self.player_images[color_index]["up"]
+      elif player.get_state() == Player.STATE_IDLE_RIGHT:
+        image_to_render = self.player_images[color_index]["right"]
+      elif player.get_state() == Player.STATE_IDLE_DOWN:
+        image_to_render = self.player_images[color_index]["down"]
+      elif player.get_state() == Player.STATE_IDLE_LEFT:
+        image_to_render = self.player_images[color_index]["left"]
+      elif player.get_state() == Player.STATE_WALKING_UP:
+        image_to_render = self.player_images[color_index]["walk up"][animation_frame]
+      elif player.get_state() == Player.STATE_WALKING_RIGHT:
+        image_to_render = self.player_images[color_index]["walk right"][animation_frame]
+      elif player.get_state() == Player.STATE_WALKING_DOWN:
+        image_to_render = self.player_images[color_index]["walk down"][animation_frame]
+      else: # Player.STATE_WALKING_LEFT
+        image_to_render = self.player_images[color_index]["walk left"][animation_frame]
+        
+    if player.get_disease() != Player.DISEASE_NONE:
+      overlay_images.append(self.other_images["disease"][animation_frame % 2]) 
+
+    profiler.measure_stop("map rend. player") 
+
+    return (image_to_render,sprite_center,relative_offset,draw_shadow,overlay_images)
+
+  #----------------------------------------------------------------------------
+
+  ##< Same as __get_player_render_info, but for bombs.
+
+  def __get_bomb_render_info(self, bomb, game_map):
+    profiler.measure_start("map rend. bomb")
+    sprite_center = Renderer.BOMB_SPRITE_CENTER
+    animation_frame = (bomb.time_of_existence / 100) % 4
+    relative_offset = [0,0]   
+    overlay_images = []      
+
+    if bomb.has_detonator():
+      overlay_images.append(self.other_images["antena"])
+            
+      if bomb.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME:
+        animation_frame = 0                 # bomb won't pulse if within detonator expiration time
+          
+    if bomb.movement == Bomb.BOMB_FLYING:
+            
+      normalised_distance_travelled = bomb.flight_info.distance_travelled / float(bomb.flight_info.total_distance_to_travel)
+            
+      helper_offset = -1 * bomb.flight_info.total_distance_to_travel + bomb.flight_info.distance_travelled
+            
+      relative_offset[0] = int(bomb.flight_info.direction[0] * helper_offset * Renderer.MAP_TILE_WIDTH)
+      relative_offset[1] = int(bomb.flight_info.direction[1] * helper_offset * Renderer.MAP_TILE_HALF_HEIGHT)
+            
+      relative_offset[1] -= int(math.sin(normalised_distance_travelled * math.pi) * bomb.flight_info.total_distance_to_travel * Renderer.MAP_TILE_HEIGHT / 2)  # height in air
+          
+    image_to_render = self.bomb_images[animation_frame]
+          
+    if bomb.has_spring:
+      overlay_images.append(self.other_images["spring"])
+        
+    profiler.measure_stop("map rend. bomb")
+
+    return (image_to_render,sprite_center,relative_offset,True,overlay_images)
+
+  #----------------------------------------------------------------------------
+
   def render_map(self, map_to_render):
     result = pygame.Surface(self.screen_resolution)
     
@@ -4441,116 +4565,15 @@ class Renderer(object):
         if object_to_render.get_position()[1] > line_number + 1:
           break
         
-        overlay_images = []        # images that should additionaly be rendered over image_to_render
-        draw_shadow = True
-        
-        relative_offset = [0,0]    # to relatively shift images by given offset
-        
         if isinstance(object_to_render,Player):    # <= not very nice, maybe fix this later
-          profiler.measure_start("map rend. player")
+          image_to_render, sprite_center, relative_offset, draw_shadow, overlay_images = self.__get_player_render_info(object_to_render, map_to_render)
+        else:                                      # bomb
+          image_to_render, sprite_center, relative_offset, draw_shadow, overlay_images = self.__get_bomb_render_info(object_to_render, map_to_render)
+        
+        if image_to_render == None:
+          object_to_render_index += 1
+          continue
 
-          if object_to_render.is_dead():
-            object_to_render_index += 1
-            profiler.measure_stop("map rend. player")
-            continue
-          
-          sprite_center = Renderer.PLAYER_SPRITE_CENTER
-          
-          animation_frame = (object_to_render.get_state_time() / 100) % 4
-          
-          color_index = object_to_render.get_number() if map_to_render.get_state() == GameMap.STATE_WAITING_TO_PLAY else object_to_render.get_team_number()
-          
-          if object_to_render.is_in_air():
-            # player is in the air
-          
-            if object_to_render.get_state_time() < Player.JUMP_DURATION / 2:
-              quotient = abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
-            else:
-              quotient = 2.0 - abs(object_to_render.get_state_time() / float(Player.JUMP_DURATION / 2))
-              
-            scale = (1 + 0.5 * quotient)
-              
-            player_image = self.player_images[color_index]["down"]
-            image_to_render = pygame.transform.scale(player_image,(int(scale * player_image.get_size()[0]),int(scale * player_image.get_size()[1])))
-            draw_shadow = False
-              
-            relative_offset[0] = -1 * (image_to_render.get_size()[0] / 2 - Renderer.PLAYER_SPRITE_CENTER[0])               # offset cause by scale  
-            relative_offset[1] = -1 * int(math.sin(quotient * math.pi / 2.0) * Renderer.MAP_TILE_HEIGHT * GameMap.MAP_HEIGHT)  # height offset
-          elif object_to_render.is_teleporting():
-            
-            if animation_frame == 0:
-              image_to_render = self.player_images[color_index]["up"]  
-            elif animation_frame == 1:
-              image_to_render = self.player_images[color_index]["right"]  
-            elif animation_frame == 2:
-              image_to_render = self.player_images[color_index]["down"]  
-            else:
-              image_to_render = self.player_images[color_index]["left"]  
-            
-          elif object_to_render.is_boxing() or object_to_render.is_throwing():
-            if not object_to_render.is_throwing() and animation_frame == 0:
-              helper_string = ""
-            else:
-              helper_string = "box "
-            
-            if object_to_render.get_state() == Player.STATE_IDLE_UP or object_to_render.get_state() == Player.STATE_WALKING_UP:
-              image_to_render = self.player_images[color_index][helper_string + "up"]
-            elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT or object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
-              image_to_render = self.player_images[color_index][helper_string + "right"]
-            elif object_to_render.get_state() == Player.STATE_IDLE_DOWN or object_to_render.get_state() == Player.STATE_WALKING_DOWN:
-              image_to_render = self.player_images[color_index][helper_string + "down"]
-            else:      # left
-              image_to_render = self.player_images[color_index][helper_string + "left"]
-          else:
-            if object_to_render.get_state() == Player.STATE_IDLE_UP:
-              image_to_render = self.player_images[color_index]["up"]
-            elif object_to_render.get_state() == Player.STATE_IDLE_RIGHT:
-              image_to_render = self.player_images[color_index]["right"]
-            elif object_to_render.get_state() == Player.STATE_IDLE_DOWN:
-              image_to_render = self.player_images[color_index]["down"]
-            elif object_to_render.get_state() == Player.STATE_IDLE_LEFT:
-              image_to_render = self.player_images[color_index]["left"]
-            elif object_to_render.get_state() == Player.STATE_WALKING_UP:
-              image_to_render = self.player_images[color_index]["walk up"][animation_frame]
-            elif object_to_render.get_state() == Player.STATE_WALKING_RIGHT:
-              image_to_render = self.player_images[color_index]["walk right"][animation_frame]
-            elif object_to_render.get_state() == Player.STATE_WALKING_DOWN:
-              image_to_render = self.player_images[color_index]["walk down"][animation_frame]
-            else: # Player.STATE_WALKING_LEFT
-              image_to_render = self.player_images[color_index]["walk left"][animation_frame]
-        
-          if object_to_render.get_disease() != Player.DISEASE_NONE:
-            overlay_images.append(self.other_images["disease"][animation_frame % 2]) 
-          profiler.measure_stop("map rend. player")
-        else:    # bomb
-          profiler.measure_start("map rend. bomb")
-          sprite_center = Renderer.BOMB_SPRITE_CENTER
-          animation_frame = (object_to_render.time_of_existence / 100) % 4
-         
-          if object_to_render.has_detonator():
-            overlay_images.append(self.other_images["antena"])
-            
-            if object_to_render.time_of_existence < Bomb.DETONATOR_EXPIRATION_TIME:
-              animation_frame = 0                 # bomb won't pulse if within detonator expiration time
-          
-          if object_to_render.movement == Bomb.BOMB_FLYING:
-            
-            normalised_distance_travelled = object_to_render.flight_info.distance_travelled / float(object_to_render.flight_info.total_distance_to_travel)
-            
-            helper_offset = -1 * object_to_render.flight_info.total_distance_to_travel + object_to_render.flight_info.distance_travelled
-            
-            relative_offset[0] = int(object_to_render.flight_info.direction[0] * helper_offset * Renderer.MAP_TILE_WIDTH)
-            relative_offset[1] = int(object_to_render.flight_info.direction[1] * helper_offset * Renderer.MAP_TILE_HALF_HEIGHT)
-            
-            relative_offset[1] -= int(math.sin(normalised_distance_travelled * math.pi) * object_to_render.flight_info.total_distance_to_travel * Renderer.MAP_TILE_HEIGHT / 2)  # height in air
-          
-          image_to_render = self.bomb_images[animation_frame]
-          
-          if object_to_render.has_spring:
-            overlay_images.append(self.other_images["spring"])
-        
-          profiler.measure_stop("map rend. bomb")
-        
         if draw_shadow:
           render_position = self.tile_position_to_pixel_position(object_to_render.get_position(),Renderer.SHADOW_SPRITE_CENTER)
           render_position = ((render_position[0] + Renderer.MAP_BORDER_WIDTH + relative_offset[0]) % self.prerendered_map_background.get_size()[0] + self.map_render_location[0],render_position[1] + Renderer.MAP_BORDER_WIDTH + self.map_render_location[1])
