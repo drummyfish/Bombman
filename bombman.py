@@ -4341,6 +4341,54 @@ class Renderer(object):
 
   #----------------------------------------------------------------------------
 
+  def __prerender_map(self, map_to_render):
+    self.animation_events = []                  # clear previous animation
+
+    debug_log("prerendering map...")
+
+    # following images are only needed here, so we dont store them to self
+    image_trampoline = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_trampoline.png"))
+    image_teleport = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_teleport.png"))
+    image_arrow_up = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_up.png"))
+    image_arrow_right = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_right.png"))
+    image_arrow_down = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_down.png"))
+    image_arrow_left = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_left.png"))
+    image_lava = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_lava.png"))
+    image_background = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_map_background.png"))
+
+    self.prerendered_map_background.blit(image_background,(0,0))
+
+    for j in range(GameMap.MAP_HEIGHT):
+      for i in range(GameMap.MAP_WIDTH):
+        render_position = (i * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH,j * Renderer.MAP_TILE_HEIGHT + + Renderer.MAP_BORDER_WIDTH)          
+        self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],render_position)
+       
+        tile = map_to_render.get_tile_at((i,j))
+          
+        helper_mapping = {
+            MapTile.SPECIAL_OBJECT_TELEPORT_A: image_teleport,
+            MapTile.SPECIAL_OBJECT_TELEPORT_B: image_teleport,
+            MapTile.SPECIAL_OBJECT_TRAMPOLINE: image_trampoline,
+            MapTile.SPECIAL_OBJECT_ARROW_UP: image_arrow_up,
+            MapTile.SPECIAL_OBJECT_ARROW_RIGHT: image_arrow_right,
+            MapTile.SPECIAL_OBJECT_ARROW_DOWN: image_arrow_down,
+            MapTile.SPECIAL_OBJECT_ARROW_LEFT: image_arrow_left,
+            MapTile.SPECIAL_OBJECT_LAVA: image_lava
+          }
+
+        if tile.special_object in helper_mapping:
+          self.prerendered_map_background.blit(helper_mapping[tile.special_object],render_position)
+    
+    game_info = map_to_render.get_game_number_info()    
+      
+    game_info_text = self.render_text(self.font_small,"game " + str(game_info[0]) + " of " + str(game_info[1]),(255,255,255))
+
+    self.prerendered_map_background.blit(game_info_text,((self.prerendered_map_background.get_size()[0] - game_info_text.get_size()[0]) / 2,self.prerendered_map_background.get_size()[1] - game_info_text.get_size()[1]))
+
+    self.prerendered_map = map_to_render
+
+  #----------------------------------------------------------------------------
+
   def render_map(self, map_to_render):
     result = pygame.Surface(self.screen_resolution)
     
@@ -4352,51 +4400,7 @@ class Renderer(object):
     self.update_info_boards(map_to_render.get_players())
   
     if map_to_render != self.prerendered_map:     # first time rendering this map, prerender some stuff
-      self.animation_events = []                  # clear previous animation
-
-      debug_log("prerendering map...")
-
-      # following images are only needed here, so we dont store them to self
-      image_trampoline = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_trampoline.png"))
-      image_teleport = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_teleport.png"))
-      image_arrow_up = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_up.png"))
-      image_arrow_right = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_right.png"))
-      image_arrow_down = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_down.png"))
-      image_arrow_left = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_arrow_left.png"))
-      image_lava = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_lava.png"))
-      image_background = pygame.image.load(os.path.join(Game.RESOURCE_PATH,"other_map_background.png"))
-
-      self.prerendered_map_background.blit(image_background,(0,0))
-
-      for j in range(GameMap.MAP_HEIGHT):
-        for i in range(GameMap.MAP_WIDTH):
-          render_position = (i * Renderer.MAP_TILE_WIDTH + Renderer.MAP_BORDER_WIDTH,j * Renderer.MAP_TILE_HEIGHT + + Renderer.MAP_BORDER_WIDTH)          
-          self.prerendered_map_background.blit(self.environment_images[map_to_render.get_environment_name()][0],render_position)
-       
-          tile = map_to_render.get_tile_at((i,j))
-          
-          if tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_A or tile.special_object == MapTile.SPECIAL_OBJECT_TELEPORT_B:
-            self.prerendered_map_background.blit(image_teleport,render_position)
-          elif tile.special_object == MapTile.SPECIAL_OBJECT_TRAMPOLINE:
-            self.prerendered_map_background.blit(image_trampoline,render_position)
-          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_UP:
-            self.prerendered_map_background.blit(image_arrow_up,render_position)
-          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_RIGHT:
-            self.prerendered_map_background.blit(image_arrow_right,render_position)
-          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_DOWN:
-            self.prerendered_map_background.blit(image_arrow_down,render_position)
-          elif tile.special_object == MapTile.SPECIAL_OBJECT_ARROW_LEFT:
-            self.prerendered_map_background.blit(image_arrow_left,render_position)
-          elif tile.special_object == MapTile.SPECIAL_OBJECT_LAVA:
-            self.prerendered_map_background.blit(image_lava,render_position)
-    
-      game_info = map_to_render.get_game_number_info()    
-      
-      game_info_text = self.render_text(self.font_small,"game " + str(game_info[0]) + " of " + str(game_info[1]),(255,255,255))
-
-      self.prerendered_map_background.blit(game_info_text,((self.prerendered_map_background.get_size()[0] - game_info_text.get_size()[0]) / 2,self.prerendered_map_background.get_size()[1] - game_info_text.get_size()[1]))
-
-      self.prerendered_map = map_to_render
+      self.__prerender_map(map_to_render)
 
     profiler.measure_start("map rend. backg.")
     result.blit(self.prerendered_map_background,self.map_render_location)
