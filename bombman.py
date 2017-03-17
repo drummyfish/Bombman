@@ -3232,10 +3232,7 @@ class ControlsMenu(Menu):
   #----------------------------------------------------------------------------
 
   def color_key_string(self, key_string):
-    if key_string == "none":
-      return "^#E83535" + key_string
-    
-    return "^#38A8F2" + key_string
+    return "^#38A8F2" + key_string if key_string != "none" else "^#E83535" + key_string
 
   #----------------------------------------------------------------------------
     
@@ -3806,17 +3803,32 @@ class Renderer(object):
 
   #----------------------------------------------------------------------------
 
+  def __render_info_board_item_row(self, x, y, limit, item_type, player, board_image):   
+    item_count = 20 if item_type == GameMap.ITEM_FLAME and player.get_item_count(GameMap.ITEM_SUPERFLAME) >= 1 else player.get_item_count(item_type)
+   
+    for i in range(item_count):
+      if i > limit:
+        break
+        
+      image_to_draw = self.icon_images[item_type]
+        
+      if i == limit and player.get_item_count(item_type) > limit + 1:
+        image_to_draw = self.icon_images["etc"]
+        
+      board_image.blit(image_to_draw,(x,y))
+      x += self.icon_images[item_type].get_size()[0]    
+
+  #----------------------------------------------------------------------------
+
   ## Updates info board images in self.player_info_board_images. This should be called each frame, as
   #  rerendering is done only when needed.
 
   def update_info_boards(self, players):
     for i in range(10):      # for each player number
-      
       update_needed = False
       
       if self.player_info_board_images[i] == None:
         self.player_info_board_images[i] = self.gui_images["info board"].copy()
-        
         update_needed = True
       
       player = None
@@ -3842,97 +3854,39 @@ class Renderer(object):
       board_image = self.player_info_board_images[i]
       
       board_image.blit(self.gui_images["info board"],(0,0))
-      
       board_image.blit(self.font_small.render(str(player.get_kills()),True,(0,0,0)),(45,0))
       board_image.blit(self.font_small.render(str(player.get_wins()),True,(0,0,0)),(65,0))
-      
       board_image.blit(self.font_small.render(Game.COLOR_NAMES[i],True,Renderer.darken_color(Renderer.COLOR_RGB_VALUES[i],100)),(4,2))
       
       if player.is_dead():
         board_image.blit(self.gui_images["out"],(15,34))
         continue
       
-      x = 5
-      y = 20
-      limit = 5
-      
-      for i in range(player.get_item_count(GameMap.ITEM_BOMB)):
-        if i > limit:
-          break
-        
-        image_to_draw = self.icon_images[GameMap.ITEM_BOMB]
-        
-        if i == limit and player.get_item_count(GameMap.ITEM_BOMB) > limit + 1:
-          image_to_draw = self.icon_images["etc"]
-        
-        board_image.blit(image_to_draw,(x,y))
-        x += self.icon_images[GameMap.ITEM_BOMB].get_size()[0]
-        
-      x = 5
-      y = 32
-      limit = 5
-      
-      flame_count = player.get_item_count(GameMap.ITEM_FLAME) if player.get_item_count(GameMap.ITEM_SUPERFLAME) < 1 else 20
-      
-      for i in range(flame_count):  
-        if i > limit:
-          break
-        
-        image_to_draw = self.icon_images[GameMap.ITEM_FLAME]
-        
-        if i == limit and flame_count > limit + 1:
-          image_to_draw = self.icon_images["etc"]
-        
-        board_image.blit(image_to_draw,(x,y))
-        x += self.icon_images[GameMap.ITEM_FLAME].get_size()[0] + 1
+      # render items
 
       x = 5
-      y = 44
-      limit = 9
-      
-      for i in range(player.get_item_count(GameMap.ITEM_SPEEDUP)):
-        if i > limit:
-          break
-        
-        image_to_draw = self.icon_images[GameMap.ITEM_SPEEDUP]
-        
-        if i == limit and player.get_item_count(GameMap.ITEM_SPEEDUP) > limit + 1:
-          image_to_draw = self.icon_images["etc"]
-        
-        board_image.blit(image_to_draw,(x,y))
-        x += self.icon_images[GameMap.ITEM_SPEEDUP].get_size()[0] - 1
+      dy = 12
 
-      x = 5
-      y = 56
-      
-      if player.has_kicking_shoe():
-        board_image.blit(self.icon_images[GameMap.ITEM_SHOE],(x,y))
-        x += self.icon_images[GameMap.ITEM_SHOE].get_size()[0] + 1
-        
-      if player.can_box():
-        board_image.blit(self.icon_images[GameMap.ITEM_BOXING_GLOVE],(x,y))
-        x += self.icon_images[GameMap.ITEM_BOXING_GLOVE].get_size()[0] + 1
-        
-      if player.can_throw():
-        board_image.blit(self.icon_images[GameMap.ITEM_THROWING_GLOVE],(x,y))
-        x += self.icon_images[GameMap.ITEM_THROWING_GLOVE].get_size()[0] + 1
-        
-      if player.get_item_count(GameMap.ITEM_SPRING) > 0:
-        board_image.blit(self.icon_images[GameMap.ITEM_SPRING],(x,y))
-        x += self.icon_images[GameMap.ITEM_SPRING].get_size()[0] + 1
-        
-      if player.get_item_count(GameMap.ITEM_MULTIBOMB) > 0:
-        board_image.blit(self.icon_images[GameMap.ITEM_MULTIBOMB],(x,y))
-        x += self.icon_images[GameMap.ITEM_MULTIBOMB].get_size()[0] + 1
-        
-      if player.detonator_is_active():
-        board_image.blit(self.icon_images[GameMap.ITEM_DETONATOR],(x,y))
-        x += self.icon_images[GameMap.ITEM_DETONATOR].get_size()[0] + 1
-        
-      if player.get_disease() != Player.DISEASE_NONE:
-        board_image.blit(self.icon_images[GameMap.ITEM_DISEASE],(x,y))
-        x += self.icon_images[GameMap.ITEM_DISEASE].get_size()[0] + 1
+      self.__render_info_board_item_row(x,20,5,GameMap.ITEM_BOMB,player,board_image)
+      self.__render_info_board_item_row(x,20 + dy,5,GameMap.ITEM_FLAME,player,board_image)
+      self.__render_info_board_item_row(x,20 + 2 * dy,9,GameMap.ITEM_SPEEDUP,player,board_image)
 
+      y = 20 + 3 * dy
+
+      items_to_check = [
+        GameMap.ITEM_SHOE,
+        GameMap.ITEM_BOXING_GLOVE,
+        GameMap.ITEM_THROWING_GLOVE,
+        GameMap.ITEM_SPRING,
+        GameMap.ITEM_MULTIBOMB,
+        GameMap.ITEM_DETONATOR,
+        GameMap.ITEM_DISEASE]
+      
+      for item in items_to_check:
+        if player.get_item_count(item) or item == GameMap.ITEM_DISEASE and player.get_disease() != Player.DISEASE_NONE:
+          board_image.blit(self.icon_images[item],(x,y))
+          x += self.icon_images[item].get_size()[0] + 1
+ 
   #----------------------------------------------------------------------------
 
   def process_animation_events(self, animation_event_list):
