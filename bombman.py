@@ -82,6 +82,7 @@ import os
 import math
 import copy
 import random
+import re
 import time
 
 DEBUG_PROFILING = False
@@ -3895,14 +3896,13 @@ class Renderer(object):
 
   #----------------------------------------------------------------------------
 
-  ## Renders text with borders, line breaks, formatting, etc.
+  ## Renders text with outline, line breaks, formatting, etc.
 
-  def render_text(self, font, text_to_render, color, border_color = (0,0,0), center = False):
+  def render_text(self, font, text_to_render, color, outline_color = (0,0,0), center = False):
     text_lines = text_to_render.split("\n")
     rendered_lines = []
     
-    height = 0 
-    width = 0
+    width = height = 0
     
     first_line = True
     
@@ -3912,46 +3912,28 @@ class Renderer(object):
       if len(line) == 0:
         continue
       
-      line_split = line.split("^")
-      
-      line_without_format = line
-      
-      i = 0
-      c = 0
-      while i < len(line_without_format):
-        c += 1
-        
-        if c > 100:
-          break
-        
-        if line_without_format[i] == "^":
-          line_without_format = line_without_format[:i] + line_without_format[i + 8:]
-        else:
-          i += 1
-      
+      line_without_format = re.sub(r"\^.......","",line)     # remove all the markup in format ^#dddddd
+
       new_rendered_line = pygame.Surface(font.size(line_without_format),flags=pygame.SRCALPHA)
       
       x = 0
       first = True
       starts_with_format = line[0] == "^"
  
-      for subline in line_split:
+      for subline in line.split("^"):
         if len(subline) == 0:
           continue
         
-        if first:
-          has_format = starts_with_format
-          first = False
-        else:
-          has_format = True
-        
+        has_format = starts_with_format if first else True
+        first = False
+
         text_color = color
         
         if has_format:
           text_color = pygame.Color(subline[:7])
           subline = subline[7:]
         
-        new_rendered_subline = font.render(subline,True,border_color)   # create text with borders
+        new_rendered_subline = font.render(subline,True,outline_color)   # create text with outline
         new_rendered_subline.blit(new_rendered_subline,(0,2))
         new_rendered_subline.blit(new_rendered_subline,(1,0))
         new_rendered_subline.blit(new_rendered_subline,(-1,0))
@@ -3963,11 +3945,11 @@ class Renderer(object):
         
       rendered_lines.append(new_rendered_line)
 
-      if first_line:
-        first_line = False
-      else:
+      if not first_line:
         height += Renderer.MENU_LINE_SPACING
       
+      first_line = False
+
       height += rendered_lines[-1].get_size()[1]
       width = max(width,rendered_lines[-1].get_size()[0])
     
