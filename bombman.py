@@ -824,15 +824,13 @@ class Player(Positionable):
     if collision_happened: 
       bomb_movement = Bomb.BOMB_NO_MOVEMENT
     
-      if self.state == Player.STATE_WALKING_UP:
-        bomb_movement = Bomb.BOMB_ROLLING_UP
-      elif self.state == Player.STATE_WALKING_RIGHT:
-        bomb_movement = Bomb.BOMB_ROLLING_RIGHT
-      elif self.state == Player.STATE_WALKING_DOWN:
-        bomb_movement = Bomb.BOMB_ROLLING_DOWN
-      else:
-        bomb_movement = Bomb.BOMB_ROLLING_LEFT
-    
+      bomb_movement = {
+        Player.STATE_WALKING_UP:    Bomb.BOMB_ROLLING_UP,
+        Player.STATE_WALKING_RIGHT: Bomb.BOMB_ROLLING_RIGHT,
+        Player.STATE_WALKING_DOWN:  Bomb.BOMB_ROLLING_DOWN,
+        Player.STATE_WALKING_LEFT:  Bomb.BOMB_ROLLING_LEFT
+        }[self.state]  
+
       direction_vector = self.get_direction_vector()
       forward_tile = self.get_forward_tile_position()
 
@@ -893,25 +891,17 @@ class Player(Positionable):
     if self.state == Player.STATE_DEAD or game_map.get_state() == GameMap.STATE_WAITING_TO_PLAY:
       return
     
-    if self.state == Player.STATE_IN_AIR:
+    if self.state in [Player.STATE_IN_AIR,Player.STATE_TELEPORTING]:
       self.state_time += dt
-      
-      if self.state_time >= Player.JUMP_DURATION:
-        self.state = self.state_backup
-        self.state_time = 0
-        self.teleporting_to = None
-      else:
-        return
-    elif self.state == Player.STATE_TELEPORTING:
-      self.state_time += dt
-      
-      if self.state_time >= Player.TELEPORT_DURATION:
+
+      if self.state_time >= (Player.JUMP_DURATION if self.state == Player.STATE_IN_AIR else Player.TELEPORT_DURATION):
         self.state = self.state_backup
         self.state_time = 0
         self.jumping_to = None
+        self.teleporting_to = None
       else:
-        return
-    
+        return 
+
     current_speed = self.speed if self.disease != Player.DISEASE_SLOW else Player.SLOW_SPEED
     
     distance_to_travel = dt / 1000.0 * current_speed
