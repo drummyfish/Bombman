@@ -912,11 +912,11 @@ class Player(Positionable):
 
     old_state = self.state
  
-    if self.state in [Player.STATE_WALKING_UP,Player.STATE_IDLE_UP]:
+    if self.state in (Player.STATE_WALKING_UP,Player.STATE_IDLE_UP):
       self.state = Player.STATE_IDLE_UP
-    elif self.state in [Player.STATE_WALKING_RIGHT,Player.STATE_IDLE_RIGHT]:
+    elif self.state in (Player.STATE_WALKING_RIGHT,Player.STATE_IDLE_RIGHT):
       self.state = Player.STATE_IDLE_RIGHT
-    elif self.state in [Player.STATE_WALKING_DOWN,Player.STATE_IDLE_DOWN]:
+    elif self.state in (Player.STATE_WALKING_DOWN,Player.STATE_IDLE_DOWN):
       self.state = Player.STATE_IDLE_DOWN
     else:
       self.state = Player.STATE_IDLE_LEFT
@@ -1557,7 +1557,7 @@ class GameMap(object):
 
   #----------------------------------------------------------------------------
 
-  ## Gets a collision type (see class constants) for give float position.
+  ## Gets a collision type (see class constants) for given float position.
 
   def get_position_collision_type(self, position):
     tile_coordinates = Positionable.position_to_tile(position)
@@ -1640,16 +1640,7 @@ class GameMap(object):
       for direction in (0,1,2,3): # for each direction
         if flame_stop[direction]:  
           if previous_flame[direction] != None:   # flame stopped in previous iteration
-          
-            if direction == 0:
-              previous_flame[direction].direction = "up"
-            elif direction == 1:
-              previous_flame[direction].direction = "right"
-            elif direction == 2:
-              previous_flame[direction].direction = "down"
-            else:
-              previous_flame[direction].direction = "left"
-          
+            previous_flame[direction].direction = {0: "up", 1: "right", 2: "down", 3: "left"}[direction]
             previous_flame[direction] = None
         else:
           if ((increment[direction] == -1 and axis_position[direction] >= map_limit[direction]) or
