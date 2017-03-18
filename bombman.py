@@ -2490,38 +2490,32 @@ class PlayerKeyMaps(StringSerializable):
       
       dx = abs(mouse_position[0] - screen_center[0])
       dy = abs(mouse_position[1] - screen_center[1])
-      
+
       if dx > dy:            # choose the prevelant axis
-        if mouse_position[0] > screen_center[0] + PlayerKeyMaps.MOUSE_CONTROL_BIAS:
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = True
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = False          
-          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
-        elif mouse_position[0] < screen_center[0] - PlayerKeyMaps.MOUSE_CONTROL_BIAS:
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = True
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_RIGHT] = False
-          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_LEFT] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
+        d_value = dx
+        axis = 0
+        axis_forward = PlayerKeyMaps.MOUSE_CONTROL_RIGHT
+        axis_back = PlayerKeyMaps.MOUSE_CONTROL_LEFT
       else:
-        if mouse_position[1] < screen_center[1] - PlayerKeyMaps.MOUSE_CONTROL_BIAS:
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_UP] = True
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = False
-          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_UP] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
-        elif mouse_position[1] > screen_center[1] + PlayerKeyMaps.MOUSE_CONTROL_BIAS:
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = True
-          self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_UP] = False
-          self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_DOWN] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME
-        
-      if pressed[0]:
-        self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L] = current_time
+        axis = 1
+        axis_forward = PlayerKeyMaps.MOUSE_CONTROL_DOWN
+        axis_back = PlayerKeyMaps.MOUSE_CONTROL_UP
+        d_value = dy
+
+      if d_value > PlayerKeyMaps.MOUSE_CONTROL_BIAS:
+        forward = mouse_position[axis] > screen_center[axis]
           
-      if pressed[1]:
-        self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M] = current_time
-      
-      if pressed[2]:
-        self.mouse_control_states[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = True
-        self.mouse_control_keep_until[PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R] = current_time
-      
+        self.mouse_control_states[axis_forward] = forward
+        self.mouse_control_states[axis_back] = not forward          
+        self.mouse_control_keep_until[axis_forward if forward else axis_back] = current_time + PlayerKeyMaps.MOUSE_CONTROL_SMOOTH_OUT_TIME  
+        
+      helper_buttons = (PlayerKeyMaps.MOUSE_CONTROL_BUTTON_L, PlayerKeyMaps.MOUSE_CONTROL_BUTTON_M, PlayerKeyMaps.MOUSE_CONTROL_BUTTON_R)
+
+      for i in range(3):
+        if pressed[i]:
+          self.mouse_control_states[helper_buttons[i]] = True  
+          self.mouse_control_keep_until[helper_buttons[i]] = current_time
+
       pygame.mouse.set_pos(screen_center)
 
     for key_code in self.key_maps:
@@ -5557,9 +5551,14 @@ class Game(object):
       self.random_map_selection = False
       self.game_number = 1
       self.state = Game.STATE_GAME_STARTED
-    else:
+    elif setup_number == 1:
       self.play_setup.player_slots = [(-1,i) for i in range(10)]
       self.random_map_selection = True
+      self.game_number = 1
+      self.state = Game.STATE_GAME_STARTED      
+    else:
+      self.play_setup.player_slots = [(i,i) for i in range(4)]
+      self.map_name = "classic"
       self.game_number = 1
       self.state = Game.STATE_GAME_STARTED      
 
@@ -5574,5 +5573,7 @@ if __name__ == "__main__":
       game.setup_test_game(0)
     elif "--test2" in sys.argv:
       game.setup_test_game(1)
+    elif "--test3" in sys.argv:
+      game.setup_test_game(2)
 
   game.run()
