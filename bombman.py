@@ -5370,7 +5370,7 @@ class Game(object):
     show_fps_in = 0
     pygame_clock = pygame.time.Clock()
 
-    while True:     # main loop
+    while True:                                  # main loop
       profiler.measure_start("main loop")
       
       dt = min(pygame.time.get_ticks() - time_before,100)
@@ -5383,23 +5383,19 @@ class Game(object):
           self.state = Game.STATE_EXIT
         
         pygame_events.append(event)
-        
+
       self.player_key_maps.process_pygame_events(pygame_events,self.frame_number)
 
       if self.state == Game.STATE_PLAYING:
-        self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events())
-        self.sound_player.process_events(self.game_map.get_and_clear_sound_events())  # play sounds
+        self.renderer.process_animation_events(self.game_map.get_and_clear_animation_events()) # play animations
+        self.sound_player.process_events(self.game_map.get_and_clear_sound_events())           # play sounds
         
         profiler.measure_start("map rend.")
-        
         self.screen.blit(self.renderer.render_map(self.game_map),(0,0)) 
-        
         profiler.measure_stop("map rend.")
         
         profiler.measure_start("sim.")
-        
         self.simulation_step(dt)
-        
         profiler.measure_stop("sim.")
         
         if self.game_map.get_state() == GameMap.STATE_GAME_OVER:
@@ -5409,15 +5405,11 @@ class Game(object):
             previous_winner = self.game_map.get_winner_team()
             self.acknowledge_wins(previous_winner,self.game_map.get_players())
             self.menu_results.set_results(self.game_map.get_players())
-            
             self.game_map = None
-            
             self.state = Game.STATE_MENU_RESULTS   # show final results
             self.deactivate_all_cheats()
           else:
             self.state = Game.STATE_GAME_STARTED   # new game
-      elif self.state == Game.STATE_EXIT:
-        break
       elif self.state == Game.STATE_GAME_STARTED:
         debug_log("starting game " + str(self.game_number))
     
@@ -5463,13 +5455,13 @@ class Game(object):
         
         self.sound_player.change_music()
         self.state = Game.STATE_PLAYING
+      elif self.state == Game.STATE_EXIT:
+        break
       else:   # in menu
         self.manage_menus()
         
         profiler.measure_start("menu rend.")
-        
         self.screen.blit(self.renderer.render_menu(self.active_menu,self),(0,0))  
-        
         profiler.measure_stop("menu rend.")
 
       pygame.display.flip()
@@ -5497,16 +5489,8 @@ class Game(object):
   #  human players that are not participating in the game.
 
   def filter_out_disallowed_actions(self, actions):
-    result = []
-    
     player_slots = self.play_setup.get_slots()
-    
-    for item in actions:
-      slot = player_slots[item[0]]
-      
-      if (slot != None and slot[0] >= 0) or (item[1] == PlayerKeyMaps.ACTION_MENU):  # if action belongs to human player
-        result.append(item)
-        
+    result = filter(lambda a: (player_slots[a[0]] != None and player_slots[a[0]] >=0) or (a[1] == PlayerKeyMaps.ACTION_MENU), actions)    
     return result
 
   #----------------------------------------------------------------------------
@@ -5557,7 +5541,7 @@ class Game(object):
       self.game_number = 1
       self.state = Game.STATE_GAME_STARTED      
     else:
-      self.play_setup.player_slots = [(i,i) for i in range(4)]
+      self.play_setup.player_slots = [((i,i) if i < 4 else None) for i in range(10)]
       self.map_name = "classic"
       self.game_number = 1
       self.state = Game.STATE_GAME_STARTED      
