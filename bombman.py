@@ -20,12 +20,6 @@
 #
 # ========================== A FEW COMMENTS ===========================
 #
-# The code and overall design isn't the best I've ever written, but I could
-# have either made a super-clean design, or something that can actually be run,
-# so don't blame me :)
-#
-# ---------------------------------------------------------------------
-#
 # Version numbering system:
 #
 # major.minor
@@ -5230,6 +5224,17 @@ class Game(object):
 
   #----------------------------------------------------------------------------
 
+  def __check_cheat(self, cheat_string, cheat = None):
+    if self.player_key_maps.string_was_typed(cheat_string):
+      if cheat != None:
+        self.activate_cheat(cheat)
+      else:
+        self.deactivate_all_cheats()
+
+      self.player_key_maps.clear_typing_buffer()
+
+  #----------------------------------------------------------------------------
+
   ## Manages the menu actions and sets self.active_menu.
 
   def manage_menus(self):
@@ -5237,20 +5242,11 @@ class Game(object):
     prevent_input_processing = False
     
     # cheack if any cheat was typed:
-    
-    if self.player_key_maps.string_was_typed("party"):
-      self.activate_cheat(game.CHEAT_PARTY)
-      self.player_key_maps.clear_typing_buffer()
-    elif self.player_key_maps.string_was_typed("herecomedatboi"):
-      self.activate_cheat(game.CHEAT_ALL_ITEMS)
-      self.player_key_maps.clear_typing_buffer()
-    elif self.player_key_maps.string_was_typed("leeeroy"):
-      self.activate_cheat(game.CHEAT_PLAYER_IMMORTAL)
-      self.player_key_maps.clear_typing_buffer()
-    elif self.player_key_maps.string_was_typed("revert"):
-      self.deactivate_all_cheats()
-      self.player_key_maps.clear_typing_buffer()
-      
+    self.__check_cheat("party",game.CHEAT_PARTY)
+    self.__check_cheat("herecomedatboi",game.CHEAT_ALL_ITEMS)
+    self.__check_cheat("leeeroy",game.CHEAT_PLAYER_IMMORTAL)
+    self.__check_cheat("revert")
+
     self.player_key_maps.get_current_actions()       # this has to be called in order for player_key_maps to update mouse controls properly
       
     # ================ MAIN MENU =================
@@ -5258,14 +5254,12 @@ class Game(object):
       self.active_menu = self.menu_main
       
       if self.active_menu.get_state() == Menu.MENU_STATE_CONFIRM:
-        if self.active_menu.get_selected_item() == (0,0):
-          new_state = Game.STATE_MENU_PLAY_SETUP
-        elif self.active_menu.get_selected_item() == (1,0):
-          new_state = Game.STATE_MENU_SETTINGS
-        elif self.active_menu.get_selected_item() == (2,0):
-          new_state = Game.STATE_MENU_ABOUT
-        elif self.active_menu.get_selected_item() == (3,0):
-          new_state = Game.STATE_EXIT
+        new_state = [
+          Game.STATE_MENU_PLAY_SETUP,
+          Game.STATE_MENU_SETTINGS,
+          Game.STATE_MENU_ABOUT,
+          Game.STATE_EXIT
+          ] [self.active_menu.get_selected_item()[0]]
 
     # ================ PLAY MENU =================
     elif self.state == Game.STATE_MENU_PLAY:
